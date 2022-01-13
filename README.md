@@ -6,6 +6,8 @@ spaic平台仿真训练平台是针对脉冲神经网络开发的网络构建、
 
 依赖包：pytorch, numpy, 
 
+SPAIC平台的教程文档： https://spaic.readthedocs.io/en/latest/index.html
+
 
 
 # 前端网络建模主要结构模块及函数
