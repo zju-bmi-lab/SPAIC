@@ -1,0 +1,368 @@
+.. SPAIC documentation master file, created by
+   sphinx-quickstart on Fri Nov 12 13:37:53 2021.
+   You can adapt this file completely to your liking, but it should at least
+   contain the root `toctree` directive.
+
+Welcome to SPAIC's documentation!
+#################################################
+
+`SPAIC <https://github.com/hongchaofei/SPAIC>`_ 是一个用于结合神经科学与机器学习的类脑计算框架。\
+
+
+I. 如何安装
+============
+
+
+
+II. 如何从零开始构建一个脉冲神经网络
+====================================
+为了便于用户了解该如何使用SPAIC开展自己的研究工作，我们将以使用STCA学习算法 [#f1]_ 训练识别MNIST数据集\
+的网络作为例子，搭建一个SNN训练网络。
+
+1. 建立一个网络
+---------------------
+网络是SPAIC中最为重要的组成部分，如同整个神经网络的框架部分，所以我们需要首先先建立一个\
+网络，再在这个网络中填充其他的元素，例如神经元和连接。继承 :code:`spaic.Network` 来重新建立一个\
+网络类并实例化：
+
+.. code-block:: python
+
+   class SampleNet(spaic.Nework):
+      def __init__(self):
+         super(SampleNet, self).__init__()
+            ……
+
+   Net = SampleNet()
+
+2. 添加网络组件
+----------------------
+在搭建 :code:`Network` 这个框架时，我们需要在其内部添加神经元和连接这些组件，从而使得这个网络并不是\
+单纯的一张白纸，能够添加的组件包括了输入输出部分的 :code:`Node` 、神经元组的 :code:`layers` 或是称为\
+:code:`NeuronGroups` 、突触连接 :code:`connections` 、监视器 :code:`monitors` 、学习算法 :code:`learners` 。
+
+2.1 创建并添加节点层与神经元组
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+对于一个使用STCA训练识别MNIST数据集的网络而言，我们需要的节点分别是一个input层用于编码并输\
+入数据，一个 :code:`clif` 神经元层用于训练以及一个输出层用于解码脉冲输出。所以我们所添加的就是：
+
+.. code-block:: python
+
+   self.input = spaic.Encoder(num=784, coding_method='poisson')
+   self.layer1 = spaic.NeuronGroup(neuron_num=10, neuron_model='clif')
+   self.output = spaic.Decoder(num=10, dec_target=self.layer1)
+
+.. note::
+
+   这里较为需要注意的是，:code:`output` 层的数量需要与其 :code:`dec_target` 目标层的神经元数量一致。
+
+2.2 建立连接
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+在本示例中，因为网络结构相当简单，所以需要的连接只是一个简单的全连接将输入层与训练层连接到一起。
+
+.. code-block:: python
+
+   self.connection1 = spaic.Connection(self.input, self.layer1, link_type='full')
+
+2.3 添加学习算法与优化算法
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+在本示例中，我们采用了STCA学习算法，STCA学习算法 [#f1]_ 是一种采用了替代梯度策略的BPTT类算法。\
+在优化器上选择 :code:`Adam` 算法并设置
+
+.. code-block:: python
+
+   self.learner = spaic.Learner(trainable=self, algorithm='STCA')
+   self.learner.set_optimizer('Adam', 0.001)
+
+2.4 添加监视器
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+在本示例中，虽然没有添加监视器的必要，但是作为教学，我们可以对 :code:`layer1` 的电压与脉冲输出进行监控，即：
+
+.. code-block:: python
+
+   self.mon_V = spaic.StateMonitor(self.layer1, 'V')
+   self.mon_O = spaic.StateMonitor(self.layer1, 'O')
+
+
+2.5 添加simulator
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Simulator是SPAIC中极为重要的一个部分，负责后端的网络实际模拟。 :code:`simulator.dt` 用于\
+设置网络模拟时的时间步长，需要在建立网络前提前进行设定。不同后端以及设备的选择也需要在搭建网络前设置\
+完成。在本示例，我们采用pytorch作为后端模拟器，将网络构建与cuda上，以 :code:`0.1ms` 作为时间步长：
+
+.. code-block:: python
+
+   if torch.cuda.is_available():
+       device = 'cuda'
+   else:
+       device = 'cpu'
+   simulator = spaic.Torch_Backend(device)
+   simulator.dt = 0.1
+   self.set_simulator(simulator)
+
+2.6 整体网络结构
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: python
+
+   import spaic
+   import torch
+
+   class TestNet(spaic.Network):
+       def __init__(self):
+           super(TestNet, self).__init__()
+
+           # coding
+           self.input = spaic.Encoder(num=784, coding_method='poisson')
+
+           # neuron group
+           self.layer1 = spaic.NeuronGroup(10, neuron_model='clif')
+
+           # decoding
+           self.output = spaic.Decoder(num=10, dec_target=self.layer1, coding_method='spike_counts')
+
+           # Connection
+           self.connection1 = spaic.Connection(self.input, self.layer1, link_type='full')
+
+           # Minitor
+           self.mon_V = spaic.StateMonitor(self.layer1, 'V')
+           self.mon_O = spaic.StateMonitor(self.layer1, 'O')
+
+           # Learner
+           self.learner = spaic.Learner(trainable=self, algorithm='STCA')
+           self.learner.set_optimizer('Adam', 0.001)
+
+           if torch.cuda.is_available():
+               device = 'cuda'
+           else:
+               device = 'cpu'
+           simulator = spaic.Torch_Backend(device)
+           simulator.dt = 0.1
+
+           self.set_simulator(simulator)
+
+   # 网络实例化
+   Net = TestNet()
+
+3. 开始训练
+------------------
+
+3.1 加载数据集
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: python
+
+   from tqdm import tqdm
+   import torch.nn.functional as F
+   from spaic.IO.Dataset import MNIST as dataset
+   # 创建训练数据集
+   root = './spaic/Datasets/MNIST'
+   train_set = dataset(root, is_train=True)
+   test_set = dataset(root, is_train=False)
+
+   # 设置运行时间与批处理规模
+   run_time = 50
+   bat_size = 100
+
+   # 创建DataLoader迭代器
+   train_loader = spaic.Dataloader(train_set, batch_size=bat_size, shuffle=True, drop_last=False)
+   test_loader = spaic.Dataloader(test_set, batch_size=bat_size, shuffle=False)
+
+3.2 运行网络
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: python
+
+   eval_losses = []
+   eval_acces = []
+   losses = []
+   acces = []
+   num_correct = 0
+   num_sample = 0
+   for epoch in range(100):
+
+       # 训练阶段
+       print("Start training")
+       train_loss = 0
+       train_acc = 0
+       pbar = tqdm(total=len(train_loader))
+       for i, item in enumerate(train_loader):
+           # 前向传播
+           data, label = item
+           Net.input(data)
+           Net.output(label)
+           Net.run(run_time)
+           output = Net.output.predict
+           output = (output - torch.mean(output).detach()) / (torch.std(output).detach() + 0.1)
+           label = torch.tensor(label, device=device)
+           batch_loss = F.cross_entropy(output, label)
+
+           # 反向传播
+           Net.learner.optim_zero_grad()
+           batch_loss.backward(retain_graph=False)
+           Net.learner.optim_step()
+
+           # 记录误差
+           train_loss += batch_loss.item()
+           predict_labels = torch.argmax(output, 1)
+           num_correct = (predict_labels == label).sum().item()  # 记录标签正确的个数
+           acc = num_correct / data.shape[0]
+           train_acc += acc
+
+           pbar.set_description_str("[loss:%f]Batch progress: " % batch_loss.item())
+           pbar.update()
+       pbar.close()
+       losses.append(train_loss / len(train_loader))
+       acces.append(train_acc / len(train_loader))
+       print('epoch:{},Train Loss:{:.4f},Train Acc:{:.4f}'.format(epoch, train_loss / len(train_loader), train_acc / len(train_loader)))
+
+       # 测试阶段
+       eval_loss = 0
+       eval_acc = 0
+       print("Start testing")
+       pbarTest = tqdm(total=len(test_loader))
+       with torch.no_grad():
+           for i, item in enumerate(test_loader):
+               data, label = item
+               Net.input(data)
+               Net.run(run_time)
+               output = Net.output.predict
+               output = (output - torch.mean(output).detach()) / (torch.std(output).detach() + 0.1)
+               label = torch.tensor(label, device=device)
+               batch_loss = F.cross_entropy(output, label)
+               eval_loss += batch_loss.item()
+
+               _, pred = output.max(1)
+               num_correct = (pred == label).sum().item()
+               acc = num_correct / data.shape[0]
+               eval_acc += acc
+               pbarTest.set_description_str("[loss:%f]Batch progress: " % batch_loss.item())
+               pbarTest.update()
+           eval_losses.append(eval_loss / len(test_loader))
+           eval_acces.append(eval_acc / len(test_loader))
+       pbarTest.close()
+       print('epoch:{},Test Loss:{:.4f},Test Acc:{:.4f}'.format(epoch,eval_loss / len(test_loader), eval_acc / len(test_loader)))
+
+
+4. 训练结果
+--------------
+在训练并测试共100个Epoch后，通过matplotlib我们得到如下的正确率曲线：
+
+.. image:: _static/STCA_MNIST_Accuracy.png
+    :width: 100%
+
+5. 保存网络
+-------------------
+在训练完成之后，我们可以通过 :code:`Network` 内置的 :code:`save_state` 函数将权重信息存储下来，也可以通过 :code:`spaic.Network_saver.network_save` 函数\
+将整体网络的结构以及权重一同存储下来。
+
+方式一：（只存储权重）
+
+.. code-block:: python
+
+   save_file = Net.save_state("TestNetwork")
+
+方式二：（同时存储网络结构以及权重）
+
+.. code-block:: python
+
+   save_file = network_save(Net, "TestNetwork", save_format='json')
+
+.. note::
+
+   在方式二中，网络结构存储的格式可以为 :code:`json` 亦或是 :code:`yaml` 格式，这两种格式都是可以直接阅读不需要转译的。\
+   而方式一与方式二这两种方式的权重都以Pytorch的tensor格式存储。
+
+附：网络的其他构建方式
+==========================
+1. with形式
+-----------------------
+.. code-block:: python
+
+   # 初始化基本网络类的对象
+   Net = spaic.Network()
+
+   # 通过把网络单元在with内定义，建立网络结构
+   with Net:
+       # 建立输入节点并选择输入编码形式
+       input1 = spaic.Encoder(784, encoding='poisson')
+
+
+       # 建立神经元集群，选择神经元类型，并可以设置 放电阈值、膜电压时间常数等神经元参数值
+       layer1 = spaic.NeuronGroup(10, neuron_model='clif')
+
+       # 建立神经集群间的连接
+       connection1 = spaic.Connection(input1, layer1, link_type='full')
+
+       # 建立输出节点，并选择输出解码形式
+       output = spaic.Decoder(num=10, dec_target=self.layer1, coding_method='spike_counts')
+
+       # 建立状态检测器，可以Monitor神经元、输入输出节点、连接等多种单元的状态量
+       monitor1 = spaic.StateMonitor(layer1, 'V')
+
+       # 加入学习算法，并选择需要训练的网络结构，（self代表全体ExampleNet结构）
+       learner = spaic.Learner(trainable=self, algorithm='STCA')
+
+       # 加入优化算法
+       learner.set_optimizer('Adam', 0.001)
+
+2. 通过引入模型库模型并进行修改的方式构建网络
+----------------------------------------------
+.. code-block:: python
+
+   from spaic.Library import ExampleNet
+   Net = ExampleNet()
+   # 神经元参数
+   neuron_param = {
+       'tau_m': 8.0,
+       'V_th': 1.5,
+   }
+   # 新建神经元集群
+   layer3 = spaic.NeuronGroup(100, neuron_model='lif', param=neuron_param)
+   layer4 = spaic.NeuronGroup(100, neuron_model='lif', param=neuron_param)
+
+   # 向神经集合中加入新的集合成员
+   Net.add_assembly('layer3', layer3)
+   # 删除神经集合中已经存在集合成员
+   Net.del_assembly(Net.layer3)
+   # 复制一个已有的assembly结构，并将新建的assembly加入到此神经集合
+   Net.copy_assembly('net_layer', ExampleNet())
+   # 将集合内部已有的一个神经集合替换为一个新的神经集合
+   Net.replace_assembly(Net.layer1, layer3)
+   # 将此神经集合与另一个神经集合进行合并，得到一个新的神经集合
+   Net2 = ExampleNet()
+   Net.merge_assembly(Net2)
+   #连接神经集合内部两个神经集群
+   con = spaic.Connection(Net.layer2, Net.net_layer, link_type='full')
+   Net.add_connection('con3', con)
+   #将此神经集合中的部分集合成员以及它们间的连接取出来组成一个新的神经集合，原神经集合保持不变
+   Net3 = Net.select_assembly([Net.layer2, net_layer])
+
+用户手册:
+=================
+
+.. toctree::
+   :maxdepth: 2
+   :titlesonly:
+
+   basic_structure/0_index
+   input_output
+   simulator
+   save_model
+   custom/0_index
+   monitor
+
+
+
+文档索引
+====================
+
+* :ref:`genindex`
+* :ref:`modindex`
+* :ref:`search`
+
+
+
+
+
+.. [#f1]  Pengjie Gu et al. “STCA: Spatio-Temporal Credit Assignment with Delayed Feedback in Deep SpikingNeural Networks.” In:Proceedings of the Twenty-Eighth International Joint Conference on Artificial Intelligence, IJCAI-19. International Joint Conferences on Artificial Intelligence Organization, July 2019,pp. 1366–1372. `doi:10.24963/ijcai.2019/189. <https://doi.org/10.24963/ijcai.2019/189>`_
+
