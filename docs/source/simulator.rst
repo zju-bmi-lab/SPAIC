@@ -1,4 +1,4 @@
-模拟器 simualtor
+模拟器 Simulator
 =================
 Simulator是SPAIC平台后端的核心部件，负责网络整体的运行模拟。 :code:`dt` 与 :code:`runtime` 是simulator中最为重要的两个参数，分别\
 代表了模拟的时间步与时间窗的长度。而 :code:`time` 代表了当前模拟到的时刻，:code:`n_time_step` 代表了当前模拟到的时间步。
