@@ -62,7 +62,7 @@ Assembly子类中的最上层结构，每个构建的神经网络的所有模块
 
 平台前端结构图：
 
-.. image:: ../_static/SNNFLOW_FRONTEND.png
+.. image:: ../_static/SPAIC_FRONTEND.png
     :width: 100%
 
 Simulator
