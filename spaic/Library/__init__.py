@@ -1,0 +1,13 @@
+# -*- coding: utf-8 -*-
+"""
+Created on 2020/8/11
+@project: SNNFlow
+@author: Hong Chaofei
+@contact: hongchf@gmail.com
+
+@description:
+文件夹内包含所有预定义的网络结构和模型
+Model Zoo
+"""
+import spaic as sf
+
