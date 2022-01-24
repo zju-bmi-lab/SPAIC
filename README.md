@@ -14,9 +14,6 @@ SPAIC平台的教程文档： https://spaic.readthedocs.io/en/latest/index.html
 
 ​	平台主要通过Assembly, Connection, NeuronGroup, Node, Network等五类结构模块构建网络，其具体功能叙述如下，建模结构关系如下图所示。
 
-<img src="C:\Users\HONGCHAOFEI\AppData\Roaming\Typora\typora-user-images\image-20201222150209225.png" alt="image-20201222150209225" style="zoom: 67%;" />
-
-
 
 - **Assembly（神经集合）**：是神经网络结构拓扑的抽象类，代表任意网络结构，其它网络模块都是Assembly类的子类。Assembly对象具有名为_groups, _connections两个dict属性，保存神经集合内部的神经集群以及连接等。同时具有名为 _supers, _input_connections,  _output_connections的list属性，分别代表包含此神经集合的上层神经集合以及与此神经集合进行的连接。作为网络建模的主要接口，包含如下主要建模函数：
     - add_assembly(name, assembly): 向神经集合中加入新的集合成员
