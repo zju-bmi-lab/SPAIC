@@ -1,11 +1,11 @@
 监视器
 ============================
 
-监视器主要的作用是监控网络运行过程中各类变量的变化过程，在SPAIC中，我们内置了两种形式的监视器，分别是StateMonitor\
-与SpikeMonitor。
+监视器主要的作用是监控网络运行过程中各类变量的变化过程，在SPAIC中，我们内置了两种形式的监视器，分别是 :code:`StateMonitor` \
+与 :code:`SpikeMonitor` 。
 
-StateMonitor与SpikeMonitor的建立方式相同，StateMonitor是神经元及网络连接等的一般状态量的监视，而SpikeMonitor是针对脉冲发\
-放频率的监视：
+:code:`StateMonitor` 与 :code:`SpikeMonitor` 的建立方式相同， :code:`StateMonitor` 是神经元及网络连接等的一般状态量\
+的监视，而 :code:`SpikeMonitor` 是针对脉冲发放频率的监视：
 
 .. code-block:: python
 
@@ -21,7 +21,7 @@ StateMonitor与SpikeMonitor的建立方式相同，StateMonitor是神经元及�
 - get_grad - 是否需要记录梯度，True为需要梯度，False为不需要，默认为False
 - nbatch - 是否需要记录多个Batch的数据，True则会保存多次run的数据，False则每次run覆盖数据，默认为False
 
-这两个监视器的区别在于，StateMonitor中存储四个参数：
+这两个监视器的区别在于，:code:`StateMonitor` 中存储四个参数：
 
 - nbatch_times - 将会存储所有批次的时间步信息，数据的shape结构为(第几批次，第几个时间步)
 - nbatch_values - 将会存储所有批次的目标层的监视参数的情况，数据的shape结构为(第几批次，第几个神经元，第几个时间步，batch中的第几个样本)
@@ -29,7 +29,7 @@ StateMonitor与SpikeMonitor的建立方式相同，StateMonitor是神经元及�
 - values - 将会存储当前批次的目标层的监视参数的情况，数据的shape结构为(本batch中第几个样本，第几个神经元，第几个时间步)
 - grad - 将会存储当前批次的目标变量的梯度情况，数据的shape与values的shape结构相同
 
-而SpikeMonitor中存储着另外四个参数：
+而 :code:`SpikeMonitor` 中存储着另外四个参数：
 
 - spk_index - 存储着当前批次脉冲发放的神经元的编号
 - spk_times - 存储着当前批次脉冲发放的时刻信息

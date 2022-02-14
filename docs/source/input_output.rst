@@ -32,6 +32,6 @@
 .. note::
 
    需要注意的是：\
-    1、创建 :code:`Dataloader` 时如果指定了 :code:`sampler` 这个参数，那么 :code:`shuffle` 必须为False
+    1、创建 :code:`Dataloader` 时如果指定了 :code:`sampler` 这个参数，那么 :code:`shuffle` 必须为 :code:`False`
 
     2、如果指定 :code:`batch_sampler` 这个参数，那么 :code:`batch_size` ，:code:`shuffle` ，:code:`sampler`， :code:`drop_last` 就不能再指定了

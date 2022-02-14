@@ -42,7 +42,7 @@ II. 如何从零开始构建一个脉冲神经网络
 
 2.1 创建并添加节点层与神经元组
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-对于一个使用STCA训练识别MNIST数据集的网络而言，我们需要的节点分别是一个input层用于编码并输\
+对于一个使用STCA训练识别MNIST数据集的网络而言，我们需要的节点分别是一个 :code:`input` 层用于编码并输\
 入数据，一个 :code:`clif` 神经元层用于训练以及一个输出层用于解码脉冲输出。所以我们所添加的就是：
 
 .. code-block:: python
@@ -346,7 +346,7 @@ Simulator是SPAIC中极为重要的一个部分，负责后端的网络实际模
 
    basic_structure/0_index
    input_output
-   simulator
+   backend
    save_model
    custom/0_index
    monitor
