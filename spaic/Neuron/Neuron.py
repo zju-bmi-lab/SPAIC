@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on 2020/8/5
-@project: SNNFlow
+@project: SPAIC
 @filename: Neuron
 @author: Hong Chaofei
 @contact: hongchf@gmail.com
@@ -16,6 +16,7 @@ from ..Network import Assembly
 from abc import ABC, abstractmethod
 from collections import OrderedDict
 import re
+
 
 # from brian2 import *
 
@@ -37,23 +38,26 @@ class NeuronGroup(Assembly):
         self.num = neuron_number
         # self.name = name
         self.shape = neuron_shape
+        self.outlayer = kwargs.get("outlayer", False)
         # self.neuron_model = neuron_model
         if neuron_type == ('excitatory', 'inhibitory', 'pyramidal', '...'):
-            self.type = 'non_type'
-        else:
+            self.type = ['nontype']
+        elif isinstance(self.type, list):
             self.type = neuron_type
+        else:
+            self.type = [neuron_type]
 
         if neuron_position == ('x, y, z' or 'x, y'):
             self.position = []
         else:
             neuron_position = np.array(neuron_position)
-            assert neuron_position.size(0) == neuron_number, " Neuron_position not equal to neuron number"
+            assert neuron_position.shape[0] == neuron_number, " Neuron_position not equal to neuron number"
             self.position = neuron_position
 
         self.parameters = kwargs
 
         self.model_class = NeuronModel.apply_model(neuron_model)
-        self.model_name = neuron_model # self.neuron_model -> self.model_name
+        self.model_name = neuron_model  # self.neuron_model -> self.model_name
         self._var_names = list()
         self._operations = OrderedDict()
 
@@ -71,16 +75,16 @@ class NeuronGroup(Assembly):
         else:
             return self.id + ':' +'{'+key+'}'
 
-    def build(self, simulator):
+    def build(self, backend):
         '''
         Parameters
         ----------
-        simulator : Backend.Backend
+        backend : Backend.Backend
         Returns
         -------
         '''
-        self._simulator = simulator
-        batch_size = self._simulator.get_batch_size()
+        self._backend = backend
+        batch_size = self._backend.get_batch_size()
         # if(self.parameters is not None):
         #     self.model = self.model_class(**self.model_parameters)
         # else:
@@ -97,52 +101,53 @@ class NeuronGroup(Assembly):
         else:
             ValueError("neither neuron number nor neuron shape is defined")
 
-        dt = simulator.dt
+        dt = backend.dt
         for (key, tau_var) in self.model._tau_constant_variables.items():
             key = self.add_neuron_label(key)
-            tau_var = np.exp(-dt/tau_var)
+            tau_var = np.exp(-dt / tau_var)
             shape = ()
-            simulator.add_variable(key, shape, value=tau_var)
+            backend.add_variable(key, shape, value=tau_var)
             self._var_names.append(key)
 
         for (key, membrane_tau_var) in self.model._membrane_variables.items():
             key = self.add_neuron_label(key)
-            membrane_tau_var = dt/membrane_tau_var
+            membrane_tau_var = dt / membrane_tau_var
             shape = (1, *self.shape)  # (1, neuron_num)
-            simulator.add_variable(key, shape, value=membrane_tau_var)
+            backend.add_variable(key, shape, value=membrane_tau_var)
             self._var_names.append(key)
 
         for (key, var) in self.model._variables.items():
             # add the rule to extend new dimension before shape (for slif model)
             extend_tag = re.search("\[\d*\]", key)
             if extend_tag is not None:
-                extend_tag = int(key[extend_tag.start()+1:extend_tag.end()-1])
+                extend_tag = int(key[extend_tag.start() + 1:extend_tag.end() - 1])
             key = self.add_neuron_label(key)
 
             if extend_tag is not None:
                 shape = (1, extend_tag, *self.shape)
             else:
                 shape = (1, *self.shape)  # (batch_size, neuron_shape)
-            simulator.add_variable(key, shape, value=var)
+            backend.add_variable(key, shape, value=var)
             self._var_names.append(key)
 
         for (key, var) in self.model._constant_variables.items():
             key = self.add_neuron_label(key)
-            if isinstance(var, np.ndarray):
-                if var.size > 1:
-                    var_shape = var.shape
-                    shape = (1, *var_shape)  # (1, neuron_shape)
-                else:
-                    shape = ()
-            elif isinstance(var, list):
-                if len(var) > 1:
-                    var_len = len(var)
-                    shape = (1, var_len)  # (1, neuron_shape)
-                else:
-                    shape = ()
-            else:
-                shape = ()
-            simulator.add_variable(key, shape, value=var)
+            # if isinstance(var, np.ndarray):
+            #     if var.size > 1:
+            #         var_shape = var.shape
+            #         shape = (1, *var_shape)  # (1, neuron_shape)
+            #     else:
+            #         shape = ()
+            # elif isinstance(var, list):
+            #     if len(var) > 1:
+            #         var_len = len(var)
+            #         shape = (1, var_len)  # (1, neuron_shape)
+            #     else:
+            #         shape = ()
+            # else:
+            #     shape = ()
+            shape = ()
+            backend.add_variable(key, shape, value=var, is_constant=True)
             self._var_names.append(key)
 
         op_count = 0
@@ -155,16 +160,19 @@ class NeuronGroup(Assembly):
                     addcode_op.append(self.add_neuron_label(op[ind]))
                 else:
                     addcode_op.append(op[ind])
-            simulator.add_operation(addcode_op)
+            backend.add_operation(addcode_op)
             self._operations[op_name] = addcode_op
 
-        if self.model_name == "slif":
-            self.model.build((1, *self.shape), simulator)
+        if self.model_name == "slif" or self.model_name == 'selif':
+            self.model.build((1, *self.shape), backend)
+            self.model.outlayer = self.outlayer
             update_code = self.model.update_op_code
             intital_code = self.model.initial_op_code
-            simulator.register_initial(intital_code[0],intital_code[1],intital_code[2])
-            simulator.register_standalone(self.add_neuron_label(update_code[0]), update_code[1], [self.add_neuron_label(update_code[2])])
-            simulator.register_standalone(self.add_neuron_label('V'), self.model.return_V,  [])
+            backend.register_initial(intital_code[0], intital_code[1], intital_code[2])
+            backend.register_standalone(self.add_neuron_label(update_code[0]), update_code[1],
+                                          [self.add_neuron_label(update_code[2])])
+            backend.register_standalone(self.add_neuron_label('V'), self.model.return_V, [])
+            backend.register_standalone(self.add_neuron_label('S'), self.model.return_S, [])
 
 
 class NeuronModel(ABC):
@@ -284,51 +292,477 @@ class CLIFModel(NeuronModel):
 
 NeuronModel.register("clif", CLIFModel)
 
+class IFModel(NeuronModel):
+    """
+    IF model:
+    V(t) = V(t-1) * (1 - O(t-1)) + WgtSum[t] - ConstantDecay
+
+    O^n[t] = spike_func(V^n[t-1])
+    """
+
+    def __init__(self, **kwargs):
+        super(IFModel, self).__init__()
+        self.neuron_parameters['ConstantDecay'] = kwargs.get('ConstantDecay', 0.0)
+        self.neuron_parameters['v_th'] = kwargs.get('v_th', 1.0)
+
+        self._variables['O'] = 0.0
+        self._variables['V'] = 0.0
+        self._variables['WgtSum'] = 0.0
+
+        self._constant_variables['ConstantDecay'] = self.neuron_parameters['ConstantDecay']
+        self._constant_variables['Vth'] = self.neuron_parameters['v_th']
+
+        self._operations.append(('Vtemp', 'add', 'V', 'WgtSum[updated]'))
+        self._operations.append(('Vtemp1', 'minus', 'Vtemp', 'ConstantDecay'))
+        self._operations.append(('O', 'threshold', 'Vtemp1', 'Vth'))
+        self._operations.append(('Resetting', 'var_mult', 'Vtemp1', 'O[updated]'))
+        self._operations.append(('V', 'minus', 'Vtemp1', 'Resetting'))
+
+NeuronModel.register("if", IFModel)
+
+import torch
+
+
+class QLIFModel(NeuronModel):
+    """
+    LIF neuron model for Q-Backprop learning
+
+    E[t] = beta_m*E[t-1] + Vth*O[t-1]
+    V[t] = WgtSum(PSP[t]) - E[t]
+    O[t] = spike_function(V[t])
+
+
+    # Q for non-spiking
+    Mp[t] = beta_m*Mp[t-1] + WpSum[t]
+    Sp[t] = beta_s*Sp[t-1] + WpSum[t]
+    P[t] = Mp[t] - Sp[t]
+
+    # Q for spiking
+    Mq[t] = beta_m*Mq[t-1] + WqSum[t]
+    Sq[t] = beta_s*Sq[t-1] + WqSum[t]
+    Q[t] = Mq[t] - Sq[t]
+
+    R[t] = ~O[t]*beta_s*R[t-1] + O[t]
+    F[t] = 1 - R[t]
+    QP[t] = Q[t] - P[t]
+    BQ[t] = R[t]*Q[t] + F[t]*P[t]
+
+    TP[t] = R[t]*P[t] + F[t]*Reward - P[t-1]
+    TQ[t] = F[t]*Q[t] + R[t]*Reward - Q[t-1]
+    """
+
+    # WgtSum(BQ_post[t - 1]) / WgtSum)
+    def __init__(self, **kwargs):
+        super(QLIFModel, self).__init__()
+        self._tau_constant_variables['Beta_m'] = kwargs.get('tau_m', 20.0)
+        self._tau_constant_variables['Beta_s'] = kwargs.get('tau_s', 8.0)
+        self._constant_variables['Vth'] = kwargs.get('v_th', 1.0)
+        self._constant_variables['One'] = 1.0
+
+        self._variables['E'] = 0.0
+        self._variables['O'] = 0.0
+        self._variables['V'] = 0.0
+        self._variables['P'] = 0.0
+        self._variables['Mp'] = 0.0
+        self._variables['Sp'] = 0.0
+        self._variables['Q'] = 0.0
+        self._variables['Mq'] = 0.0
+        self._variables['Sq'] = 0.0
+        self._variables['R'] = 0.0
+        self._variables['F'] = 0.0
+        self._variables['QP'] = 0.0
+        self._variables['BQ'] = 0.0
+        self._variables['TP'] = 0.0
+        self._variables['TQ'] = 0.0
+        self._variables['PSP'] = 0.0
+        self._variables['WpSum'] = 0.0
+        self._variables['WqSum'] = 0.0
+        self._variables['Reward'] = 0.0
+
+        self._operations.append(('Resetting', 'var_mult', 'Vth', 'O'))
+        self._operations.append(('E', 'var_linear', 'Beta_m', 'E', 'Resetting'))
+        self._operations.append(('SumPSP', 'reduce_sum', 'PSP'))
+        self._operations.append(('V', 'minus', 'SumPSP', 'E[updated]'))
+        self._operations.append(('Mp', 'var_linear', 'Beta_m', 'Mp', 'WpSum'))
+        self._operations.append(('Sp', 'var_linear', 'Beta_s', 'Sp', 'WpSum'))
+        self._operations.append(('P', 'minus', 'Mp[updated]', 'Sp[updated]'))
+        self._operations.append(('Mq', 'var_linear', 'Beta_m', 'Mq', 'WpSum'))
+        self._operations.append(('Sq', 'var_linear', 'Beta_s', 'Sq', 'WpSum'))
+        self._operations.append(('Q', 'minus', 'Mq[updated]', 'Sq[updated]'))
+        self._operations.append(('RTmp', 'var_mult', 'Beta_s', 'R'))
+        self._operations.append(('', 'var_linear', 'Beta_s', 'R'))
+
+
+
+NeuronModel.register("qlif", QLIFModel)
+
+
+class SELIFModel(NeuronModel):  #Exponential Model
+    """
+    SpikeProp LIF 3-kernel model:
+
+
+    V[t] = WgtSum[t-1] - E[t-1]
+    I[t] = spike_func(V[t])
+    M[t] = betaM * M[t-1] + I[t]
+    S[t] = betaS * S[t-1] + I[t]
+    E[t] = betaM * E[t-1] + Vth * I[t]
+    O[t] = M[t] − S[t]
+    """
+
+    def __init__(self,
+                 tau_m=12.0,
+                 tau_p=6.0,
+                 tau_q=2.0,
+                 tau_r=16.0,
+                 v_th=1.0,
+                 v_reset=2.0,
+                 outlayer=False,
+                 **kwargs
+                 ):
+        super(SELIFModel, self).__init__()
+        from spaic.Learning.TRUE_Learner import TRUE_SpikeProp
+        # initial value for state variables
+        self._variables['[2]O'] = 0.0
+        self._variables['V'] = 0.0
+        self._variables['dV'] = 0.0
+        self._variables['S'] = 0.0
+        self._variables['WgtSum'] = 0.0
+        self.tau_m = tau_m
+        self.tau_e = tau_p
+        self.tau_s = tau_q
+        self.tau_r = tau_r
+        self.v_th = v_th
+        self.v_reset = 1.0 * v_th
+        self.outlayer = outlayer
+
+        self.beta = tau_p / tau_q
+        self.V0 = (1 / (self.beta - 1)) * (self.beta ** (self.beta / (self.beta - 1)))
+        # self.delat_m = self.tau_m/(self.tau_m-self.tau_s)
+        # self.delat_s = self.tau_s/(self.tau_m-self.tau_s)
+        # self.delat_ms = self.tau_m*self.tau_s/(self.tau_m-self.tau_s)
+
+        self.update_op_code = ('[2]O', self.update, 'WgtSum[updated]')  # 'WgtSum[updated]'
+
+        self.return_op_code = (None, self.return_V, [])
+
+        self.initial_op_code = (None, self.initial, [])
+
+        '''
+            V(t) = M(t) − S(t) − E(t)
+            I^n[t] = V0 * WgtSum^n[t-1] #sum(w * O^(n-1)[t])
+            M^n[t] = betaM * M^n[t-1] + I^n[t-1]
+            S^n[t] = betaS * S^n[t-1] + I^n[t-1]
+            E^n[t] = betaM * E^n[t-1] + Vth * O^n[t-1]
+
+            O^n[t] = spike_func(V^n[t-1])
+        '''
+
+    def attach_learner(self, learner):
+        self.learner = learner
+
+    def build(self, shape, backend):
+        self.dt = backend.dt
+        self.M_initial = torch.zeros(shape, device=backend.device)
+        self.S_initial = torch.zeros(shape, device=backend.device)
+        self.R_initial = torch.zeros(shape, device=backend.device)
+        self.V_initial = torch.zeros(shape, device=backend.device)
+        self.beta_m = np.exp(-backend.dt / self.tau_m)
+        self.beta_s = np.exp(-backend.dt / self.tau_s)
+        self.beta_e = np.exp(-backend.dt / self.tau_e)
+        self.beta_r = np.exp(-backend.dt / self.tau_r)
+        self.running_var = None
+        self.running_mean = None
+        self.decay = 0.9999
+        self.initial()
+        self.rec_E = []
+
+    def initial(self):
+        self.M = self.M_initial
+        self.S = self.S_initial
+        self.R = self.R_initial
+        self.V = self.V_initial
+        self.O = None
+        self.rec_E = []
+
+    def norm_hook(self, grad):
+        if self.running_var is None:
+            self.running_var = torch.norm(grad, dim=0) * 0
+            self.running_mean = torch.mean(grad, dim=0) * 0
+        else:
+            self.running_var = self.decay * self.running_var + (1 - self.decay) * torch.norm(grad, dim=0)
+            self.running_mean = self.decay * self.running_mean + (1 - self.decay) * torch.mean(grad, dim=0)
+        return (grad - self.running_mean) / (1.0e-10 + self.running_var)
+
+    def update(self, WgtSum):
+        # with torch.no_grad():
+        #     self.dV = self.E / self.tau_m +self.S / self.tau_s - self.M / self.tau_m
+        I = self.V0 * WgtSum
+        # WgtSum.register_hook(self.norm_hook)
+
+        if I.dim() == self.M.dim() + 1:
+            Ii = I[:, 0, ...]
+            I0 = I[:, 1, ...]
+            self.M = self.beta_e * self.M + (Ii - I0 / self.tau_e)
+            self.S = self.beta_s * self.S + (Ii - I0 / self.tau_s)
+        else:
+            self.M = self.beta_e * self.M + I
+            self.S = self.beta_s * self.S + I
+
+        if self.O is not None:
+            Oi = self.O[:, 0, ...] #+ 0.9*self.O[:, 0, ...].detach()  # *self.O[:, 0, ...].gt(0.0)
+            Ot = self.O[:, 1, ...] #+ 0.9*self.O[:, 1, ...].detach()
+        else:
+            Oi = 0.0
+            Ot = 0.0
+
+
+        # expv = torch.clamp_max(torch.exp(2.5 * self.V)-1, 12)
+        expv = 2.0*torch.pow(torch.clamp(self.V,-10,self.v_th), 2.0)
+        self.R = self.beta_r*self.R + (1-self.beta_r)*self.V + 10.0*(Oi-Ot/self.tau_r)
+        self.dV = (expv - self.V + (self.M - self.S) + 0.5-0.5*self.R) / self.tau_m
+        # with torch.no_grad():
+        #     self.ddV = (self.dV * (0.2 * expv - 1) + self.S / self.tau_s - self.M / self.tau_e) / self.tau_m
+        #     self.dV2 = self.dV + self.ddV * self.dt
+        self.V = self.V + self.dV * self.dt - self.v_reset*(Oi-Ot/self.tau_m)# + self.ddV * self.dt ** 2 / 2.0
+        # self.P = self.M + self.S
+
+
+        self.O = self.learner.threshold(self.V, self.dV, self.v_th)
+        #
+        # self.rec_E.append(self.Vmax)
+        # if (I is not None) and (I.requires_grad == True):
+        #     I.retain_grad()
+        #     self.rec_E.append(I)
+
+        return self.O
+
+    def return_V(self):
+        return self.V
+
+    def return_M(self):
+        return self.M
+
+    def return_S(self):
+        return self.S
+
+    def return_dV(self):
+        return self.dV
+
+    @property
+    def E_values(self):
+        return torch.stack(self.rec_E, dim=-1).cpu().detach().numpy()
+
+    @property
+    def E_grads(self):
+        grads = []
+        for v in self.rec_E:
+            if v.grad is not None:
+                grads.append(v.grad.cpu().numpy())
+            else:
+                grads.append(torch.zeros_like(v).cpu().numpy())
+        grads = np.stack(grads[1:], axis=-1)
+        return grads
+NeuronModel.register("selif", SELIFModel)
+
+class SLIFModel(NeuronModel):
+    """
+    SpikeProp LIF 3-kernel model:
+
+
+    V[t] = WgtSum[t-1] - E[t-1]
+    I[t] = spike_func(V[t])
+    M[t] = betaM * M[t-1] + I[t]
+    S[t] = betaS * S[t-1] + I[t]
+    E[t] = betaM * E[t-1] + Vth * I[t]
+    O[t] = M[t] − S[t]
+    """
+
+    def __init__(self,
+                 tau_m=20.0,
+                 tau_p=20.0,
+                 tau_q=8.0,
+                 v_th=1.0,
+                 v_reset=2.0,
+                 outlayer=False
+                 ):
+        super(SLIFModel, self).__init__()
+        from spaic.Learning.TRUE_Learner import TRUE_SpikeProp
+        # initial value for state variables
+        self._variables['[2]O'] = 0.0
+        self._variables['V'] = 0.0
+        self._variables['dV'] = 0.0
+        self._variables['S'] = 0.0
+        self._variables['WgtSum'] = 0.0
+        self.tau_m = tau_m
+        self.tau_e = tau_p
+        self.tau_s = tau_q
+        self.v_th = v_th
+        self.v_reset = 5.0 * v_th
+        self.outlayer = outlayer
+
+        self.beta = tau_m / tau_q
+        self.V0 = (1 / (self.beta - 1)) * (self.beta ** (self.beta / (self.beta - 1)))
+        # self.delat_m = self.tau_m/(self.tau_m-self.tau_s)
+        # self.delat_s = self.tau_s/(self.tau_m-self.tau_s)
+        # self.delat_ms = self.tau_m*self.tau_s/(self.tau_m-self.tau_s)
+
+        self.update_op_code = ('[2]O', self.update, 'WgtSum[updated]')  # 'WgtSum[updated]'
+
+        self.return_op_code = (None, self.return_V, [])
+
+        self.initial_op_code = (None, self.initial, [])
+
+        '''
+            V(t) = M(t) − S(t) − E(t)
+            I^n[t] = V0 * WgtSum^n[t-1] #sum(w * O^(n-1)[t])
+            M^n[t] = betaM * M^n[t-1] + I^n[t-1]
+            S^n[t] = betaS * S^n[t-1] + I^n[t-1]
+            E^n[t] = betaM * E^n[t-1] + Vth * O^n[t-1]
+
+            O^n[t] = spike_func(V^n[t-1])
+        '''
+
+    def attach_learner(self, learner):
+        self.learner = learner
+
+    def build(self, shape, backend):
+        self.dt = backend.dt
+        self.M_initial = torch.zeros(shape, device=backend.device)
+        self.S_initial = torch.zeros(shape, device=backend.device)
+        self.E_initial = torch.zeros(shape, device=backend.device)
+        self.V_initial = torch.zeros(shape, device=backend.device)
+        self.O_initial = torch.zeros((1,2,1), device=backend.device)
+        self.beta_m = np.exp(-backend.dt / self.tau_m)
+        self.beta_s = np.exp(-backend.dt / self.tau_s)
+        self.beta_e = np.exp(-backend.dt / self.tau_e)
+        self.deta_m = (1 - self.dt/(2*self.tau_m))/self.tau_m
+        self.deta_s = (1 - self.dt/(2*self.tau_s))/self.tau_s
+        self.running_var = None
+        self.running_mean = None
+        self.decay = 0.9999
+        self.initial()
+        self.rec_E = []
+
+    def initial(self):
+        self.M = self.M_initial
+        self.S = self.S_initial
+        self.E = self.E_initial
+        self.V = self.V_initial
+        self.O = None
+        self.rec_E = []
+
+    def norm_hook(self, grad):
+        if self.running_var is None:
+            self.running_var = torch.norm(grad, dim=0) * 0
+            self.running_mean = torch.mean(grad, dim=0) * 0
+        else:
+            self.running_var = self.decay * self.running_var + (1 - self.decay) * torch.norm(grad, dim=0)
+            self.running_mean = self.decay * self.running_mean + (1 - self.decay) * torch.mean(grad, dim=0)
+        return (grad - self.running_mean) / (1.0e-10 + self.running_var)
+
+    def update(self, WgtSum):
+        # with torch.no_grad():
+        #     self.dV = self.E / self.tau_m +self.S / self.tau_s - self.M / self.tau_m
+        I = self.V0 * WgtSum
+        # WgtSum.register_hook(self.norm_hook)
+        # Oi = self.O[:, 0, ...]
+        # Ot = self.O[:, 1, ...]
+        if self.O is not None:
+            Oi = 0.1*self.O[:, 0, ...] + 0.9*self.O[:, 0, ...]
+            Ot = 0.1*self.O[:, 1, ...] + 0.9*self.O[:, 1, ...]
+        else:
+            Oi = 0
+            Ot = 0
+
+        if I.dim() == self.M.dim() + 1:
+            Ii = I[:, 0, ...]
+            I0 = I[:, 1, ...]
+            self.M = self.beta_m * self.M + Ii - I0 / self.tau_m - self.v_reset*(Oi-Ot/self.tau_m)
+            self.S = self.beta_s * self.S + Ii - I0 / self.tau_s
+        else:
+            self.M = self.beta_m * self.M + I - self.v_reset*(Oi-Ot/self.tau_m)
+            self.S = self.beta_s * self.S + I
+
+
+
+
+        self.V = self.M - self.S
+        # self.P = self.M + self.S
+        self.dV = self.S*self.deta_s - self.M*self.deta_m
+
+        #
+        # if self.O is not None:
+        #     self.E = self.E*Oi.lt(1.0).float()# + (0.5*self.E.detach() - 0.5*self.E)*Oi.ge(1.0).float()
+        # MSbase = torch.clamp_min(self.M*self.tau_s/(self.S*self.tau_m+1.0e-20), 0)
+        # self.Vmax = self.M*MSbase**self.delat_s - self.S*MSbase**self.delat_m
+
+        self.O = self.learner.threshold(self.V, self.dV, self.v_th)
+        #
+        # self.rec_E.append(self.Vmax)
+        # if (I is not None) and (I.requires_grad == True):
+        #     I.retain_grad()
+        #     self.rec_E.append(I)
+
+        return self.O
+
+    def return_V(self):
+        return self.V
+
+    def return_M(self):
+        return self.M
+
+    def return_S(self):
+        return self.S
+
+    def return_dV(self):
+        return self.dV
+
+    @property
+    def E_values(self):
+        return torch.stack(self.rec_E, dim=-1).cpu().detach().numpy()
+
+    @property
+    def E_grads(self):
+        grads = []
+        for v in self.rec_E:
+            if v.grad is not None:
+                grads.append(v.grad.cpu().numpy())
+            else:
+                grads.append(torch.zeros_like(v).cpu().numpy())
+        grads = np.stack(grads[1:], axis=-1)
+        return grads
+# for ii in range(2):
+#     out.append(test.update(I))
+
+NeuronModel.register("slif", SLIFModel)
+
+
 class LIFModel(NeuronModel):
     """
     LIF model:
-    # V(t) = -tuaM * V^n[t-1] + M^n[t] - S^n[t]   # tauM: constant membrane time (tauM=RmCm)
-    V(t) = V^n[t-1] + (dt/taum) * (PSP-V^n[t-1])  # tauM: constant membrane time (tauM=RmCm)
-    I^n[t] = V0 * WgtSum^n[t]                # sum(w * O^(n-1)[t])
-    M^n[t] = tauP * M^n[t-1] + I^n[t-1]        # tauP: decaying time constants of membrane integration
-    S^n[t] = tauQ * S^n[t-1] + I^n[t-1]        # tauQ: decaying time constants of synaptic currents
-    PSP = M - S
+    # V(t) = tuaM * V^n[t-1] + WgtSum[t]   # tauM: constant membrane time (tauM=RmCm)
     O^n[t] = spike_func(V^n[t-1])
     """
 
     def __init__(self, **kwargs):
         super(LIFModel, self).__init__()
         # initial value for state variables
-        self.neuron_parameters['tau_p'] = kwargs.get('tau_p', 4.0)  # 12
-        self.neuron_parameters['tau_q'] = kwargs.get('tau_q', 1.0)  # 8
-        self.neuron_parameters['tau_m'] = kwargs.get('tau_m', 6.0)  # 20
+
+        self.neuron_parameters['tau_m'] = kwargs.get('tau_m', 20.0)  # 20
         self.neuron_parameters['v_th'] = kwargs.get('v_th', 1)
         self.neuron_parameters['v_reset'] = kwargs.get('v_reset', 0.0)
 
-        self._variables['I'] = 0.0
-        self._variables['M'] = 0.0
-        self._variables['S'] = 0.0
         self._variables['V'] = 0.0
         self._variables['O'] = 0.0
         self._variables['WgtSum'] = 0.0
-        beta = self.neuron_parameters['tau_p'] / self.neuron_parameters['tau_q']
-        V0 = (1 / (beta - 1)) * (beta ** (beta / (beta - 1)))
-        self._constant_variables['V0'] = V0
 
         self._constant_variables['Vth'] = self.neuron_parameters['v_th']
         self._constant_variables['Vreset'] = self.neuron_parameters['v_reset']
 
-        self._membrane_variables['tauM'] = self.neuron_parameters['tau_m']
+        self._tau_constant_variables['tauM'] = self.neuron_parameters['tau_m']
 
-        self._tau_constant_variables['tauP'] = self.neuron_parameters['tau_p']
-        self._tau_constant_variables['tauQ'] = self.neuron_parameters['tau_q']
-
-        self._operations.append(('I', 'var_mult', 'V0', 'WgtSum'))
-        self._operations.append(('M', 'var_linear', 'tauP', 'M', 'I[updated]'))
-        self._operations.append(('S', 'var_linear', 'tauQ', 'S', 'I[updated]'))
-        self._operations.append(('PSP', 'minus', 'M[updated]', 'S[updated]'))
-        self._operations.append(('decayV', 'minus', 'PSP', 'V'))
-        self._operations.append(('Vtemp', 'var_linear', 'tauM', 'decayV', 'V'))
+        self._operations.append(('Vtemp', 'var_linear', 'tauM', 'V', 'WgtSum[updated]'))
         self._operations.append(('O', 'threshold', 'Vtemp', 'Vth'))
         self._operations.append(('Resetting', 'var_mult', 'Vtemp', 'O[updated]'))
         self._operations.append(('V', 'minus', 'Vtemp', 'Resetting'))
@@ -421,11 +855,13 @@ NeuronModel.register("nonspikinglif", NonSpikingLIFModel)
 class LIFMModel(NeuronModel):
     """
     LIF model:
-    # I = tauP*I + WgtSum^n[t-1] + b^n                         # sum(w * O^(n-1)[t])
+    # I_che = tauP*I + WgtSum^n[t-1] + b^n                         # sum(w * O^(n-1)[t])
+    # I = I_che + I_ele
     # F = tauM * exp(-O^n[t-1] / tauM)
     # V(t) = V^n[t-1] * F + I
     # O^(n)[t] = spike_func(V^n(t))
     """
+
     def __init__(self, **kwargs):
         super(LIFMModel, self).__init__()
         # initial value for state variables
@@ -442,6 +878,7 @@ class LIFMModel(NeuronModel):
         self._variables['I'] = 0.0
 
         self._constant_variables['Vth'] = self.neuron_parameters['v_th']
+        # self._constant_variables['Vreset'] = v_reset
 
         self._tau_constant_variables['tauM'] = self.neuron_parameters['tau_m']
         self._tau_constant_variables['tauP'] = self.neuron_parameters['tau_p']
@@ -477,8 +914,8 @@ class IZHModel(NeuronModel):
         self.neuron_parameters['tau_q'] = kwargs.get('tau_q', 1.0)
         self.neuron_parameters['a'] = kwargs.get('a', 0.02)
         self.neuron_parameters['b'] = kwargs.get('b', 0.2)
-        self.neuron_parameters['c'] = kwargs.get('c', -65.0)
-        self.neuron_parameters['d'] = kwargs.get('d', 8.0)
+        self.neuron_parameters['Vrest'] = kwargs.get('Vrest', -65.0)
+        self.neuron_parameters['Ureset'] = kwargs.get('Ureset', 8.0)
 
         self._variables['I'] = 0.0
         self._variables['M'] = 0.0
@@ -494,8 +931,8 @@ class IZHModel(NeuronModel):
         self._constant_variables['a'] = self.neuron_parameters['a']
         self._constant_variables['b'] = self.neuron_parameters['b']
         self._constant_variables['Vth'] = 30.0
-        self._variables['Vreset'] = self.neuron_parameters['c'] - self._constant_variables['Vth']  # 为了发放后将电压重置为-65
-        self._constant_variables['Ureset'] = self.neuron_parameters['d']  # 8.0
+        self._variables['Vreset'] = self.neuron_parameters['Vrest'] - self._constant_variables['Vth']  # 为了发放后将电压重置为-65
+        self._constant_variables['Ureset'] = self.neuron_parameters['Ureset']  # 8.0
         self._constant_variables['C1'] = 0.04
         self._constant_variables['C2'] = 5
         self._constant_variables['C3'] = 140
@@ -628,6 +1065,7 @@ class aEIFModel(NeuronModel):
         self._operations.append(('V', 'var_linear', 'EL', 'O[updated]', 'Vtemp3'))
         self._operations.append(('U', 'var_linear', 'b', 'O[updated]', 'Ut'))
 
+
 NeuronModel.register("aeif", aEIFModel)
 NeuronModel.register("adex", aEIFModel)
 
@@ -680,6 +1118,7 @@ class GLIFModel(NeuronModel):
     I_j = I_j + delta_I_j * O
 
     """
+
     def __init__(self, **kwargs):
         super(GLIFModel, self).__init__()
         self.neuron_parameters['R']             = kwargs.get('R', 0.2)
@@ -760,6 +1199,7 @@ class GLIFModel(NeuronModel):
         self._operations.append(('Vreset', 'minus', 'Vreset', 'Vt'))
 
         self._operations.append(('V', 'var_linear', 'Vreset', 'O[updated]', 'Vt'))
+
 
 NeuronModel.register("glif", GLIFModel)
 
@@ -1106,6 +1546,50 @@ class LIFSTDPIHModel(NeuronModel):
 NeuronModel.register("lifstdp_ih", LIFSTDPIHModel)
 
 
+
+
+class CANN_MeanFieldModel(NeuronModel):
+    """
+    Mean Field Model used in "Fung CC, Wong KY, Wu S. A moving bump in a continuous manifold: a comprehensive study of
+    the tracking dynamics of continuous attractor neural networks. Neural Comput. 2010 Mar;22(3):752-92. doi: 10.1162/neco.2009.07-08-824. "
+    "Wu S, Wong KY, Fung CC, Mi Y, Zhang W. Continuous Attractor Neural Networks: Candidate of a Canonical Model for
+    Neural Information Representation.F1000Res. 2016 Feb 10;5:F1000 Faculty Rev-156. doi: 10.12688/f1000research.7387.1. "
+
+    U = U + dt/tau * (Iext + rho*WgtSum - U)
+    O = U^2/(1 + k*rho*sum(U^2))
+    (WgtSum = weight*O_pre)
+    """
+    def __init__(self, **kwargs):
+        super(CANN_MeanFieldModel, self).__init__()
+
+        self._constant_variables['rho'] = kwargs.get('rho', 0.02)
+        self._constant_variables['k_rho'] = kwargs.get('k', 0.01)
+        self._constant_variables['1'] = 1
+        self._constant_variables['2'] = 2
+
+        self._membrane_variables['tau'] = kwargs.get('tau', 1.0)
+
+        self._variables['Iext'] = 0.0
+        self._variables['WgtSum'] = 0.0
+        self._variables['U'] = 0.0
+        self._variables['O'] = 0.0
+
+        self._operations.append(('Isum', 'var_linear', 'rho', 'WgtSum', 'Iext'))
+        self._operations.append(('dU', 'minus', 'Isum', 'U'))
+        self._operations.append(('U', 'var_linear', 'tau', 'dU', 'U'))
+        self._operations.append(('ReU', 'relu', 'U[updated]'))
+        self._operations.append(('U2', 'var_mult', 'ReU', 'ReU'))
+        self._operations.append(('SumU2', 'reduce_sum', 'U2', '1'))
+        self._operations.append(('RBase','var_linear', 'k_rho', 'SumU2', '1'))
+        self._operations.append(('O', 'div', 'U2', 'RBase'))
+
+
+NeuronModel.register("cann_field", CANN_MeanFieldModel)
+
+
+
+
+
 class MeanFieldModel(NeuronModel):
     """
     Mean Field Model of LIF neuron "
@@ -1132,4 +1616,8 @@ class MeanFieldModel(NeuronModel):
         self._operations.append(('U', 'var_linear', 'tau', 'dU', 'U'))
         self._operations.append(('O', 'relu', 'U[updated]'))
 
+
+
 NeuronModel.register("meanfield", MeanFieldModel)
+
+

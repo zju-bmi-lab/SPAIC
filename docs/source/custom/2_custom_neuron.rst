@@ -66,7 +66,7 @@
 计算式是神经元模型最为重要的部分，一行一行的计算式决定了神经元的各个参数在模拟过程中将会经过一些什么样的变化。
 
 在添加计算式时，有一些需要遵守的规则。首先，每一行只能计算一个特定的计算符，所以需要将原公式\
-进行分解，分解为独立的计算符。目前在平台中内置的计算符可以参考 :code:`simulator.basic_operation`:
+进行分解，分解为独立的计算符。目前在平台中内置的计算符可以参考 :code:`backend.basic_operation`:
 
 - add, minus, div
 - var_mult, mat_mult, mat_mult_pre, sparse_mat_mult, reshape_mat_mult

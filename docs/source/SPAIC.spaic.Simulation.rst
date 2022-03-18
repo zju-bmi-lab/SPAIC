@@ -1,37 +1,37 @@
-SPAIC.spaic.Simulation package
+SPAIC.spaic.Backend package
 ==================================
 
 Submodules
 ----------
 
-SPAIC.spaic.Simulation.Builder module
+SPAIC.spaic.Backend.Builder module
 -----------------------------------------
 
-.. automodule:: SPAIC.spaic.Simulation.Builder
+.. automodule:: SPAIC.spaic.Backend.Builder
    :members:
    :undoc-members:
    :show-inheritance:
 
-SPAIC.spaic.Simulation.Simulator module
+SPAIC.spaic.Backend.Backend module
 -------------------------------------------
 
-.. automodule:: SPAIC.spaic.Simulation.Simulator
+.. automodule:: SPAIC.spaic.Backend.Backend
    :members:
    :undoc-members:
    :show-inheritance:
 
-SPAIC.spaic.Simulation.TF\_Backend module
+SPAIC.spaic.Backend.TF\_Backend module
 ---------------------------------------------
 
-.. automodule:: SPAIC.spaic.Simulation.TF_Backend
+.. automodule:: SPAIC.spaic.Backend.TF_Backend
    :members:
    :undoc-members:
    :show-inheritance:
 
-SPAIC.spaic.Simulation.Torch\_Backend module
+SPAIC.spaic.Backend.Torch\_Backend module
 ------------------------------------------------
 
-.. automodule:: SPAIC.spaic.Simulation.Torch_Backend
+.. automodule:: SPAIC.spaic.Backend.Torch_Backend
    :members:
    :undoc-members:
    :show-inheritance:
@@ -39,7 +39,7 @@ SPAIC.spaic.Simulation.Torch\_Backend module
 Module contents
 ---------------
 
-.. automodule:: SPAIC.spaic.Simulation
+.. automodule:: SPAIC.spaic.Backend
    :members:
    :undoc-members:
    :show-inheritance:

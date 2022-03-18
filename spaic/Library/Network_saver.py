@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on 2020/8/17
-@project: SNNFlow
+@project: SPAIC
 @filename: Network_saver
 @author: Mengxiao Zhang
 @contact: mxzhangice@gmail.com
@@ -15,7 +15,7 @@ from ..Network.Assembly import Assembly
 from ..Neuron.Neuron import NeuronGroup
 from ..Neuron.Node import Node
 from ..Network.Connection import Connection
-from ..Simulation.Backend import Backend
+from ..Backend.Backend import Backend
 from ..Monitor.Monitor import Monitor
 
 import time
@@ -61,9 +61,6 @@ def network_save(Net: Assembly, filename=None, trans_format='json', combine=Fals
 
     result_dict = trans_net(Net=Net, path=path, combine=combine, save=save)
 
-    if not combine:
-        result_simulator = trans_simulator(simulator=Net._simulator, path=path, save=save)
-
     if trans_format == "yaml":
         import yaml
         result = yaml.dump(result_dict, indent=4)
@@ -78,13 +75,10 @@ def network_save(Net: Assembly, filename=None, trans_format='json', combine=Fals
     if save:
         with open(path+'/'+filename+ends, 'w+') as f:
             f.write(result)
-        if not combine:
-            with open(path+'/simulator'+ends, 'w+') as s:
-                s.write(result_simulator)
 
     print("Save Complete.")
 
-    return result_dict
+    return filename, result_dict
 
 
 def trans_net(Net: Assembly, path: str, combine: bool, save: bool):
@@ -120,20 +114,23 @@ def trans_net(Net: Assembly, path: str, combine: bool, save: bool):
             pass
 
     for c in Net._connections.values():  # translate connections
-        result_dict[net_name].append(trans_connection(c, path, combine, save))
+        result_dict[net_name].append(trans_connection(c, combine))
 
-
-    if '_monitors' in dir(Net):
-        mon_dict = {'monitor': []}
-        result_dict[net_name].append(mon_dict)
-        for monitor in Net._monitors.items():
-            mon_dict['monitor'].append(trans_monitor(monitor))
-
+    # if '_monitors' in dir(Net):
+    #     mon_dict = {'monitor': []}
+    #     result_dict[net_name].append(mon_dict)
+    #     for monitor in Net._monitors.items():
+    #         mon_dict['monitor'].append(trans_monitor(monitor))
 
     if '_learners' in dir(Net):
         for key, g in Net._learners.items():  # translate learners
             result_dict[net_name].append({key: trans_learner(g, key)})
     # result_dict[net_name].append({'learners':trans_learner(Net._learners)})
+
+    if not combine and (Net._backend):
+        result_dict[net_name].append(
+            {'backend': trans_backend(Net._backend, path, save)}
+        )
 
     return result_dict
 
@@ -196,7 +193,7 @@ def trans_layer(layer: NeuronGroup):
     para_dict = dict()
 
 
-    unneeded = ['id', 'hided', '_simulator', '_connections', '_supers', '_input_connections',
+    unneeded = ['id', 'hided', '_backend', '_connections', '_supers', '_input_connections',
                 '_output_connections', '_var_names', 'model_class', '_operations', 'model',
                 '_groups']
     needed = ['model_name', 'id', 'name', 'num', 'position', 'shape', 'type', 'parameters']
@@ -210,14 +207,14 @@ def trans_layer(layer: NeuronGroup):
     if para_dict['position'] != ('x, y, z' or 'x, y'):
         para_dict.pop('position')
     para_dict['_class_label'] = '<neg>'
+
     para_dict['neuron_parameters'] = layer.model.neuron_parameters
 
     result_dict[layer.name] = para_dict
-
     return result_dict
 
 
-def trans_connection(connection: Connection, path: str, combine: bool, save: bool):
+def trans_connection(connection: Connection, combine: bool):
     '''
         Transform the structure of the connection for saving and extract the
             parameters.
@@ -238,7 +235,7 @@ def trans_connection(connection: Connection, path: str, combine: bool, save: boo
     needed = ['name', 'link_type', 'max_delay', 'sparse_with_mask',
               'pre_var_name', 'post_var_name', 'parameters']
     unneeded = ['id', 'hided', 'pre_groups', 'post_groups', 'pre_assemblies', 'post_assemblies',
-                'unit_connections', '_var_names', '_supers', '_policies', '_simulator']
+                'unit_connections', '_var_names', '_supers', '_policies', '_backend']
     # **link_parameters
 
     for key, para in connection.__dict__.items():
@@ -250,10 +247,11 @@ def trans_connection(connection: Connection, path: str, combine: bool, save: boo
         para_dict['weight'] = dict()
         t = 0
         for conn in connection.unit_connections:
-            preg = conn.pre_assembly
-            posg = conn.post_assembly
-            weight_name = connection.get_weight_name(preg, posg)
-            weight = connection._simulator._variables[weight_name].detach().cpu().numpy().tolist()
+            # preg = conn.pre_assembly
+            # posg = conn.post_assembly
+            # weight_name = connection.get_weight_name(preg, posg)
+            weight_name = conn[3][0]
+            weight = connection._backend._variables[weight_name].detach().cpu().numpy().tolist()
 
             para_dict['weight'][weight_name] = weight
             t += 1
@@ -264,51 +262,66 @@ def trans_connection(connection: Connection, path: str, combine: bool, save: boo
     return result_dict
 
 
-def trans_simulator(simulator: Backend, path: str, save: bool):
+def trans_backend(backend: Backend, path: str, save: bool):
     '''
-    Transform the data of simulator for saving.
+    Transform the data of backend for saving.
 
     Args:
-        simulator: target simulator.
+        backend: target backend.
         path(string): Target path for saving net data.
 
     Returns:
-        result(dict): Contain the parameters of simulator to be saved.
+        result(dict): Contain the parameters of backend to be saved.
     '''
 
     # Needed parameters: _variables, _parameters_dict, _InitVariables_dict,
     # dt, time, time_step, _graph_var_dicts,
 
-    key_parameters_dict = ['_variables', '_parameters_dict', '_InitVariables_dict']
+    # key_parameters_dict = ['_variables', '_parameters_dict', '_InitVariables_dict']
+    key_parameters_dict = ['_parameters_dict']
     key_parameters_list = ['dt', 'time', 'n_time_step']
-    sim_path = path + '/simulator/'
-    if simulator._variables is None:
+
+
+    if backend._variables is None:
         return
     else:
-        if 'simulator' not in os.listdir(path):
-            os.mkdir(os.getcwd()+path[1:]+'/simulator')
-
-    result_dict = dict()
+        if 'parameters' not in os.listdir(os.getcwd() + path[1:]):
+            os.mkdir(os.getcwd() + path[1:]+'/parameters')
+    sim_path = path + '/parameters'
 
     import torch
 
-    for key in key_parameters_list:
-        result_dict[key] = simulator.__dict__[key]
+    result_dict = dict()
     for key in key_parameters_dict:
-        if key not in os.listdir(sim_path):
-            os.mkdir(os.getcwd()+path[1:]+'/simulator/'+key)
-        result_dict[key] = dict()
-        num = 0
-        for k in simulator.__dict__[key].keys():
-            result_dict[key][k] = './simulator/' + key + '/' + \
-                                               str(num) + '.pt'
-            num += 1
-            data = simulator.__dict__[key][k]
-            if save:
-                torch.save(data, path+result_dict[key][k][1:])
+        if save:
+            save_path = sim_path + '/' + key + '.pt'
+            data = backend.__dict__[key]
+            torch.save(data, save_path)
+            result_dict[key] = './parameters/' + key + '.pt'
+        else:
+            raise ValueError("Wrong save choosen, since parameters can be get from network"
+                             "unneeded to use network_save function.")
 
-    result = {'simulator': result_dict}
-    return result
+    for key in key_parameters_list:
+        result_dict[key] = backend.__dict__[key]
+
+
+    # for key in key_parameters_dict:
+    #     if key not in os.listdir(sim_path):
+    #         os.mkdir(os.getcwd()+path[1:]+'/backend/'+key)
+    #     result_dict[key] = dict()
+    #     num = 0
+    #     for k in backend.__dict__[key].keys():
+    #         result_dict[key][k] = './backend/' + key + '/' + \
+    #                                            str(num) + '.pt'
+    #         num += 1
+    #         data = backend.__dict__[key][k]
+    #         if save:
+    #             torch.save(data, path+result_dict[key][k][1:])
+    # torch.save(backend._variables, path+'total.pt')
+    # result = {'backend': result_dict}
+
+    return result_dict
 
 
 def trans_learner(learner, learn_name):

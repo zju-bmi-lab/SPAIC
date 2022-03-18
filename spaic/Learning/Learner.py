@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on 2020/8/12
-@project: SNNFlow
+@project: SPAIC
 @filename: Learner
 @author: Hong Chaofei
 @contact: hongchf@gmail.com
@@ -38,7 +38,7 @@ class Learner(BaseModule, ABC):
         Methods:
             add_trainable(self, trainable) : Add target object (Network, Assembly, Connection,
                             or list of them) to the trainable container
-            build(self, simulator) : Build Learner, choose the backend as user wish, if we have already finished the api.
+            build(self, backend) : Build Learner, choose the backend as user wish, if we have already finished the api.
 
     '''
 
@@ -75,6 +75,7 @@ class Learner(BaseModule, ABC):
         self.trainable_groups = OrderedDict()
         self.trainable_connections = OrderedDict()
         self.trainable_nodes = OrderedDict()
+        self.trainable_modules = list()
         self.init_trainable = trainable
 
     def add_trainable(self, trainable: list):
@@ -86,6 +87,7 @@ class Learner(BaseModule, ABC):
         from ..Network.Assembly import Assembly
         from ..Network.Connection import Connection
         from ..Neuron.Neuron import NeuronGroup
+        from ..Neuron.Module import Module
         from ..Neuron.Node import Node
 
         if not isinstance(trainable, list):
@@ -98,27 +100,29 @@ class Learner(BaseModule, ABC):
                 self.trainable_connections[target.id] = target
             elif isinstance(target, Node):
                 self.trainable_nodes[target.id] = target
+            elif isinstance(target, Module):
+                self.trainable_modules.append(target)
             elif isinstance(target, Assembly):
                 for sub_t in target.get_groups():
                     trainable.append(sub_t)
                 for sub_t in target.get_connections():
                     trainable.append(sub_t)
 
-    def build(self, simulator):
+    def build(self, backend):
         '''
             Build Learner, choose the backend as user wish, if we have already finished the api.
             Args:
-                simulator(simulator) : Backend we have.
+                backend(backend) : Backend we have.
         '''
         if self.init_trainable is not None:  # If user has given the 'trainable' parameter.
             self.add_trainable(self.init_trainable)
 
-        if simulator.simulator_name in self.prefered_backend:
-            self._simulator = simulator
+        if backend.backend_name in self.prefered_backend:
+            self._backend = backend
 
         else:
             raise ValueError(
-                "the simulator %s is not supported by the learning rule %s" % (simulator.simulator_name, self.name))
+                "the backend %s is not supported by the learning rule %s" % (backend.backend_name, self.name))
         if self.optim_name is not None:
             self.build_optimizer()
         if self.lr_schedule_name is not None:
@@ -169,10 +173,14 @@ class Learner(BaseModule, ABC):
             for name in group._var_names:
                 var_name.append(name)
 
-        for key, value in self._simulator._parameters_dict.items():
+        for key, value in self._backend._parameters_dict.items():
             if key in var_name:
                 param.append(value)
+        for mod in self.trainable_modules:
+            param.extend(mod.parameters)
 
+        for mod in self.trainable_modules:
+            param.extend(mod.parameters)
 
         self.optim = Learner.optim_dict[self.optim_name](param, self.optim_lr, **self.optim_para)
 

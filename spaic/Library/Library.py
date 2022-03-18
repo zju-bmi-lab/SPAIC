@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on 2020/8/17
-@project: SNNFlow
+@project: SPAIC
 @filename: Library
 @author: Hong Chaofei
 @contact: hongchf@gmail.com

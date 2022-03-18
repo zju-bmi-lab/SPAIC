@@ -27,9 +27,9 @@ else:
     device = 'cpu'
 # device = 'cpu'
 print(device)
-simulator = spaic.Torch_Backend(device)
-simulator.dt = 0.1
-sim_name = simulator.simulator_name
+backend = spaic.Torch_Backend(device)
+backend.dt = 0.1
+sim_name = backend.backend_name
 sim_name = sim_name.lower()
 
 # 创建训练数据集
@@ -38,7 +38,7 @@ root = './spaic/Datasets/MNIST'
 train_set = dataset(root, is_train=True)
 test_set =dataset(root, is_train=False)
 
-run_time = 256 * simulator.dt
+run_time = 256 * backend.dt
 node_num = 784
 label_num = 100
 bat_size = 1
@@ -86,11 +86,11 @@ class TestNet(spaic.Network):
         # self.mon_I1 = spaic.StateMonitor(self.input, 'O')
         # self.mon_weight2 = spaic.StateMonitor(self.connection2, 'weight')
 
-        self.set_backend(simulator)
+        self.set_backend(backend)
 
 
 Net = TestNet()
-Net.build(simulator)
+Net.build(backend)
 # Net.mon_weight.plot_heatmap(time_id=-1, linewidths=0, linecolor='white', reshape=True, new_shape=(280,28))
 
 print("Start running")

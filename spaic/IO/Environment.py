@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on 2020/8/12
-@project: SNNFlow
+@project: SPAIC
 @filename: Environment
 @author: Hong Chaofei
 @contact: hongchf@gmail.com
@@ -11,7 +11,7 @@ Created on 2020/8/12
 """
 from abc import ABC, abstractmethod
 from spaic.IO.utils import RGBtoGray, GraytoBinary, reshape
-#import gym
+import gym
 import numpy as np
 
 '''
@@ -94,6 +94,7 @@ class GymEnvironment(BaseEnvironment):
         Attributes:
             max_prob (float): Maximum spiking probability.
             clip_rewards (bool): Whether or not to use ``np.sign`` of rewards.
+            binary (bool): Whether to convert the image to binary
         """
         self.name = name
         self.environmet = gym.make(name)
@@ -102,6 +103,8 @@ class GymEnvironment(BaseEnvironment):
 
         self.shape = kwargs.get('shape', None)
         self.binary = kwargs.get('binary', False)
+        self.gray = kwargs.get('binary', True)
+        self.flatten = kwargs.get('flatten', True)
 
         # Keyword arguments.
         self.max_prob = kwargs.get('max_prob', 1.0)
@@ -135,18 +138,18 @@ class GymEnvironment(BaseEnvironment):
         2D observations are mono images. They will be flatten into 1D.
         3D observations are color images that will be converted to grayscale images and then will be flatten into 1D.
         """
-        if len(self.obs.shape) >= 3:
+        if len(self.obs.shape) >= 3 and self.gray:
             self.obs = RGBtoGray(self.obs)
-            if self.binary:
-                self.obs = GraytoBinary(self.obs)
+
+        if self.binary:
+            self.obs = GraytoBinary(self.obs)
 
         if self.shape is not None:
             if self.shape != self.obs.shape:
-                self.obs = reshape(self.obs)
-
+                self.obs = reshape(self.obs, self.shape)
 
         # Flatten
-        if len(self.obs.shape) >= 2:
+        if len(self.obs.shape) >= 2 and self.flatten:
             self.obs = self.obs.flatten()
 
         # Add the raw observation from the gym environment into the info for display.
@@ -167,29 +170,31 @@ class GymEnvironment(BaseEnvironment):
         # Call gym's environment reset function.
         self.obs = self.environmet.reset()
 
-        if len(self.obs.shape) >= 3:
+        if len(self.obs.shape) >= 3 and self.gray:
             self.obs = RGBtoGray(self.obs)
-            if self.binary:
-                self.obs = GraytoBinary(self.obs)
+
+        if self.binary:
+            self.obs = GraytoBinary(self.obs)
 
         if self.shape is not None:
+            self.shape = tuple(self.shape)
             if self.shape != self.obs.shape:
-                self.obs = reshape(self.obs)
+                self.obs = reshape(self.obs, self.shape)
 
         # Flatten
-        if len(self.obs.shape) >= 2:
+        if len(self.obs.shape) >= 2 and self.flatten:
             self.obs = self.obs.flatten()
 
         self.episode_step_count = 0
 
         return self.obs
 
-    def render(self):
+    def render(self, mode):
 
         """
         Wrapper around the OpenAI ``gym`` environment ``render()`` function.
         """
-        self.environmet.render()
+        return self.environmet.render(mode)
 
     def seed(self, seed):
         """

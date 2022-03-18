@@ -1,21 +1,17 @@
 # -*- coding: utf-8 -*-
 """
 Created on 2020/8/12
-@project: SNNFlow
+@project: SPAIC
 @filename: Dataloader
 @author: Hong Chaofei
 @contact: hongchf@gmail.com
 @description:
 定义数据导入模块
 """
-# from ..IO.Pipeline import Pipline
 from ..IO.sampler import *
 import numpy as np
-# import heapq
-import torch
-import threading
-import queue
 
+# Dataloader class is written by referring to https://github.com/pytorch/pytorch/blob/master/torch/utils/data/dataloader.py.
 class _BaseDatasetFetcher(object):
     def __init__(self, dataset, auto_collation, collate_fn, drop_last):
         self.dataset = dataset
@@ -181,74 +177,3 @@ class _SingleProcessDataLoaderIter(_BaseDataLoaderIter):
     next = __next__
 
 
-# class MultiEpochsDataLoader(Dataloader):
-#
-#     def __init__(self, *args, **kwargs):
-#         super().__init__(*args, **kwargs)
-#         object.__setattr__(self, 'batch_sampler', RepeatSampler(self.batch_sampler))
-#         self.iterator = super().__iter__()
-#
-#     def __len__(self):
-#         return len(self.batch_sampler.sampler)
-#
-#     def __iter__(self):
-#         for i in range(len(self)):
-#             yield next(self.iterator)
-
-# class CudaDataLoaderWrapper(object):
-#     r"""
-#     A cuda-device-specified accelerator for faster data loading during inference.
-#     """
-#
-#     def __init__(self, loader, device, queue_size):
-#         super().__init__()
-#         self.device = device
-#         self.loader = loader
-#
-#         self.load_stream = torch.cuda.Stream(device=device)
-#         self.queue = queue.Queue(maxsize=queue_size)
-#
-#         self.idx = 0
-#         self.worker = threading.Thread(target=self.load_loop)
-#         self.worker.setDaemon(True)
-#         self.worker.start()
-#
-#     def load_loop(self, ):
-#         while True:
-#             for i, samp in enumerate(self.loader):
-#                 self.queue.put(self.load_instance(samp))
-#
-#     def load_instance(self, samp):
-#         if torch.is_tensor(samp):
-#             with torch.cuda.stream(self.load_stream):
-#                 return samp.to(self.device, non_blocking=True)
-#
-#     def __iter__(self):
-#         self.idx = 0
-#         return self
-#
-#     def __next__(self):
-#         if not self.worker.is_alive() and self.queue.empty():
-#             self.idx = 0
-#             self.queue.join()
-#             self.worker.join()
-#             raise StopIteration
-#         elif self.idx >= len(self.loader):
-#             self.idx = 0
-#             raise StopIteration
-#         else:
-#             out = self.queue.get()
-#             self.queue.task_done()
-#             self.idx += 1
-#         return out
-#
-#     def __len__(self):
-#         return len(self.loader)
-#
-#     @property
-#     def sampler(self):
-#         return self.loader.sampler
-#
-#     @property
-#     def dataset(self):
-#         return self.loader.dataset

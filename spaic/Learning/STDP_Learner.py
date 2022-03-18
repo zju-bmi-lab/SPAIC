@@ -15,7 +15,7 @@ class nearest_online_STDP(Learner):
         Methods:
             initial_param(self, input, output): initialize the output_trace and the input_trace for each batch.
             nearest_online_stdp_weightupdate(self, input, output, weight): calculate the update of weight
-            build(self, simulator): Build the simulator, realize the algorithm of nearest_online STDP learning model.
+            build(self, backend): Build the backend, realize the algorithm of nearest_online STDP learning model.
 
         Example:
             self._learner = BaseLearner(algorithm='nearest_online_STDP', lr=0.5, trainable=self, conn=self.connection1)
@@ -54,7 +54,7 @@ class nearest_online_STDP(Learner):
         with torch.no_grad():
             weight.add_(dw)
 
-            # if self._simulator.n_time_step < self.total_step:
+            # if self._backend.n_time_step < self.total_step:
             #     pass
             # else:
                 # for i in range(weight.shape[0]):
@@ -66,13 +66,13 @@ class nearest_online_STDP(Learner):
             weight.clamp_(0.0, 1.0)
 
 
-    def build(self, simulator):
+    def build(self, backend):
 
-        super(nearest_online_STDP, self).build(simulator)
+        super(nearest_online_STDP, self).build(backend)
 
-        self._simulator = simulator
-        self.dt = simulator.dt
-        self.run_time = simulator.runtime
+        self._backend = backend
+        self.dt = backend.dt
+        self.run_time = backend.runtime
         self.total_step = self.run_time / self.dt - 1
 
         for (key, var) in self._constant_variables.items():
@@ -90,22 +90,24 @@ class nearest_online_STDP(Learner):
                     shape = ()
             else:
                 shape = ()
-            simulator.add_variable(key, shape, value=var)
+            backend.add_variable(key, shape, value=var)
 
         for conn in self.trainable_connections.values():
             preg = conn.pre_assembly
             postg = conn.post_assembly
-            pre_name = conn.get_pre_name(preg, 'O')
-            post_name = conn.get_post_name(postg, 'O')
-            weight_name = conn.get_link_name(preg, postg, 'weight')
+            pre_name = conn.get_input_name(preg, postg)
+            post_name = conn.get_target_output_name(postg)
+            weight_name = conn.get_link_name(preg, postg, "weight")
 
-            input_trace_name = conn.get_pre_name(preg, 'input_trace')
-            output_trace_name = conn.get_post_name(postg, 'output_trace')
-            dw_name = conn.get_link_name(preg, postg, 'dw')
-
-            simulator.add_variable(input_trace_name, simulator._variables[pre_name].shape, value=0.0)
-            simulator.add_variable(output_trace_name, simulator._variables[post_name].shape, value=0.0)
-            simulator.add_variable(dw_name, simulator._variables[weight_name].shape, value=0.0)
+            input_trace_name = pre_name + '_{input_trace}'
+            output_trace_name = post_name + '_{output_trace}'
+            permute_name = 'stdp_permute_dim'
+            permute_dim_value = [1, 0]
+            backend.add_variable(permute_name, shape=None, value=permute_dim_value, is_constant=True)
+            dw_name = weight_name + '_{dw}'
+            backend.add_variable(input_trace_name, backend._variables[pre_name].shape, value=0.0)
+            backend.add_variable(output_trace_name, backend._variables[post_name].shape, value=0.0)
+            backend.add_variable(dw_name, backend._variables[weight_name].shape, value=0.0)
             # input_trace_s = (self.input_trace * self.trace_decay)
             # input_trace_s = input + (1 - input) * input_trace_s
             # self.input_trace = input_trace_s
@@ -119,20 +121,25 @@ class nearest_online_STDP(Learner):
             # dw = self.Apost * torch.matmul(output_spike.permute(1, 0), input_trace_s) \
             #              - self.Apre * torch.matmul(output_trace_s.permute(1, 0), input_spike)  #
 
-            simulator.add_operation(['input_trace_s', 'var_mult', input_trace_name, 'trace_decay'])
-            simulator.add_operation(['input_temp', 'minus', 'spike', pre_name])
-            simulator.add_operation([input_trace_name, 'var_linear', 'input_temp', 'input_trace_s', pre_name])
+            backend.add_operation(['input_trace_s', 'var_mult', input_trace_name, 'trace_decay'])
+            backend.add_operation(['input_temp', 'minus', 'spike', pre_name])
+            backend.add_operation([input_trace_name, 'var_linear', 'input_temp', 'input_trace_s', pre_name])
 
-            simulator.add_operation(['output_trace_s', 'var_mult', output_trace_name, 'trace_decay'])
-            simulator.add_operation(['output_temp', 'minus', 'spike', post_name])
-            simulator.add_operation([output_trace_name, 'var_linear', 'output_temp', 'output_trace_s', post_name])
+            backend.add_operation(['output_trace_s', 'var_mult', output_trace_name, 'trace_decay'])
+            backend.add_operation(['output_temp', 'minus', 'spike', post_name])
+            backend.add_operation([output_trace_name, 'var_linear', 'output_temp', 'output_trace_s', post_name])
 
-            simulator.add_operation(['pre_post_temp', 'mat_mult_pre', post_name, input_trace_name+'[updated]'])
-            simulator.add_operation(['pre_post', 'var_mult', 'Apost', 'pre_post_temp'])
-            simulator.add_operation(['post_pre_temp', 'mat_mult_pre', output_trace_name+'[updated]', pre_name])
-            simulator.add_operation(['post_pre', 'var_mult', 'Apre', 'post_pre_temp'])
-            simulator.add_operation([dw_name, 'minus', 'pre_post', 'post_pre'])
-            simulator.register_standalone(None, self.nearest_online_stdp_weightupdate, [dw_name, weight_name])
+            backend.add_operation(['post_permute', 'permute', post_name, permute_name])
+            backend.add_operation(['pre_post_temp', 'mat_mult', 'post_permute', input_trace_name+'[updated]'])
+
+            # backend.add_operation(['pre_post_temp', 'mat_mult_pre', post_name, input_trace_name+'[updated]'])
+            backend.add_operation(['pre_post', 'var_mult', 'Apost', 'pre_post_temp'])
+            backend.add_operation(['output_trace_permute', 'permute', output_trace_name + '[updated]', permute_name])
+            backend.add_operation(['post_pre_temp', 'mat_mult', 'output_trace_permute', pre_name])
+            # backend.add_operation(['post_pre_temp', 'mat_mult_weight', output_trace_name+'[updated]', pre_name])
+            backend.add_operation(['post_pre', 'var_mult', 'Apre', 'post_pre_temp'])
+            backend.add_operation([dw_name, 'minus', 'pre_post', 'post_pre'])
+            backend.register_standalone(None, self.nearest_online_stdp_weightupdate, [dw_name, weight_name])
 Learner.register("nearest_online_stdp", nearest_online_STDP)
 
 
@@ -151,7 +158,7 @@ class full_online_STDP(Learner):
         Methods:
             initial_param(self, input, output): initialize the output_trace and the input_trace for each batch.
             nearest_online_stdp_weightupdate(self, input, output, weight): calculate the update of weight
-            build(self, simulator): Build the simulator, realize the algorithm of full_online STDP learning model.
+            build(self, backend): Build the backend, realize the algorithm of full_online STDP learning model.
 
         Example:
             self._learner = BaseLearner(algorithm='full_online_STDP', lr=0.5, trainable=self, conn=self.connection1)
@@ -168,13 +175,12 @@ class full_online_STDP(Learner):
         self.prefered_backend = ['pytorch']
         self.firing_func = None
         self._constant_variables = dict()
-        self._constant_variables['Apost'] = kwargs.get('Apost', 1e-2)
-        self._constant_variables['Apre'] = kwargs.get('Apre', 1e-4)
-        self._constant_variables['trace_decay'] = kwargs.get('trace_decay', np.exp(-1 / 20))
-        self._constant_variables['spike'] = kwargs.get('spike', 1)
+        self._constant_variables['Apost'] = kwargs.get('Apost', 0.1)
+        self._constant_variables['Apre'] = kwargs.get('Apre', 0.08)
+        self._constant_variables['trace_decay'] = kwargs.get('trace_decay', 0.9967)
         self.lr = kwargs.get('lr', 0.01)
+        self.name = 'full_online_STDP'
         self.w_norm = 78.4
-        self.trainable = trainable
 
     def full_online_stdp_weightupdate(self, dw, weight):
         '''
@@ -190,7 +196,7 @@ class full_online_STDP(Learner):
         with torch.no_grad():
             weight.add_(dw)
 
-            if self._simulator.n_time_step < self.total_step:
+            if self._backend.n_time_step < self.total_step:
                 pass
             else:
                 weight[...] = (self.w_norm * torch.div(weight, torch.sum(torch.abs(weight), 1, keepdim=True)))
@@ -198,11 +204,11 @@ class full_online_STDP(Learner):
             weight.clamp_(0.0, 1.0)
 
 
-    def build(self, simulator):
-        super(full_online_STDP, self).build(simulator)
-        self._simulator = simulator
-        self.dt = simulator.dt
-        self.run_time = simulator.runtime
+    def build(self, backend):
+        super(full_online_STDP, self).build(backend)
+        self._backend = backend
+        self.dt = backend.dt
+        self.run_time = backend.runtime
         self.total_step = self.run_time / self.dt - 1
 
         for (key, var) in self._constant_variables.items():
@@ -220,21 +226,24 @@ class full_online_STDP(Learner):
                     shape = ()
             else:
                 shape = ()
-            simulator.add_variable(key, shape, value=var)
+            backend.add_variable(key, shape, value=var)
 
         for conn in self.trainable_connections.values():
             preg = conn.pre_assembly
             postg = conn.post_assembly
-            pre_name = conn.get_pre_name(preg, 'O')
-            post_name = conn.get_post_name(postg, 'O')
-            weight_name = conn.get_link_name(preg, postg, 'weight')
+            pre_name = conn.get_input_name(preg, postg)
+            post_name = conn.get_target_output_name(postg)
+            weight_name = conn.get_link_name(preg, postg, "weight")
 
-            input_trace_name = conn.get_pre_name(preg, 'input_trace')
-            output_trace_name = conn.get_post_name(postg, 'output_trace')
-            dw_name = conn.get_link_name(preg, postg, 'dw')
-            simulator.add_variable(input_trace_name, simulator._variables[pre_name].shape, value=0.0)
-            simulator.add_variable(output_trace_name, simulator._variables[post_name].shape, value=0.0)
-            simulator.add_variable(dw_name, simulator._variables[weight_name].shape, value=0.0)
+            input_trace_name = pre_name + '_{input_trace}'
+            output_trace_name = post_name + '_{output_trace}'
+            dw_name = weight_name + '_{dw}'
+            permute_name = 'stdp_permute_dim'
+            permute_dim_value = [1, 0]
+            backend.add_variable(permute_name, shape=None, value=permute_dim_value, is_constant=True)
+            backend.add_variable(input_trace_name, backend._variables[pre_name].shape, value=0.0)
+            backend.add_variable(output_trace_name, backend._variables[post_name].shape, value=0.0)
+            backend.add_variable(dw_name, backend._variables[weight_name].shape, value=0.0)
 
             # input_trace_s = (self.input_trace * self.trace_decay) + input
             # self.input_trace = input_trace_s
@@ -247,19 +256,25 @@ class full_online_STDP(Learner):
             # dw = self.Apost * torch.matmul(output_spike.permute(1, 0), input_trace_s) \
             #              - self.Apre * torch.matmul(output_trace_s.permute(1, 0), input_spike)  #
 
-            simulator.add_operation(['input_trace_temp', 'var_mult', input_trace_name, 'trace_decay'])
-            simulator.add_operation([input_trace_name, 'add', pre_name, 'input_trace_temp'])
+            backend.add_operation(['input_trace_temp', 'var_mult', input_trace_name, 'trace_decay'])
+            backend.add_operation([input_trace_name, 'add', pre_name, 'input_trace_temp'])
 
 
-            simulator.add_operation(['output_trace_temp', 'var_mult', output_trace_name, 'trace_decay'])
-            simulator.add_operation([output_trace_name, 'add', post_name, 'output_trace_temp'])
+            backend.add_operation(['output_trace_temp', 'var_mult', output_trace_name, 'trace_decay'])
+            backend.add_operation([output_trace_name, 'add', post_name, 'output_trace_temp'])
 
-            simulator.add_operation(['pre_post_temp', 'mat_mult_pre', post_name, input_trace_name+'[updated]'])
-            simulator.add_operation(['pre_post', 'var_mult', 'Apost', 'pre_post_temp'])
-            simulator.add_operation(['post_pre_temp', 'mat_mult_pre', output_trace_name+'[updated]', pre_name])
-            simulator.add_operation(['post_pre', 'var_mult', 'Apre', 'post_pre_temp'])
-            simulator.add_operation([dw_name, 'minus', 'pre_post', 'post_pre'])
-            simulator.register_standalone(None, self.full_online_stdp_weightupdate, [dw_name, weight_name])
+            backend.add_operation(['post_permute', 'permute', post_name, permute_name])
+            backend.add_operation(['pre_post_temp', 'mat_mult', 'post_permute', input_trace_name + '[updated]'])
+
+            # backend.add_operation(['pre_post_temp', 'mat_mult_pre', post_name, input_trace_name+'[updated]'])
+            backend.add_operation(['pre_post', 'var_mult', 'Apost', 'pre_post_temp'])
+
+            backend.add_operation(['output_trace_permute', 'permute', output_trace_name + '[updated]', permute_name])
+            backend.add_operation(['post_pre_temp', 'mat_mult', 'output_trace_permute', pre_name])
+            # backend.add_operation(['post_pre_temp', 'mat_mult_pre', output_trace_name+'[updated]', pre_name])
+            backend.add_operation(['post_pre', 'var_mult', 'Apre', 'post_pre_temp'])
+            backend.add_operation([dw_name, 'minus', 'pre_post', 'post_pre'])
+            backend.register_standalone(None, self.full_online_stdp_weightupdate, [dw_name, weight_name])
 
 
 

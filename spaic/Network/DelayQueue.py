@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on 2021/4/1
-@project: SNNFlow
+@project: SPAIC
 @filename: DelayQueue
 @author: Hong Chaofei
 @contact: hongchf@gmail.com
@@ -17,21 +17,21 @@ from abc import abstractmethod
 class DelayQueue(object):
     _delayqueue_subclasses = dict()
 
-    def __init__(self, var_name=None, max_len=None,  simulator=None):
+    def __init__(self, var_name=None, max_len=None,  backend=None):
         super(DelayQueue, self).__init__()
         self.max_len = max_len
-        self.dt = simulator.dt
-        self.simulator = simulator
+        self.dt = backend.dt
+        self.backend = backend
         self.var_name = var_name
 
-    def __new__(cls, var_name=None, max_len=None,  simulator=None):
+    def __new__(cls, var_name=None, max_len=None,  backend=None):
 
         if cls is not DelayQueue:
             return super().__new__(cls)
-        if simulator.simulator_name in cls._delayqueue_subclasses:
-            return cls._delayqueue_subclasses[simulator.simulator_name](var_name, max_len, simulator)
+        if backend.backend_name in cls._delayqueue_subclasses:
+            return cls._delayqueue_subclasses[backend.backend_name](var_name, max_len, backend)
         else:
-            raise ValueError("No DelayQueue type for : %s backend" % simulator.simulator_name)
+            raise ValueError("No DelayQueue type for : %s backend" % backend.backend_name)
 
     @staticmethod
     def register(name, deque_class):
@@ -74,10 +74,10 @@ class DelayQueue(object):
 
 class TorchDelayQueue(DelayQueue):
 
-    def __init__(self,var_name, max_len, simulator):
-        super(TorchDelayQueue, self).__init__(var_name, max_len, simulator)
-        self.device = simulator.device
-        self._simulator = simulator
+    def __init__(self,var_name, max_len, backend):
+        super(TorchDelayQueue, self).__init__(var_name, max_len, backend)
+        self.device = backend.device
+        self._backend = backend
 
 
 
@@ -130,12 +130,12 @@ DelayQueue.register('pytorch', TorchDelayQueue)
 
 
 def test_queue():
-    class Simulator:
+    class Backend:
         dt = 0.1
         device = 'cpu'
-    simulator = Simulator()
+    backend = Backend()
     # with torch.autograd.set_detect_anomaly(True):
-    Queue = TorchDelayQueue('test', 60, simulator)
+    Queue = TorchDelayQueue('test', 60, backend)
     States = [torch.randn((100, 500)) for ii in range(10)]
     delay = 10.0*torch.randn(200,500)
     delay.requires_grad = True

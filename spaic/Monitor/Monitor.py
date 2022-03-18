@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on 2020/8/12
-@project: SNNFlow
+@project: SPAIC
 @filename: Monitor
 @author: Hong Chaofei
 @contact: hongchf@gmail.com
@@ -11,9 +11,10 @@ Created on 2020/8/12
 """
 from ..Network.Assembly import BaseModule, Assembly
 from ..Network.Connection import Connection
-from ..Simulation.Backend import Backend
+from ..Backend.Backend import Backend
 import numpy as np
 import torch
+
 
 class Monitor(BaseModule):
 
@@ -75,7 +76,7 @@ class Monitor(BaseModule):
     def clear(self):
         NotImplementedError()
 
-    def build(self, simulator: Backend):
+    def build(self, backend: Backend):
         NotImplementedError()
 
 
@@ -85,11 +86,16 @@ class Monitor(BaseModule):
     def update_step(self):
         NotImplementedError()
 
+    def push_data(self, data, time):
+        "push data to monitor by backend"
+        self._records.append(data)
+        self._times.append(time)
+
 
 
 
 class SpikeMonitor(Monitor):
-    def __init__(self, target, var_name='O', index='full', dt=None, get_grad=False, nbatch=True):
+    def __init__(self, target, var_name='O', index='full', dt=None, get_grad=False, nbatch=False):
         super().__init__(target=target, var_name=var_name, index=index, dt=dt, get_grad=get_grad, nbatch=nbatch)
         self._transform_len = 0
         self._nbatch_index = []      # all time window's record
@@ -100,12 +106,13 @@ class SpikeMonitor(Monitor):
         self._times = []
 
 
-    def build(self, simulator: Backend):
-        self.simulator = simulator
-        self.simulator._monitors.append(self)
+    def build(self, backend: Backend):
+        self.backend = backend
+        self.backend._monitors.append(self)
         self.var_name = self.check_var_name(self.var_name)
+        self.shape = self.backend._variables[self.var_name].shape
         if self.dt is None:
-            self.dt = self.simulator.dt
+            self.dt = self.backend.dt
 
     def clear(self):
         self._transform_len = -1
@@ -163,21 +170,35 @@ class SpikeMonitor(Monitor):
             elif self.var_name in graph_var_dicts['variables_dict']:
                 self.var_container = 'variables_dict'
             else:
-                raise ValueError(" No variable:%s in the simulator"%self.var_name)
+                raise ValueError(" No variable:%s in the backend"%self.var_name)
 
-        if int(10000 * self.simulator.time / self.dt) % 10000 == 0:
+        if int(10000 * self.backend.time / self.dt) % 10000 == 0:
             record_value = graph_var_dicts[self.var_container][self.var_name]
             if self.get_grad:
                 graph_var_dicts[self.var_container][self.var_name].retain_grad()
             if self.index == 'full':
                 self._records.append(record_value)
-                self._times.append(self.simulator.time)
+                self._times.append(self.backend.time)
             else:
-                self._records.append(self.simulator.index_select(record_value, self.index))
-                self._times.append(self.simulator.time)
+                if len(self.index) == record_value.ndim:
+                    self._records.append(record_value[self.index])
+                    self._times.append(self.backend.time)
+                else:
+                    assert len(self.index) == record_value.ndim -1
+                    if self.backend.backend_name == 'pytorch':
+                        record_value = torch.movedim(record_value, 0, -1)
+                        indexed_value = record_value[tuple(self.index)]
+                        indexed_value = torch.movedim(indexed_value, -1, 0)
+                    else:
+                        record_value = np.array(record_value)
+                        record_value = np.moveaxis(record_value, 0, -1)
+                        indexed_value = record_value[tuple(self.index)]
+                        indexed_value = np.moveaxis(indexed_value, -1, 0)
+                    self._records.append(indexed_value)
+                    self._times.append(self.backend.time)
 
     def _spike_transform(self):
-        batch_size = self.simulator.get_batch_size()
+        batch_size = self.backend.get_batch_size()
         if len(self._records) > self._transform_len:
             self._transform_len = len(self._records)
             self._spk_index = []
@@ -255,7 +276,7 @@ class SpikeMonitor(Monitor):
 
 class StateMonitor(Monitor):
 
-    def __init__(self, target, var_name, index='full', dt=None, get_grad=False, nbatch=True):
+    def __init__(self, target, var_name, index='full', dt=None, get_grad=False, nbatch=False):
         # TODO: 初始化有点繁琐，需要知道record的变量，考虑采用更直接的监控函数
         super().__init__(target=target, var_name=var_name, index=index, dt=dt, get_grad=get_grad, nbatch=nbatch)
 
@@ -266,12 +287,14 @@ class StateMonitor(Monitor):
 
 
 
-    def build(self, simulator: Backend):
-        self.simulator = simulator
-        self.simulator._monitors.append(self)
+    def build(self, backend: Backend):
+        self.backend = backend
+        self.backend._monitors.append(self)
         self.var_name = self.check_var_name(self.var_name)
+        if self.index != 'full':
+            self.index = tuple(self.index)
         if self.dt is None:
-            self.dt = self.simulator.dt
+            self.dt = self.backend.dt
 
 
     def clear(self):
@@ -329,9 +352,9 @@ class StateMonitor(Monitor):
             elif self.var_name in graph_var_dicts['variables_dict']:
                 self.var_container = 'variables_dict'
             else:
-                raise ValueError(" No variable:%s in the simulator"%self.var_name)
+                raise ValueError(" No variable:%s in the backend"%self.var_name)
 
-        if int(10000 * self.simulator.time / self.dt) % 10000 == 0:
+        if int(10000 * self.backend.time / self.dt) % 10000 == 0:
             record_value = graph_var_dicts[self.var_container][self.var_name]
             if self.get_grad:
                 var = graph_var_dicts[self.var_container][self.var_name]
@@ -339,10 +362,24 @@ class StateMonitor(Monitor):
                     var.retain_grad()
             if self.index == 'full':
                 self._records.append(record_value)
-                self._times.append(self.simulator.time)
+                self._times.append(self.backend.time)
             else:
-                self._records.append(self.simulator.index_select(record_value, self.index))
-                self._times.append(self.simulator.time)
+                if len(self.index) == record_value.ndim:
+                    self._records.append(record_value[self.index])
+                    self._times.append(self.backend.time)
+                else:
+                    assert len(self.index) == record_value.ndim -1
+                    if self.backend.backend_name == 'pytorch':
+                        record_value = torch.movedim(record_value, 0, -1)
+                        indexed_value = record_value[tuple(self.index)]
+                        indexed_value = torch.movedim(indexed_value, -1, 0)
+                    else:
+                        record_value = np.array(record_value)
+                        record_value = np.moveaxis(record_value, 0, -1)
+                        indexed_value = record_value[tuple(self.index)]
+                        indexed_value = np.moveaxis(indexed_value, -1, 0)
+                    self._records.append(indexed_value)
+                    self._times.append(self.backend.time)
 
 
     @property
@@ -391,7 +428,6 @@ class StateMonitor(Monitor):
         else:
             return np.stack(self._times, axis=-1)
 
-
     def plot_weight(self, **kwargs):
         from matplotlib import pyplot as plt
         from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -421,7 +457,7 @@ class StateMonitor(Monitor):
                 value = value.reshape(n_sqrt, n_sqrt, side, side)
 
                 value = value.transpose(0, 2, 1, 3)
-                value = value.reshape(n_sqrt*side, n_sqrt*side)
+                value = value.reshape(n_sqrt * side, n_sqrt * side)
                 square_weights = value
 
             else:
@@ -455,3 +491,4 @@ class StateMonitor(Monitor):
 
         plt.pause(0.1)
         return im
+
