@@ -63,7 +63,7 @@ with CANNNet:
 
 
 CANNNet.set_backend('torch')
-CANNNet._simulator.dt=0.2
+CANNNet._backend.dt=0.2
 
 # ion()
 inp = np.zeros((1,1,200, 200))
@@ -75,7 +75,7 @@ for kk in range(25):
     input(inp) # try input(0.01)
     CANNNet.run(10.0)
     out = om.values
-    # imshow(CANNNet._simulator._variables['CANNNet<net>_inter_link<con>:CANNNet<net>_layer<neg><-CANNNet<net>_layer<neg>:{weight}'].detach().numpy())
+    # imshow(CANNNet._backend._variables['CANNNet<net>_inter_link<con>:CANNNet<net>_layer<neg><-CANNNet<net>_layer<neg>:{weight}'].detach().numpy())
     # show()
     om.init_record()
     timelen = out.shape[-1]

@@ -63,34 +63,34 @@ STCA算法 [#f1]_ 中，梯度函数为:
 
 .. code-block:: python
 
-    simulator.add_variable(input_trace_name, simulator._variables[pre_name].shape, value=0.0)
-    simulator.add_variable(output_trace_name, simulator._variables[post_name].shape, value=0.0)
-    simulator.add_variable(dw_name, simulator._variables[weight_name].shape, value=0.0)
+    backend.add_variable(input_trace_name, backend._variables[pre_name].shape, value=0.0)
+    backend.add_variable(output_trace_name, backend._variables[post_name].shape, value=0.0)
+    backend.add_variable(dw_name, backend._variables[weight_name].shape, value=0.0)
 
 之后将运算公式添加进后端
 
 .. code-block:: python
 
    #dw = Apost * (output_spike * input_trace) – Apre * (output_trace * input_spike)
-   simulator.add_operation(['input_trace_s', 'var_mult', input_trace_name, 'trace_decay'])
-   simulator.add_operation(['input_temp', 'minus', 'spike', pre_name])
-   simulator.add_operation([input_trace_name, 'var_linear', 'input_temp', 'input_trace_s', pre_name])
+   backend.add_operation(['input_trace_s', 'var_mult', input_trace_name, 'trace_decay'])
+   backend.add_operation(['input_temp', 'minus', 'spike', pre_name])
+   backend.add_operation([input_trace_name, 'var_linear', 'input_temp', 'input_trace_s', pre_name])
 
-   simulator.add_operation(['output_trace_s', 'var_mult', output_trace_name, 'trace_decay'])
-   simulator.add_operation(['output_temp', 'minus', 'spike', post_name])
-   simulator.add_operation([output_trace_name, 'var_linear', 'output_temp', 'output_trace_s', post_name])
+   backend.add_operation(['output_trace_s', 'var_mult', output_trace_name, 'trace_decay'])
+   backend.add_operation(['output_temp', 'minus', 'spike', post_name])
+   backend.add_operation([output_trace_name, 'var_linear', 'output_temp', 'output_trace_s', post_name])
 
-   simulator.add_operation(['pre_post_temp', 'mat_mult_pre', post_name, input_trace_name+'[updated]'])
-   simulator.add_operation(['pre_post', 'var_mult', 'Apost', 'pre_post_temp'])
-   simulator.add_operation(['post_pre_temp', 'mat_mult_pre', output_trace_name+'[updated]', pre_name])
-   simulator.add_operation(['post_pre', 'var_mult', 'Apre', 'post_pre_temp'])
-   simulator.add_operation([dw_name, 'minus', 'pre_post', 'post_pre'])
+   backend.add_operation(['pre_post_temp', 'mat_mult_pre', post_name, input_trace_name+'[updated]'])
+   backend.add_operation(['pre_post', 'var_mult', 'Apost', 'pre_post_temp'])
+   backend.add_operation(['post_pre_temp', 'mat_mult_pre', output_trace_name+'[updated]', pre_name])
+   backend.add_operation(['post_pre', 'var_mult', 'Apre', 'post_pre_temp'])
+   backend.add_operation([dw_name, 'minus', 'pre_post', 'post_pre'])
 
 之后将更新权重的函数添加进后端
 
 .. code-block:: python
 
-   simulator.register_standalone(None, self.nearest_online_stdp_weightupdate, [dw_name, weight_name])
+   backend.register_standalone(None, self.nearest_online_stdp_weightupdate, [dw_name, weight_name])
 
 
 权重更新代码：

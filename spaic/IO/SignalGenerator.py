@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on 2020/10/23
-@project: SNNFlow
+@project: SPAIC
 @filename: SignalGenerator
 @author: Hong Chaofei
 @contact: hongchf@gmail.com

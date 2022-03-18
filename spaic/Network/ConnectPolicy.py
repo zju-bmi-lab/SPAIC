@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on 2021/5/10
-@project: SNNFlow
+@project: SPAIC
 @filename: ConnectionPolicy
 @author: Hong Chaofei
 @contact: hongchf@gmail.com
@@ -27,7 +27,7 @@ class ConnectInformation():
         self.my_level = level
         self.super = None
         if (self.pre.id is not None) and (self.post.id is not None):
-            self.key = self.pre.id + "||" + self.post.id
+            self.key = self.pre.id + "->" + self.post.id
         else:
             self.key = 'default' + str(ConnectInformation._con_count)
         ConnectInformation._con_count += 1
@@ -41,7 +41,6 @@ class ConnectInformation():
             self.is_unit = True
         else:
             self.is_unit = False
-
 
 
     def homologous(self, other):
@@ -283,8 +282,14 @@ class IncludedTypePolicy(ConnectPolicy):
 
     def __init__(self, pre_types=None, post_types=None, level=-1):
         super(IncludedTypePolicy, self).__init__(level=level)
-        self.pre_types = pre_types
-        self.post_types = post_types
+        if isinstance(pre_types, list):
+            self.pre_types = pre_types
+        else:
+            self.pre_types = [pre_types]
+        if isinstance(post_types, list):
+            self.post_types = post_types
+        else:
+            self.post_types = [post_types]
 
 
     def checked_connection(self, new_connection: ConnectInformation):
@@ -313,8 +318,14 @@ class ExcludedTypePolicy(ConnectPolicy):
 
     def __init__(self, pre_types=None, post_types=None, level=-1):
         super(ExcludedTypePolicy, self).__init__(level=level)
-        self.pre_types = pre_types
-        self.post_types = post_types
+        if isinstance(pre_types, list):
+            self.pre_types = pre_types
+        else:
+            self.pre_types = [pre_types]
+        if isinstance(post_types, list):
+            self.post_types = post_types
+        else:
+            self.post_types = [post_types]
 
     def checked_connection(self, new_connection: ConnectInformation):
 

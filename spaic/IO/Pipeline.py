@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on 2020/8/17
-@project: SNNFlow
+@project: SPAIC
 @filename: IO
 @author: Hong Chaofei
 @contact: hongchf@gmail.com
@@ -9,7 +9,7 @@ Created on 2020/8/17
 @description:
 """
 from abc import abstractmethod
-from spaic.Neuron.Node import Decoder, Encoder
+from spaic.Neuron.Node import Action, Encoder, Reward
 import numpy as np
 from tqdm import tqdm
 import torch
@@ -19,11 +19,6 @@ import random
 class Pipline:
     def __init__(self, **kwargs):
         pass
-
-    # @abstractmethod
-    # def with_simulator(self, simulator):
-    #     pass
-    #
 
     @abstractmethod
     def update_step(self, batch, **kwargs):
@@ -39,23 +34,36 @@ class Pipline:
 class RLPipeline(Pipline):
     def __init__(self, network, environment, time=None, **kwargs):
         self.network = network
-        self._simulator = self.network._simulator
-        self.sim_name = self._simulator.simulator_name
-        self.device = self._simulator.device
+        self._backend = self.network._backend
+        self.sim_name = self._backend.backend_name
+        self.device = self._backend.device
         self.time = time
-        self.time_step = int(self.time / self._simulator.dt)
-
-        # Get decoder and encoder
+        self.time_step = int(self.time / self._backend.dt)
+        self.actuator = None
+        self.encoder = None
+        self.rewarder = None
+        # Get actuator and encoder
         for group in self.network.get_groups():
-            if isinstance(group, Decoder):
-                self.decoder = group
+            if isinstance(group, Action):
+                self.actuator = group
             if isinstance(group, Encoder):
                 self.encoder = group
+            if isinstance(group, Reward):
+                self.rewarder = group
 
-        self.network.build(self._simulator)
+        if self.actuator is None:
+            raise ValueError('Lack of Action object')
+        if self.encoder is None:
+            raise ValueError('Lack of Encoder object')
+
+        self.network.build(self._backend)
 
         self.state = np.zeros(self.encoder.num)
         self.environment = environment
+        if self.environment.shape is not None and len(self.environment.shape) >= 2:
+            self.conv_state = True
+        else:
+            self.conv_state = False
         self.step_count = 0
         self.episode = 0
         self.num_episodes = kwargs.get('num_episodes', 100)
@@ -93,33 +101,34 @@ class RLPipeline(Pipline):
             self.environment.render()
 
         # Get action
-        if self.decoder is not None:
-            self.last_action = self.action
-            # action sampled from the action space with a certain probability
-            if np.random.rand(1) < self.probability_random_action:
+        self.last_action = self.action
+        # action sampled from the action space with a certain probability
+        if np.random.rand(1) < self.probability_random_action:
+            self.action = np.random.randint(
+                low=0, high=self.environment.action_num, size=(1,)
+            )[0]
+        elif self.action_repeat_count > self.action_repeat:
+            if self.last_action == 0:
+                self.action = 1
+                tqdm.write(f"Act -> too many times {self.last_action} ")
+            else:
                 self.action = np.random.randint(
                     low=0, high=self.environment.action_num, size=(1,)
                 )[0]
-            elif self.action_repeat_count > self.action_repeat:
-                if self.last_action == 0:
-                    self.action = 1
-                    tqdm.write(f"Fire -> too many times {self.last_action} ")
-                else:
-                    self.action = np.random.randint(
-                        low=0, high=self.environment.action_num, size=(1,)
-                    )[0]
-                    tqdm.write(f"too many times {self.last_action} ")
-            else:
-                if self.sim_name == 'pytorch':
-                    self.action = int(self.decoder.predict)  # Get action from the predict result of decoder
+                tqdm.write(f"Act -> too many times {self.last_action} ")
+        else:
+            if self.sim_name == 'pytorch':
+                self.action = int(self.actuator.action)  # Get action from the predict result of action
 
-            if self.last_action == self.action:
-                self.action_repeat_count += 1
-            else:
-                self.action_repeat_count = 0
+        if self.last_action == self.action:
+            self.action_repeat_count += 1
+        else:
+            self.action_repeat_count = 0
 
         # Run a step of the environment.
         next_state, reward, done, _ = self.environment.step(self.action)
+        if self.conv_state:
+            next_state = next_state[np.newaxis, :]
 
         if done:
             next_state = None
@@ -157,12 +166,10 @@ class RLPipeline(Pipline):
             next_state = next_state[np.newaxis, :]
 
             # Place the observations into the network.
-            self.network.input(next_state)
-
-            # Run the network on the spike train-encoded inputs.
-            if 'Environment_Reward' in self._simulator._InitVariables_dict.keys():
-                if self.sim_name == 'pytorch':
-                    self._simulator._InitVariables_dict['Environment_Reward'] = torch.tensor(reward, device=self.device)
+            # self.network.input(next_state)
+            self.encoder(next_state)
+            if self.rewarder is not None:
+                self.rewarder(reward)
 
             self.network.run(self.time)
 
@@ -176,7 +183,11 @@ class RLPipeline(Pipline):
         self.action = -1
         self.last_action = -1
         self.action_repeat_count = 0
-        self.state = np.zeros(self.encoder.num)
+        if self.conv_state:
+            self.state = np.zeros(self.environment.shape)
+            self.state = self.state[np.newaxis, :]
+        else:
+            self.state = np.zeros(self.encoder.num)
 
 
 Transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward'))

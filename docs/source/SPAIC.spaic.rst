@@ -13,7 +13,7 @@ Subpackages
    SPAIC.spaic.Monitor
    SPAIC.spaic.Network
    SPAIC.spaic.Neuron
-   SPAIC.spaic.Simulation
+   SPAIC.spaic.Backend
    SPAIC.spaic.UI
 
 Module contents

@@ -20,10 +20,10 @@ if torch.cuda.is_available():
 else:
     device = 'cpu'
 # device = 'cpu'
-simulator = spaic.Torch_Backend(device)
-sim_name = simulator.simulator_name
+backend = spaic.Torch_Backend(device)
+sim_name = backend.backend_name
 sim_name = sim_name.lower()
-simulator.dt =0.1
+backend.dt =0.1
 print(device)
 
 # 创建训练数据集
@@ -49,12 +49,12 @@ class TestNet(spaic.Network):
         # can set neuron param dict, including 'tau_p', 'tau_q', 'tau_m', 'v_th' and 'v_reset'
 
         #self.layer1 = spaic.NeuronGroup(676, neuron_shape=None, neuron_model='clif', batch_size=bat_size)  #26*26*4 经过池化 13*13*4, kernel_size=2
-        self.layer1 = spaic.NeuronGroup(4 * 13 * 13, neuron_shape=None, neuron_model='lif',
+        self.layer1 = spaic.NeuronGroup(4 * 12 * 12, neuron_shape=None, neuron_model='lif',
                                           batch_size=bat_size)  #24*24*4经过池化 12*12*4, kernel_size=2
 
 
         #self.layer2 = spaic.NeuronGroup(200, neuron_shape=None, neuron_model='clif',batch_size=bat_size)  # 11*11*8经过池化 5*5*8, kernel_size=2
-        self.layer2 = spaic.NeuronGroup(8 * 11 * 11, neuron_shape=None, neuron_model='lif',
+        self.layer2 = spaic.NeuronGroup(8 * 10 * 10, neuron_shape=None, neuron_model='lif',
                                           batch_size=bat_size)  # 8*8*8经过池化 4*4*8, kernel_size=2
 
 
@@ -70,14 +70,14 @@ class TestNet(spaic.Network):
         self.connection3 = spaic.Connection(self.layer2, self.layer3, link_type='full', flatten=True, w_std=0.05, w_mean=0.02)
         # Learner
         self._learner = Learner(algorithm='STCA', a=0.01, trainable=[self.connection1, self.connection2, self.connection3, self.layer1, self.layer2, self.layer3])
-        self.set_backend(simulator)
+        self.set_backend(backend)
         # Minitor
         # self.mon_O = spaic.StateMonitor(self.input, 'O')
 
 
 Net = TestNet()
 
-Net.build(simulator)#创建网络
+Net.build(backend)#创建网络
 param = Net.get_testparams()#得到网络模型参数
 
 optim = torch.optim.Adam(param, lr=0.01)  # 创建优化器对象，并传入网络模型的参数

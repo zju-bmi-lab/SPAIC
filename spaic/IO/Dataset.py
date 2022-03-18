@@ -3,31 +3,21 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 import tables
-import struct
+
 import json
 import pickle
 
-from spaic.IO.utils import load_audio_data, save_numpy_format, load_aedat_v3
+from spaic.IO.utils import load_kp_data, save_kp_feature, save_mfcc_feature, load_mfcc_data, load_aedat_v3, un_tar
 from concurrent.futures import ThreadPoolExecutor
 import multiprocessing
-
-# def mkdir_ok(dirpath):
-#     """
-#         检查文件夹是否创建成功
-#     """
-#     try:
-#         os.makedirs(dirpath)
-#     except OSError as e:
-#         if e.errno == errno.EEXIST:    # EEXIST：文件已存在
-#             pass
-#         else:
-#             raise
 
 class Dataset(object):
     r"""
     All datasets that represent a map from keys to data samples should subclass it.
-    All subclasses should overwrite :meth:`__getitem__`, supporting fetching a data sample for a given key.
-    Subclasses should also overwrite :meth:`__len__`, which is expected to return the size of the sample dataset.
+    All subclasses should overwrite :meth:`__getitem__`, supporting fetching a data
+    sample for a given key.
+    Subclasses should also overwrite :meth:`__len__`, which is expected to return
+    the size of the sample dataset.
     """
 
     def __init__(self, **kwargs):
@@ -44,14 +34,13 @@ class Dataset(object):
 class CustomDataset(Dataset):
     r"""
     自定义数据集：
-    1、个人采集的数据
-    2、编码后的脉冲数据（仅支持实值表示）
+    个人采集的实值数据
     """
 
     def __init__(self, data=None, label=None):
         super().__init__()
         data_type = type(data)
-        label_type = type(data)
+        label_type = type(label)
         assert data_type is list or data_type is np.ndarray, "The type of data should be list or np.ndarray"
         assert label_type is list or label_type is np.ndarray, "The type of label should be list or np.ndarray"
 
@@ -59,12 +48,43 @@ class CustomDataset(Dataset):
         self.label = label
 
     def __getitem__(self, index):
-        data = self.data[index]
+        data = np.float32(self.data[index])
         label = np.int64(self.label[index])
         return data, label
 
     def __len__(self):
         return len(self.data)
+
+class CustomSpikeDataset(Dataset):
+    r"""
+    自定义数据集：
+    编码后的脉冲数据（仅支持[spike_time, neuron_ids]表示）
+    """
+
+    def __init__(self, spike_times=None, neuron_ids=None, label=None):
+        super().__init__()
+        # The shape of spike_times should be [sample_num, spikes_times_num]
+        spike_times_type = type(spike_times)
+        neuron_ids_type = type(neuron_ids)
+        label_type = type(label)
+        assert spike_times_type is list or spike_times_type is np.ndarray, "The type of data should be list or np.ndarray"
+        assert neuron_ids_type is list or neuron_ids_type is np.ndarray, "The type of data should be list or np.ndarray"
+        assert label_type is list or label_type is np.ndarray, "The type of label should be list or np.ndarray"
+
+        self.spike_times = spike_times
+        self.neuron_ids = neuron_ids
+        self.label = label
+
+    def __getitem__(self, index):
+        spike_time = self.spike_times[index]
+        neuron_id = self.neuron_ids[index]
+        label = self.label[index]
+        spiking = [spike_time, neuron_id]
+        return spiking, label
+
+    def __len__(self):
+        return len(self.data)
+
 
 class SpecifiedDataset(Dataset):
 
@@ -92,7 +112,7 @@ class SpecifiedDataset(Dataset):
             self.labels.append(data_dict['labels'][i])
 
     def __getitem__(self, index):
-        img_name = self.img_folder + self.filenames[index]
+        img_name = np.float32(self.img_folder + self.filenames[index])
         label = np.int64(self.labels[index])
         img = plt.imread(img_name)
         return img, label
@@ -125,18 +145,25 @@ class cifar10(Dataset):
         if self._dataset_exists():
             self._to_numpy_format()
         else:
-            raise ValueError(">> Faild to load the set, file not exist. You should download the dataset firstly.")
+            raise ValueError(">> Failed to load the set, file not exist. You should download the dataset firstly.")
 
     def __getitem__(self, index):
         # 数据归一化到[0,1]
+        # mean = (0.4914, 0.4822, 0.4465)
+        # std = (0.2023, 0.1994, 0.2010)
+        mean = (0.485, 0.456, 0.406)
+        std = (0.229, 0.224, 0.225)
         if self._is_train:
-            img = self.data['train_images'][index]
+            img = (self.data['train_images'][index]/255.0 - mean)/std
+            img = np.float32(img.transpose(2, 0, 1))
+            # img = np.float32(self.data['train_images'][index])
             label = np.int64(self.data['train_labels'][index])
         else:
-            img = self.data['test_images'][index]
+            img = (self.data['test_images'][index] / 255.0 - mean) / std
+            img = np.float32(img.transpose(2, 0, 1))
             label = np.int64(self.data['test_labels'][index])
 
-        return img / 255.0, label
+        return img, label
 
     def __len__(self):
         if self._is_train:
@@ -167,7 +194,7 @@ class cifar10(Dataset):
             batch = pickle.load(file, encoding='latin1')
 
         # features and labels
-        features = batch['data'].reshape((len(batch['data']), 3, 32, 32)).transpose(0, 2, 3, 1)
+        features = batch['data'].reshape((len(batch['data']), 3, 32, 32)).transpose(0, 2, 3, 1)  # batch['data']
         labels = batch['labels']
 
         return features, labels
@@ -183,7 +210,7 @@ class cifar10(Dataset):
 
         with open(self.root + '/test_batch', mode='rb') as f:
             batch = pickle.load(f, encoding='latin1')
-            self.data['test_images'] = batch['data'].reshape((len(batch['data']), 3, 32, 32)).transpose(0, 2, 3, 1)
+            self.data['test_images'] = batch['data'].reshape((len(batch['data']), 3, 32, 32)).transpose(0, 2, 3, 1)  # batch['data']
             self.data['test_labels'] = batch['labels']
 
         print(">> Dataset loaded")
@@ -192,6 +219,137 @@ class cifar10(Dataset):
         if os.path.exists(os.path.join(self.root)):
             for file in cifar10.files.values():
                 if not os.path.isfile(os.path.join(self.root, file)):
+                    return False
+            return True
+        else:
+            return False
+
+
+class ImageNet(Dataset):
+    files = {
+        "train_dataset": 'ILSVRC2012_img_train.tar',
+        "val_dataset": 'ILSVRC2012_img_val.tar',
+        "val_label": 'ILSVRC2012_devkit_t12.tar.gz'
+    }
+
+    def __init__(self, root, is_train=True):
+        super().__init__()
+        self.root = root
+        self._is_train = is_train
+        self.data = {
+            'train_images': [],
+            'val_images': [],
+            'train_labels': [],
+            'val_labels': []
+        }
+        if not isinstance(self._is_train, bool):
+            raise TypeError(">> is_train should be boolean value")
+        if self._dataset_exists():
+            self.untar_train_tar(ImageNet.files['train_dataset'].split('.')[0])
+            val_dir = ImageNet.files['val_dataset'].split('.')[0]
+            devkit_dir = ImageNet.files['val_label'].split('.')[0]
+            self.move_val_img(val_dir=val_dir, devkit_dir=devkit_dir)
+
+            pass
+            # self._to_numpy_format()
+        else:
+            raise ValueError(">> Failed to load the set, file not exist. You should download the dataset firstly.")
+
+    def __getitem__(self, index):
+        # 数据归一化到[0,1]
+        if self._is_train:
+            img = np.float32(self.data['train_images'][index])
+            label = np.int64(self.data['train_labels'][index])
+        else:
+            img = np.float32(self.data['test_images'][index])
+            label = np.int64(self.data['test_labels'][index])
+
+        return img / 255.0, label
+
+    def __len__(self):
+        if self._is_train:
+            return len(self.data['train_images'])
+        else:
+            return len(self.data['test_images'])
+
+    @property
+    def dataset_folder(self):
+        return os.path.join(self.root, self.__class__.__name__)
+
+    @property
+    def data_dict(self):
+        return self.data
+
+    @property
+    def is_train(self):
+        return self._is_train
+
+    @is_train.setter
+    def is_train(self, is_train):
+        assert is_train in [True, False], ">> Invalid is_train setting"
+        self._is_train = is_train
+
+    def untar_train_tar(self, train_tar):
+        """
+        untar images from train_tar and save in corresponding folders
+        organize like:
+        /train
+           /n01440764
+               images
+           /n01443537
+               images
+            .....
+        """
+        root, _, files = next(os.walk(os.path.join(self.root, train_tar)))
+        for file in files:
+            un_tar(os.path.join(root, file), os.path.join(self.root, 'train'))
+
+    def move_val_img(self, val_dir, devkit_dir):
+        """
+        move val_img to correspongding folders.
+        val_id(start from 1) -> ILSVRC_ID(start from 1) -> WIND
+        organize like:
+        /val
+           /n01440764
+               images
+           /n01443537
+               images
+            .....
+        """
+        # load synset, val ground truth and val images list
+        from scipy import io
+        import shutil
+        devkit_dir_name = os.path.join(self.root, devkit_dir)
+        synset = io.loadmat(os.path.join(devkit_dir_name, 'ILSVRC2012_devkit_t12', 'data', 'meta.mat'))
+
+        ground_truth = open(os.path.join(devkit_dir_name, 'ILSVRC2012_devkit_t12', 'data', 'ILSVRC2012_validation_ground_truth.txt'))
+        lines = ground_truth.readlines()
+        labels = [int(line[:-1]) for line in lines]
+
+        val_dir_name = os.path.join(self.root, val_dir)
+        root, _, filenames = next(os.walk(val_dir_name))
+        for filename in filenames:
+            # val image name -> ILSVRC ID -> WIND
+            val_id = int(filename.split('.')[0].split('_')[-1])
+            ILSVRC_ID = labels[val_id - 1]
+            WIND = synset['synsets'][ILSVRC_ID - 1][0][1][0]
+            print("val_id:%d, ILSVRC_ID:%d, WIND:%s" % (val_id, ILSVRC_ID, WIND))
+
+            # move val images
+            output_dir = os.path.join(self.root, 'val', WIND)
+            if os.path.isdir(output_dir):
+                pass
+            else:
+                os.mkdir(output_dir)
+            shutil.move(os.path.join(root, filename), os.path.join(output_dir, filename))
+
+    def _dataset_exists(self):
+        if os.path.exists(os.path.join(self.root)):
+            for file in ImageNet.files.values():
+                if os.path.isfile(os.path.join(self.root, file)):
+                    # file_name = os.path.join(self.root, file)
+                    un_tar(os.path.join(self.root, file), self.root)
+                else:
                     return False
             return True
         else:
@@ -208,7 +366,7 @@ class MNIST(Dataset):
             otherwise from ``test.pt``.
     """
     class_number = 10
-    maxNum = 784
+    maxNum = 28*28
     resources = [
         "http://yann.lecun.com/exdb/mnist/train-images-idx3-ubyte.gz",
         "http://yann.lecun.com/exdb/mnist/train-labels-idx1-ubyte.gz",
@@ -239,10 +397,10 @@ class MNIST(Dataset):
     def __getitem__(self, index):
         # 数据归一化到[0,1]
         if self._is_train:
-            img = self.data['train_images'][index]
+            img = np.float32(self.data['train_images'][index])
             label = np.int64(self.data['train_labels'][index])
         else:
-            img = self.data['test_images'][index]
+            img = np.float32(self.data['test_images'][index])
             label = np.int64(self.data['test_labels'][index])
 
         return img / 255.0, label
@@ -317,32 +475,16 @@ class MNIST(Dataset):
             print(">> Dataset already exists. ")
             return
         else:
-            # downloads the dataset from the internet and puts it in root directory.If dataset is already downloaded, it is not downloaded again.
-            # create dataset file
-            # mkdir_ok(self.dataset_folder)
-            #
-            # # download files
-            # for url in self.resources:
-            #     filename = url.rpartition('/')[2]
-            #
-            # print('Processing...')
-            #
-            # training_set = (
-            #     read_image_file(os.path.join(self.raw_folder, 'train-images-idx3-ubyte')),
-            #     read_label_file(os.path.join(self.raw_folder, 'train-labels-idx1-ubyte'))
-            # )
-            # test_set = (
-            #     read_image_file(os.path.join(self.raw_folder, 't10k-images-idx3-ubyte')),
-            #     read_label_file(os.path.join(self.raw_folder, 't10k-labels-idx1-ubyte'))
-            # )
-            raise ValueError(">> Faild to load the set, file not exist. You should download the dataset firstly.")
+            raise ValueError(">> Failed to load the set, file not exist. You should download the dataset firstly.")
             pass
 
 
-class FashionMNIST(MNIST):
+class FashionMNIST(Dataset):
     r"""
     A 10-class multi-class classfication
     """
+    class_number = 10
+    maxNum = 28*28
     resources = [
         "http://fashion-mnist.s3-website.eu-central-1.amazonaws.com/train-images-idx3-ubyte.gz",
         "http://fashion-mnist.s3-website.eu-central-1.amazonaws.com/train-labels-idx1-ubyte.gz",
@@ -350,8 +492,101 @@ class FashionMNIST(MNIST):
         "http://fashion-mnist.s3-website.eu-central-1.amazonaws.com/t10k-labels-idx1-ubyte.gz",
     ]
 
+    files = {
+        "train_images": 'train-images-idx3-ubyte',
+        "test_images": 't10k-images-idx3-ubyte',
+        "train_labels": 'train-labels-idx1-ubyte',
+        "test_labels": 't10k-labels-idx1-ubyte',
+    }
+
     def __init__(self, root, is_train=True):
-        super().__init__(root, is_train)
+
+        super().__init__()
+        self.root = root
+        self._is_train = is_train
+        self.data = {}
+        if not isinstance(self._is_train, bool):
+            raise TypeError(">> is_train should be boolean value")
+        if self._dataset_exists():
+            self._to_numpy_format()
+        else:
+            self.download()
+
+    def __getitem__(self, index):
+        # 数据归一化到[0,1]
+        if self._is_train:
+            img = np.float32(self.data['train_images'][index])
+            label = np.int64(self.data['train_labels'][index])
+        else:
+            img = np.float32(self.data['test_images'][index])
+            label = np.int64(self.data['test_labels'][index])
+
+        return img / 255.0, label
+
+    def __len__(self):
+        if self._is_train:
+            return len(self.data['train_images'])
+        else:
+            return len(self.data['test_images'])
+
+    @property
+    def dataset_folder(self):
+        return os.path.join(self.root, self.__class__.__name__)
+
+    @property
+    def class_to_idx(self):
+        return {_class: i for i, _class in enumerate(self.classes)}
+
+    @property
+    def data_dict(self):
+        return self.data
+
+    @property
+    def is_train(self):
+        return self._is_train
+
+    @is_train.setter
+    def is_train(self, is_train):
+        assert is_train in [True, False], ">> Invalid is_train setting"
+        self._is_train = is_train
+
+    def _to_numpy_format(self):
+        with open(
+                os.path.join(self.root, FashionMNIST.files['train_images']), 'rb'
+        ) as f:
+            self.data['train_images'] = np.frombuffer(
+                f.read(), np.uint8, offset=16
+            ).reshape(-1, 28 ** 2)
+        with open(
+                os.path.join(self.root, FashionMNIST.files['train_labels']), 'rb'
+        ) as f:
+            self.data['train_labels'] = np.frombuffer(
+                f.read(), np.uint8, offset=8
+            )
+        with open(
+                os.path.join(self.root, FashionMNIST.files['test_images']), 'rb'
+        ) as f:
+            self.data['test_images'] = np.frombuffer(
+                f.read(),
+                np.uint8,
+                offset=16
+            ).reshape(-1, 28 ** 2)
+        with open(
+                os.path.join(self.root, FashionMNIST.files['test_labels']), 'rb'
+        ) as f:
+            self.data['test_labels'] = np.frombuffer(
+                f.read(), np.uint8, offset=8
+            )
+        print(">> Dataset loaded")
+
+    def _dataset_exists(self):
+        if os.path.exists(os.path.join(self.root)):
+            for file in FashionMNIST.files.values():
+                if not os.path.isfile(os.path.join(self.root, file)):
+                    return False
+            return True
+        else:
+            return False
 
 
 class PathMNIST(Dataset):
@@ -359,7 +594,8 @@ class PathMNIST(Dataset):
     A 9-class multi-class classfication
     """
     resources = 'https://drive.google.com/drive/folders/1Tl_SP-ffDQg-jDG_EWPlWKgZTmGbvFXU'
-
+    class_number = 9
+    maxNum = 28*28*3
     def __init__(self, root, is_train=True):
         super().__init__()
         self.root = root
@@ -375,15 +611,15 @@ class PathMNIST(Dataset):
         if self._dataset_exists():
             self._to_numpy_format()
         else:
-            print(">> Faild to load the set, file not exist")
+            print(">> Failed to load the set, file not exist. You should download the dataset firstly.")
 
     def __getitem__(self, index):
         if self._is_train:
-            img = self.data['train_images'][index].flatten() / 255
+            img = np.float32(self.data['train_images'][index].flatten() / 255)
             label = np.int64(self.data['train_labels'][index])
             return img, label
         else:
-            img = self.data['test_images'][index].flatten() / 255
+            img = np.float32(self.data['test_images'][index].flatten() / 255)
             label = np.int64(self.data['test_labels'][index])
             return img, label
 
@@ -426,6 +662,8 @@ class OctMNIST(Dataset):
     A 4-class multi-class classfication
     """
     resources = 'https://drive.google.com/drive/folders/1Tl_SP-ffDQg-jDG_EWPlWKgZTmGbvFXU'
+    class_number = 4
+    maxNum = 28 * 28
 
     def __init__(self, root, is_train=True):
         super().__init__()
@@ -442,15 +680,15 @@ class OctMNIST(Dataset):
         if self._dataset_exists():
             self._to_numpy_format()
         else:
-            print(">> Faild to load the set, file not exist")
+            print(">> Failed to load the set, file not exist. You should download the dataset firstly.")
 
     def __getitem__(self, index):
         if self._is_train:
-            img = self.data['train_images'][index].flatten() / 255
+            img = np.float32(self.data['train_images'][index].flatten() / 255)
             label = np.int64(self.data['train_labels'][index])
             return img, label
         else:
-            img = self.data['test_images'][index].flatten() / 255
+            img = np.float32(self.data['test_images'][index].flatten() / 255)
             label = np.int64(self.data['test_labels'][index])
             return img, label
 
@@ -503,114 +741,16 @@ class RWCP10(Dataset):
         "metal15": 8,
         "bottle1": 9
     }
-
-    def __init__(self, root, is_train=True):
-        super().__init__()
-        self.root = root
-        self._is_train = is_train
-        self.data = {
-            'train_audios': [],
-            'test_audios': [],
-            'train_labels': [],
-            'test_labels': []
-        }
-        if not isinstance(self._is_train, bool):
-            raise TypeError(">> is_train should be boolean value")
-        if self._dataset_exists():
-            self._to_numpy_format()
-        else:
-            print(">> Wrong root dir path")
-
-    def __getitem__(self, index):
-        if self._is_train:
-            aud = self.data['train_audios'][index]
-            label = np.int64(self.data['train_labels'][index])
-        else:
-            aud = self.data['test_audios'][index]
-            label = np.int64(self.data['test_labels'][index])
-        return aud, label
-
-    def __len__(self):
-        if self._is_train:
-            return len(self.data['train_audios'])
-        else:
-            return len(self.data['test_audios'])
-
-    @property
-    def data_dict(self):
-        return self.data
-
-    @property
-    def is_train(self):
-        return self._is_train
-
-    @is_train.setter
-    def is_train(self, is_train):
-        assert is_train in [True, False], ">> Invalid is_train setting"
-        self._is_train = is_train
-
-    def _dataset_exists(self):
-        if os.path.exists(self.root):
-            for cls_id in RWCP10.classes.keys():
-                if not os.path.isdir(os.path.join(self.root, 'Test', cls_id)):
-                    return False
-                if not os.path.isdir(os.path.join(self.root, 'Train', cls_id)):
-                    return False
-            return True
-        else:
-            return False
-
-    def _to_numpy_format(self):
-        subset = 'Train' if self._is_train else 'Test'
-        for cls in RWCP10.classes.keys():
-            cur_dir = os.path.join(self.root, subset, cls)
-            for file in os.listdir(cur_dir):
-                if not file.endswith('wav'):
-                    continue
-                wavform = librosa.load(
-                    path=os.path.join(cur_dir, file),
-                    sr=16e3,
-                )
-                self.data["{}_audios".format(subset.lower())].append(wavform)
-                self.data["{}_labels".format(subset.lower())].append(
-                    self.classes[cls]
-                )
-        for k in self.data.keys():
-            self.data[k] = np.array(self.data[k], dtype=object)
-        print(">> Dataset loaded")
-
-class AudioMNIST(Dataset):
-    r"""
-    需要预处理模块对原始数据集进行预处理，对于语音数据集经常按说话人划分文件夹
-    所以需要先把每个人录的相关数字放到对应的数字类文件夹中，然后根据数据集比例划分训练集、测试集，并将划分后的数据存储在
-    max spiking time: 220ms
-    max neuron num: 365
-    Class number: 10
-    number of train samples: 21000
-    number of test samples: 9000
-    """
     class_number = 10
-    maxNum = 100
-    Time = 2400
-    classes = {
-        "0": 0,
-        "1": 1,
-        "2": 2,
-        "3": 3,
-        "4": 4,
-        "5": 5,
-        "6": 6,
-        "7": 7,
-        "8": 8,
-        "9": 9
-    }
-
 
     def __init__(self, root, is_train=True, **kwargs):
         super().__init__()
         self.scale = kwargs.get('scale', 0.1)
-        self.maxTime = int(AudioMNIST.Time * self.scale)
+        preprocessing = kwargs.get('preprocessing', 'mfcc')
+        self.preprocessing = preprocessing.lower()
         self.root = root
+        npz_name = kwargs.get('npz_name', ('mfcc_feature', 'kp_feature'))
+
         self._is_train = is_train
         self.data = {
             'train_audios': [],
@@ -618,39 +758,59 @@ class AudioMNIST(Dataset):
             'train_ids': [],
             'test_ids': [],
             'train_labels': [],
-            'test_labels': []
+            'test_labels': [],
+            'Time': [],
+            'neuron_num': []
         }
         if not isinstance(self._is_train, bool):
             raise TypeError(">> is_train should be boolean value")
 
         if self._dataset_exists():
-            if self._npz_exists():
-                data_temp = load_audio_data(self.root, self._is_train)
-                self.data['train_audios'] = data_temp['train_audios']
-                self.data['test_audios'] = data_temp['test_audios']
-                self.data['train_ids'] = data_temp['train_ids']
-                self.data['test_ids'] = data_temp['test_ids']
-                self.data['train_labels'] = data_temp['train_labels']
-                self.data['test_labels'] = data_temp['test_labels']
+            self._npz_exists(npz_name)
 
-            elif self._classfile_exists():
-                save_numpy_format(self.root, self._is_train, sample_rate=16e3)
-                self.data = load_audio_data(self.root, self._is_train)
+            if self.npz_name == 'kp_feature.npz':
+                self.data = load_kp_data(self.root, self.npz_name)
+                self.maxTime = int(np.ceil(self.data['Time'] * self.scale))
+                self.maxNum = int(self.data['neuron_num'])
+
+            elif self.npz_name == 'mfcc_feature.npz':
+                self.data = load_mfcc_data(self.root, self.npz_name)
+                self.maxTime = 50
+                self.maxNum = int(self.data['neuron_num'])
+
+            # 如果npz_name不存在
+            else:
+                if self._classfile_exists():
+                    if self.preprocessing == 'kp':
+                        self.npz_name = save_kp_feature(root=self.root, npz_name=self.npz_name, sample_rate=16e3,
+                                                        class_labels=RWCP10.classes)
+                        self.data = load_kp_data(self.root, self.npz_name)
+                        self.maxTime = int(np.ceil(self.data['Time'] * self.scale))
+                        self.maxNum = int(self.data['neuron_num'])
+                    elif self.preprocessing == 'mfcc':
+                        self.npz_name = save_mfcc_feature(root=self.root, npz_name=self.npz_name, sample_rate=16e3,
+                                                          class_labels=RWCP10.classes)
+                        self.data = load_mfcc_data(self.root, self.npz_name)
+                        self.maxTime = 50
+                        self.maxNum = int(self.data['neuron_num'])
+                    else:
+                        print(">> Wrong preprocessing method. Please select kp or mfcc")
+
         else:
-            print(">> Wrong root dir path")
+            print(">> Wrong root dir path. Please specify the dir path of the dataset")
 
     def __getitem__(self, index):
         if self._is_train:
-            # aud = self.data['train_audios'][index] * self.scale
-            # pad_len = AudioMNIST.maxNum - len(aud)
-            # aud = np.pad(aud, (0, pad_len), 'constant', constant_values=(0, 0))
-            spiking = [self.data['train_audios'][index] * self.scale, self.data['train_ids'][index]]
+            if self.npz_name == 'kp_feature.npz':
+                spiking = [self.data['train_audios'][index] * self.scale, self.data['train_ids'][index]]
+            else:
+                spiking = (self.data['train_audios'][index]).astype(float)
             label = np.int64(self.data['train_labels'][index])
         else:
-            # aud = self.data['test_audios'][index] * self.scale
-            # pad_len = AudioMNIST.maxNum - len(aud)
-            # aud = np.pad(aud, (0, pad_len), 'constant', constant_values=(0, 0))
-            spiking = [self.data['test_audios'][index] * self.scale, self.data['test_ids'][index]]
+            if self.npz_name == 'kp_feature.npz':
+                spiking = [self.data['test_audios'][index] * self.scale, self.data['test_ids'][index]]
+            else:
+                spiking = (self.data['test_audios'][index]).astype(float)
             label = np.int64(self.data['test_labels'][index])
         return spiking, label
 
@@ -681,20 +841,312 @@ class AudioMNIST(Dataset):
 
     # 判断原始数据是否存在
     def _classfile_exists(self):
-        for cls_id in AudioMNIST.classes.keys():
+        for cls_id in RWCP10.classes.keys():
             if not os.path.isdir(os.path.join(self.root, 'test', cls_id)):
                 return False
             if not os.path.isdir(os.path.join(self.root, 'train', cls_id)):
                 return False
         return True
 
-    # 判断存储训练与测试数据的.npz文件是否存在
-    def _npz_exists(self):
-        if not os.path.isfile(os.path.join(self.root, 'train.npz')):
+    def _npz_exists(self, npz_name):
+        file_name = os.listdir(self.root)
+        if npz_name == ('mfcc_feature', 'kp_feature'):
+            if 'mfcc_feature.npz' in file_name:
+                self.npz_name = 'mfcc_feature.npz'
+            elif 'kp_feature.npz' in file_name:
+                self.npz_name = 'kp_feature.npz'
+            else:
+                self.npz_name = ''
+        else:
+            if npz_name in file_name:
+                self.npz_name = npz_name
+            else:
+                self.npz_name = ''
+
+
+class MNISTVoices(Dataset):
+    r"""
+    Used to load any type of 0-9 audio dataset
+    Class number: 10
+    """
+    class_number = 10
+    classes = {
+        "0": 0,
+        "1": 1,
+        "2": 2,
+        "3": 3,
+        "4": 4,
+        "5": 5,
+        "6": 6,
+        "7": 7,
+        "8": 8,
+        "9": 9
+    }
+
+    def __init__(self, root, is_train=True, **kwargs):
+        super().__init__()
+        self.scale = kwargs.get('scale', 0.1)
+        preprocessing = kwargs.get('preprocessing', 'mfcc')
+        self.preprocessing = preprocessing.lower()
+        self.root = root
+        npz_name = kwargs.get('npz_name', ('mfcc_feature', 'kp_feature'))
+
+        self._is_train = is_train
+        self.data = {
+            'train_audios': [],
+            'test_audios': [],
+            'train_ids': [],
+            'test_ids': [],
+            'train_labels': [],
+            'test_labels': [],
+            'Time': [],
+            'neuron_num': []
+        }
+        if not isinstance(self._is_train, bool):
+            raise TypeError(">> is_train should be boolean value")
+
+        if self._dataset_exists():
+            self._npz_exists(npz_name)
+
+            if self.npz_name == 'kp_feature.npz':
+                self.data = load_kp_data(self.root, self.npz_name)
+                self.maxTime = int(np.ceil(self.data['Time'] * self.scale))
+                self.maxNum = int(self.data['neuron_num'])
+
+            elif self.npz_name == 'mfcc_feature.npz':
+                self.data = load_mfcc_data(self.root, self.npz_name)
+                self.maxTime = 50
+                self.maxNum = int(self.data['neuron_num'])
+
+            # 如果npz_name不存在
+            else:
+                if self._classfile_exists():
+                    if self.preprocessing == 'kp':
+                        self.npz_name = save_kp_feature(root=self.root, npz_name=self.npz_name, sample_rate=16e3,
+                                                   class_labels=MNISTVoices.classes)
+                        self.data = load_kp_data(self.root, self.npz_name)
+                        self.maxTime = int(np.ceil(self.data['Time'] * self.scale))
+                        self.maxNum = int(self.data['neuron_num'])
+                    elif self.preprocessing == 'mfcc':
+                        self.npz_name = save_mfcc_feature(root=self.root, npz_name=self.npz_name, sample_rate=16e3,
+                                                     class_labels=MNISTVoices.classes)
+                        self.data = load_mfcc_data(self.root, self.npz_name)
+                        self.maxTime = 50
+                        self.maxNum = int(self.data['neuron_num'])
+                    else:
+                        print(">> Wrong preprocessing method. Please select kp or mfcc")
+
+        else:
+            print(">> Wrong root dir path. Please specify the dir path of the dataset")
+
+    def __getitem__(self, index):
+        if self._is_train:
+            if self.npz_name == 'kp_feature.npz':
+                spiking = [self.data['train_audios'][index] * self.scale, self.data['train_ids'][index]]
+            else:
+                spiking = (self.data['train_audios'][index]).astype(float)
+            label = np.int64(self.data['train_labels'][index])
+        else:
+            if self.npz_name == 'kp_feature.npz':
+                spiking = [self.data['test_audios'][index] * self.scale, self.data['test_ids'][index]]
+            else:
+                spiking = (self.data['test_audios'][index]).astype(float)
+            label = np.int64(self.data['test_labels'][index])
+        return spiking, label
+
+    def __len__(self):
+        if self._is_train:
+            return len(self.data['train_audios'])
+        else:
+            return len(self.data['test_audios'])
+
+    @property
+    def data_dict(self):
+        return self.data
+
+    @property
+    def is_train(self):
+        return self._is_train
+
+    @is_train.setter
+    def is_train(self, is_train):
+        assert is_train in [True, False], ">> Invalid is_train setting"
+        self._is_train = is_train
+
+    def _dataset_exists(self):
+        if os.path.exists(self.root):
+            return True
+        else:
             return False
-        if not os.path.isfile(os.path.join(self.root, 'test.npz')):
-            return False
+
+    # 判断原始数据是否存在
+    def _classfile_exists(self):
+        for cls_id in MNISTVoices.classes.keys():
+            if not os.path.isdir(os.path.join(self.root, 'test', cls_id)):
+                return False
+            if not os.path.isdir(os.path.join(self.root, 'train', cls_id)):
+                return False
         return True
+
+    def _npz_exists(self, npz_name):
+        file_name = os.listdir(self.root)
+        if npz_name == ('mfcc_feature', 'kp_feature'):
+            if 'mfcc_feature.npz' in file_name:
+                self.npz_name = 'mfcc_feature.npz'
+            elif 'kp_feature.npz' in file_name:
+                self.npz_name = 'kp_feature.npz'
+            else:
+                self.npz_name = ''
+        else:
+            if npz_name in file_name:
+                self.npz_name = npz_name
+            else:
+                self.npz_name = ''
+
+
+
+class TIDIGITS(Dataset):
+    r"""
+    Used to load any type of 0-9 and oh audio dataset
+    Class number: 11
+    """
+    class_number = 11
+    classes = {
+        "zero": 0,
+        "one": 1,
+        "two": 2,
+        "three": 3,
+        "four": 4,
+        "five": 5,
+        "six": 6,
+        "seven": 7,
+        "eight": 8,
+        "nine": 9,
+        "oh": 10
+    }
+
+    def __init__(self, root, is_train=True, **kwargs):
+        super().__init__()
+        self.scale = kwargs.get('scale', 0.1)
+        preprocessing = kwargs.get('preprocessing', 'mfcc')
+        self.preprocessing = preprocessing.lower()
+        self.root = root
+        npz_name = kwargs.get('npz_name', ('mfcc_feature', 'kp_feature'))
+
+        self._is_train = is_train
+        self.data = {
+            'train_audios': [],
+            'test_audios': [],
+            'train_ids': [],
+            'test_ids': [],
+            'train_labels': [],
+            'test_labels': [],
+            'Time': [],
+            'neuron_num': []
+        }
+        if not isinstance(self._is_train, bool):
+            raise TypeError(">> is_train should be boolean value")
+
+        if self._dataset_exists():
+            self._npz_exists(npz_name)
+
+            if self.npz_name == 'kp_feature.npz':
+                self.data = load_kp_data(self.root, self.npz_name)
+                self.maxTime = int(np.ceil(self.data['Time'] * self.scale))
+                self.maxNum = int(self.data['neuron_num'])
+
+            elif self.npz_name == 'mfcc_feature.npz':
+                self.data = load_mfcc_data(self.root, self.npz_name)
+                self.maxTime = 40
+                self.maxNum = int(self.data['neuron_num'])
+
+            # 如果npz_name不存在
+            else:
+                if self._classfile_exists():
+                    if self.preprocessing == 'kp':
+                        self.npz_name = save_kp_feature(root=self.root, npz_name=self.npz_name, sample_rate=16e3,
+                                                   class_labels=TIDIGITS.classes)
+                        self.data = load_kp_data(self.root, self.npz_name)
+                        self.maxTime = int(np.ceil(self.data['Time'] * self.scale))
+                        self.maxNum = int(self.data['neuron_num'])
+                    elif self.preprocessing == 'mfcc':
+                        self.npz_name = save_mfcc_feature(root=self.root, npz_name=self.npz_name, sample_rate=20e3,
+                                                          signal_num=20e3, class_labels=TIDIGITS.classes)
+                        self.data = load_mfcc_data(self.root, self.npz_name)
+                        self.maxTime = 40
+                        self.maxNum = int(self.data['neuron_num'])
+                    else:
+                        print(">> Wrong preprocessing method. Please select kp or mfcc")
+
+        else:
+            print(">> Wrong root dir path. Please specify the dir path of the dataset")
+
+    def __getitem__(self, index):
+        if self._is_train:
+            if self.npz_name == 'kp_feature.npz':
+                spiking = [self.data['train_audios'][index] * self.scale, self.data['train_ids'][index]]
+            else:
+                spiking = (self.data['train_audios'][index]).astype(float)
+            label = np.int64(self.data['train_labels'][index])
+        else:
+            if self.npz_name == 'kp_feature.npz':
+                spiking = [self.data['test_audios'][index] * self.scale, self.data['test_ids'][index]]
+            else:
+                spiking = (self.data['test_audios'][index]).astype(float)
+            label = np.int64(self.data['test_labels'][index])
+        return spiking, label
+
+    def __len__(self):
+        if self._is_train:
+            return len(self.data['train_audios'])
+        else:
+            return len(self.data['test_audios'])
+
+    @property
+    def data_dict(self):
+        return self.data
+
+    @property
+    def is_train(self):
+        return self._is_train
+
+    @is_train.setter
+    def is_train(self, is_train):
+        assert is_train in [True, False], ">> Invalid is_train setting"
+        self._is_train = is_train
+
+    def _dataset_exists(self):
+        if os.path.exists(self.root):
+            return True
+        else:
+            return False
+
+    # 判断原始数据是否存在
+    def _classfile_exists(self):
+        for cls_id in TIDIGITS.classes.keys():
+            if not os.path.isdir(os.path.join(self.root, 'test', cls_id)):
+                return False
+            if not os.path.isdir(os.path.join(self.root, 'train', cls_id)):
+                return False
+        return True
+
+    def _npz_exists(self, npz_name):
+        file_name = os.listdir(self.root)
+        if npz_name == ('mfcc_feature', 'kp_feature'):
+            if 'mfcc_feature.npz' in file_name:
+                self.npz_name = 'mfcc_feature.npz'
+            elif 'kp_feature.npz' in file_name:
+                self.npz_name = 'kp_feature.npz'
+            else:
+                self.npz_name = ''
+        else:
+            if npz_name in file_name:
+                self.npz_name = npz_name
+            else:
+                self.npz_name = ''
+
+
+
 
 class SHD(Dataset):
     '''
@@ -732,7 +1184,7 @@ class SHD(Dataset):
         if self._dataset_exists():
             self._to_numpy_format()
         else:
-            raise ValueError(">> Faild to load the set, file not exist. You should download the dataset firstly.")
+            raise ValueError(">> Failed to load the set, file not exist. You should download the dataset firstly.")
 
     def __getitem__(self, index):
         if self._is_train:
@@ -840,7 +1292,7 @@ class SSC(Dataset):
         if self._dataset_exists():
             self._to_numpy_format()
         else:
-            raise ValueError(">> Faild to load the set, file not exist. You should download the dataset firstly.")
+            raise ValueError(">> Failed to load the set, file not exist. You should download the dataset firstly.")
 
 
     def __getitem__(self, index):
@@ -932,7 +1384,7 @@ class DVS128Gesture(Dataset):
         if self._dataset_exists():
             self._to_numpy_format()
         else:
-            raise ValueError(">> Faild to load the set, file not exist. You should download the dataset firstly.")
+            raise ValueError(">> Failed to load the set, file not exist. You should download the dataset firstly.")
 
 
     def __getitem__(self, index):
@@ -1046,12 +1498,3 @@ class DVS128Gesture(Dataset):
 
             # print(f'Used time = [{round(time.time() - t_ckp, 2)}s].')
         print(f'All aedat files have been split to samples and saved into [{train_dir, test_dir}].')
-
-    # @staticmethod
-    # def get_H_W():
-    #     '''
-    #     :return: A tuple ``(H, W)``, where ``H`` is the height of the data and ``W` is the weight of the data.
-    #         For example, this function returns ``(128, 128)`` for the DVS128 Gesture dataset.
-    #     :rtype: tuple
-    #     '''
-    #     return 128, 128

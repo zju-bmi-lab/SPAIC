@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on 2020/11/9
-@project: SNNFlow
+@project: SPAIC
 @filename: STCA_Learner
 @author: Hong Chaofei
 @contact: hongchf@gmail.com
@@ -22,7 +22,7 @@ class STCA(Learner):
             firing_func: The function of fire.
 
         Methods:
-            build(self, simulator): Build the simulator, realize the algorithm of STCA model.
+            build(self, backend): Build the backend, realize the algorithm of STCA model.
             threshold(self, x, v_th): Get the threshold of the STCA model.
 
         Example:
@@ -46,23 +46,22 @@ class STCA(Learner):
         self.firing_func = None
         self.parameters = kwargs
 
-    def build(self, simulator):
+    def build(self, backend):
         '''
-            Build the simulator, realize the algorithm of STCA model.
+            Build the backend, realize the algorithm of STCA model.
 
             Args：
-                simulator: The simulator we used to compute.
+                backend: The backend we used to compute.
 
         '''
-        super(STCA, self).build(simulator)
-        self.device = simulator.device
-        if simulator.simulator_name == 'pytorch':
+        super(STCA, self).build(backend)
+        self.device = backend.device
+        if backend.backend_name == 'pytorch':
             import torch
             class ActFun(torch.autograd.Function):
                 """
                 Approximate firing func.
                 """
-
                 @staticmethod
                 def forward(
                         ctx,
@@ -89,7 +88,7 @@ class STCA(Learner):
 
             self.firing_func = ActFun()
             self.alpha = torch.tensor(self.alpha).to(self.device)
-            # self.simulator.basic_operate['threshold'] = self.threshold
+            # self.backend.basic_operate['threshold'] = self.threshold
 
         backend_threshold = {'pytorch': self.torch_threshold}
         # replace threshold operation in all trainable neuron_groups
@@ -97,7 +96,7 @@ class STCA(Learner):
             for key in neuron._operations.keys():
                 if 'threshold' in key:
                     # 这一步直接替换了神经元模型中的电压与阈值比较的计算
-                    neuron._operations[key][1] = backend_threshold[simulator.simulator_name]
+                    neuron._operations[key][1] = backend_threshold[backend.backend_name]
 
 
 

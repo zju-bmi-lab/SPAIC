@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on 2020/9/9
-@project: SNNFlow
+@project: SPAIC
 @filename: BaseModule
 @author: Hong Chaofei
 @contact: hongchf@gmail.com
@@ -26,7 +26,7 @@ class BaseModule():
         pass
 
     @abstractmethod
-    def build(self, simulator):
+    def build(self, backend):
         NotImplementedError()
 
     @abstractmethod
@@ -51,6 +51,13 @@ class BaseModule():
             self.name = 'autoname' + str(spaic.global_module_name_count)
 
         return self.name
+
+    def set_build_level(self, level):
+
+        if self.build_level < 0:
+            self.build_level = level
+        elif self.build_level > level:
+            self.build_level = level
 
 
 class NetModule(BaseModule):

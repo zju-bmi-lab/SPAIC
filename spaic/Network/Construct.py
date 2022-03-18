@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on 2020/12/23
-@project: SNNFlow
+@project: SPAIC
 @filename: WithBuildFuncs
 @author: Hong Chaofei
 @contact: hongchf@gmail.com

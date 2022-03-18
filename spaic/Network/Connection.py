@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on 2020/8/5
-@project: SNNFlow
+@project: SPAIC
 @filename: Connection
 @author: Hong Chaofei
 @contact: hongchf@gmail.com
@@ -17,12 +17,22 @@ from typing import Dict, List, Tuple
 from abc import abstractmethod
 import numpy as np
 import scipy.sparse as sp
+import spaic
 import torch
+import math
 
 class Connection(BaseModule):
     '''
     Base class for all kinds of connections, including full connection, sparse connection, conv connection,....
-
+    Ten connection methods are provided, as shown below (key: class):
+        'full', FullConnection
+        'one_to_one_sparse', one_to_one_sparse
+        'one_to_one', one_to_one_mask
+        'conv', conv_connect
+        'sparse_connect_sparse', sparse_connect_sparse
+        'sparse_connect', sparse_connect_mask
+        'random_connect_sparse', random_connect_sparse
+        'random_connect', random_connect_mask
     Args:
         pre_assembly(Assembly): the assembly which needs to be connected.
         post_assembly(Assembly): the assembly which needs to connect the pre_assembly.
@@ -38,13 +48,13 @@ class Connection(BaseModule):
         __new__: before build a new connection, do some checks.
         get_var_names: get variable names.
         register: register a connection class.
-        build: add the connection variable, variable name and opperation to the simulator.
+        build: add the connection variable, variable name and opperation to the backend.
         get_str:
         unit_connect: define the basic connection information(the connection weight, the connection shape, the backend variable and the backend basic operation) and add them to the connection_information.
         condition_check: check whether the pre_group.type is equal to the post_group.type, only if they are equal, return flag=Ture.
         connect: connect the preg with postg.
         get_weight_name: give a name for each connection weight.
-        get_target_name: give a name for each target group.
+        get_post_name: give a name for each post group.
         get_input_name: give a name for each input group.
 
     Examples:
@@ -56,14 +66,16 @@ class Connection(BaseModule):
     _connection_subclasses = dict()
     _class_label = '<con>'
 
-    def __init__(self, pre_assembly: Assembly, post_assembly: Assembly, name=None, link_type=('full', 'sparse', 'conv', '...'),
+    def __init__(self, pre_assembly: Assembly, post_assembly: Assembly, name=None, link_type=('full', 'sparse_connect', 'conv', '...'),
                   policies=[], max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='WgtSum', **kwargs):
 
         super(Connection, self).__init__()
 
 
-        self.pre_assembly = pre_assembly#.get_assemblies()
-        self.post_assembly = post_assembly#.get_assemblies()
+        self.pre_assembly = pre_assembly #.get_assemblies()
+        # pre_assembly.register_connection(self, True)
+        self.post_assembly = post_assembly #.get_assemblies()
+        # post_assembly.register_connection(self, False)
         self.pre_var_name = pre_var_name
         self.post_var_name = post_var_name
 
@@ -71,8 +83,8 @@ class Connection(BaseModule):
         self.post_groups = None #post_assembly.get_groups()
         self.pre_assemblies = None
         self.post_assemblies = None
+        self.connection_information = None
 
-        self.connection_inforamtion = None
         self.unit_connections: List[(Assembly, Assembly, int, tuple, tuple)] = list()  # (pre_group, post_group, link_num, var_code, op_code) TODO: change to List[info_object]
         self.mask_info: List[(tuple, tuple)] = list()  # (var_code, op_code)
 
@@ -102,6 +114,7 @@ class Connection(BaseModule):
         self.synapse = kwargs.get('synapse', False)
         self.synapse_type = kwargs.get('synapse_type', 'chemistry_i_synapse')
         self.tau_p = kwargs.get('tau_p', 12.0)
+        self.flatten = kwargs.get('flatten', False)
 
         # construct unit connection information by policies,
         # construct in __init__ is potentially bad, as network structure may change before build. should add new function
@@ -122,7 +135,7 @@ class Connection(BaseModule):
 
 
 
-    def __new__(cls, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse', 'conv','...'), policies=[],
+    def __new__(cls, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse_connect', 'conv','...'), policies=[],
                 max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='WgtSum', **kwargs):
         if cls is not Connection:
             return super().__new__(cls)
@@ -224,20 +237,20 @@ class Connection(BaseModule):
             delay_input_name, delay_output_name = self.get_delay_input_output(pre_group, post_group)
 
             # add delay container
-            delay_queue = self._simulator.add_delay(delay_input_name, self.max_delay)
-            delay_name = self.get_delay_name(pre_group, post_group)
+            delay_queue = self._backend.add_delay(delay_input_name, self.max_delay)
+            delay_name = self.get_link_name(pre_group, post_group, 'delay')
             # ONLY FOR TEST  ===============================
             ini_delay = self.max_delay*np.random.rand(*shape)
             # ==============================================
-            self._simulator.add_variable(delay_name, shape, ini_delay, True)
+            self._backend.add_variable(delay_name, shape, ini_delay, True)
             self._var_names.append(delay_name)
 
 
             # add delay index
-            self._simulator.register_standalone(delay_output_name, delay_queue.select, [delay_name])
+            self._backend.register_standalone(delay_output_name, delay_queue.select, [delay_name])
 
             # add inital to transform initial delay_output
-            self._simulator.register_initial(delay_output_name, delay_queue.transform_delay_output, [delay_input_name, delay_name])
+            self._backend.register_initial(delay_output_name, delay_queue.transform_delay_output, [delay_input_name, delay_name])
 
         else:
             return
@@ -246,65 +259,76 @@ class Connection(BaseModule):
     def clamp_weight(self, weight):
 
         if (self.w_max is not None) and (self.w_min is not None):
-            self._simulator.clamp_(weight, self.w_min, self.w_max)
+            self._backend.clamp_(weight, self.w_min, self.w_max)
         elif self.w_max is not None:
-            self._simulator.clamp_max_(weight, self.w_max)
+            self._backend.clamp_max_(weight, self.w_max)
         elif self.w_min is not None:
-            self._simulator.clamp_min_(weight, self.w_min)
+            self._backend.clamp_min_(weight, self.w_min)
 
 
-    def build(self, simulator):
+    def build(self, backend):
         '''
-        add the connection variable, variable name and opperation to the simulator.
+        add the connection variable, variable name and opperation to the backend.
         '''
-        self._simulator = simulator
+        self.unit_connections = []
+        self._backend = backend
         self.build_connect()
 
         for uc in self.unit_connections:
             # ToDO: This is too much! have to change the structure of unitconnection and its build
 
-            # simulator.add_variable(uc[3][0], uc[3][1], uc[3][2], uc[3][3], uc[3][4])   # var_code
-            simulator.add_variable(*uc[3])
+            # backend.add_variable(uc[3][0], uc[3][1], uc[3][2], uc[3][3], uc[3][4])   # var_code
+            backend.add_variable(*uc[3])
             self._var_names.append(uc[3][0])
 
             if 'conv_max_pool2d' in uc[-1][1]:  # 如果需要max_pool,那么需要添加一个max_pool_size的参数和其他一些卷积参数
                 for i in range(4, 9):
-                    simulator.add_variable(*uc[i])  # var_code
+                    backend.add_variable(*uc[i])  # var_code
                     self._var_names.append(uc[i][0])
 
                 if self.synapse:
                     self.build_synapse()
                 else:
-                    simulator.add_operation(uc[-1])  # op_code
+                    backend.add_operation(uc[-1])  # op_code
 
             elif 'conv_2d' in uc[-1][1]:# 不需要max_pool,添加卷积参数
                 for i in range(4, 8):
-                    simulator.add_variable(*uc[i])  # var_code
+                    backend.add_variable(*uc[i])  # var_code
                     self._var_names.append(uc[i][0])
 
                 if self.synapse:
                     self.build_synapse()
                 else:
-                    simulator.add_operation(uc[-1])# op_code
+                    backend.add_operation(uc[-1])# op_code
 
             else:
                 if self.synapse:
                     self.build_synapse()
                 else:
-                    simulator.add_operation(uc[4])  # op_code
+                    if self.flatten:
+                        view_dim = [-1, uc[3][1][1]]
+                        view_dim_name = uc[4][2] + 'view_dim'
+                        backend.add_variable(view_dim_name, shape=None, value=view_dim, is_constant=True)
+                        flatten_op_code = [uc[4][2] + '_temp', 'view', uc[4][2], view_dim_name]
+                        backend.add_operation(flatten_op_code)
+                        uc[4][2] = uc[4][2] + '_temp'
+
+                        backend.add_operation(uc[4])  # op_code
+                    else:
+                        backend.add_operation(uc[4])  # op_code
 
 
             if (self.w_min is not None) or (self.w_max is not None):
-                simulator.register_initial(None, self.clamp_weight, [uc[3][0]])
+                backend.register_initial(None, self.clamp_weight, [uc[3][0]])
 
         # for name in self._var_names:
         #     if 'weight' in name:
-        #         self._simulator._parameters_dict[name].register_hook(self.norm_hook)
+        #         self._backend._parameters_dict[name].register_hook(self.norm_hook)
 
         for mask in self.mask_info:
-            simulator.add_variable(*mask[0])
+            backend.add_variable(*mask[0])
             self._var_names.append(mask[0][0])
-            simulator.register_initial(*mask[1])
+            backend.register_initial(*mask[1])
 
     @abstractmethod
     def unit_connect(self, pre_group, post_group):
@@ -334,8 +358,8 @@ class Connection(BaseModule):
             self.set_delay(unit_con.pre, unit_con.post)
 
     def build_synapse(self):
-        simulator = self._simulator
-        self.dt = simulator.dt
+        backend = self._backend
+        self.dt = backend.dt
         if self.synapse_type.lower() == 'chemistry_i_synapse':
             self.Chemistry_I_synapse()
         else:
@@ -343,27 +367,25 @@ class Connection(BaseModule):
 
         for key, var in self._syn_tau_constant_variables.items():
             value = np.exp(-self.dt / var)
-            simulator.add_variable(key, (), value)
+            backend.add_variable(key, (), value)
             self._var_names.append(key)
 
         for key, value in self._syn_variables.items():
 
-            simulator.add_variable(key, (), value)
+            backend.add_variable(key, (), value)
             self._var_names.append(key)
         for key, value in self._syn_constant_variables.items():
 
-            simulator.add_variable(key, (), value)
+            backend.add_variable(key, (), value)
             self._var_names.append(key)
 
         for op in self._syn_operations:
 
-            simulator.add_operation(op)
-
-
-
+            backend.add_operation(op)
 
     def mask_operation(self, weight, mask):
         return weight*mask
+
     def get_link_name(self, pre_group: Assembly, post_group: Assembly, suffix_name: str):
         '''
 
@@ -401,145 +423,155 @@ class Connection(BaseModule):
         '''
         name = post_group.id + ':' + '{' + suffix_name + '}'
         return name
-    def get_weight_name(self, pre_group: Assembly, post_group: Assembly):
-
-        '''
-        give a name for each connection weight, the name consists of three parts: post_group.id + '<-' + pre_group.id + ':' + '{weight}'
-
-        Args:
-            pre_group(Assembly): the neuron group which needs to be connected
-            post_group(Assembly): the neuron group which needs to connect with the pre_group
-        Returns:
-            name(str)
-        '''
 
 
-        name = self.id + ':' + post_group.id + '<-' + pre_group.id + ':' + '{weight}'
-
-        return name
+    # def get_weight_name(self, pre_group: Assembly, post_group: Assembly):
+    #
+    #     '''
+    #     give a name for each connection weight, the name consists of three parts: post_group.id + '<-' + pre_group.id + ':' + '{weight}'
+    #
+    #     Args:
+    #         pre_group(Assembly): the neuron group which needs to be connected
+    #         post_group(Assembly): the neuron group which needs to connect with the pre_group
+    #     Returns:
+    #         name(str)
+    #     '''
+    #
+    #     name = self.id + ':' + post_group.id + '<-' + pre_group.id + ':' + '{weight}'
+    #     return name
 
     def get_mask_name(self, pre_group: Assembly, post_group: Assembly):
         name = self.id + ':' + post_group.id + '<-' + pre_group.id + ':' + '{mask}'
         return name
 
+    # def get_Vtemp_name(self,  pre_group: Assembly, post_group: Assembly): # target_output_name
+    #     name = self.id + ':' + post_group.id + '<-' + pre_group.id + ':' + '{Vtemp}'
+    #     return name
+
     def get_delay_name(self, pre_group: Assembly, post_group: Assembly):
         name = self.id + ':' + post_group.id + '<-' + pre_group.id + ':' + '{delay}'
         return name
 
-    def get_target_name(self, post_group:Assembly):
-        '''
-        Give a name for WgtSum,  the name consists of two parts: post_group.id + ':' + '{WgtSum}
-
-        Args:
-            post_group(Assembly): The neuron group which needs to connect with the pre_group
-
-        Returns:
-            name(str)
-        '''
-        name = post_group.id + ':' + '{' + self.post_var_name + '}'
-        return name
+    # 这两个特例应该要留着
+    def get_delay_input_output(self,  pre_group: Assembly, post_group: Assembly):
+        input_name = pre_group.id + ':' + '{' + self.pre_var_name + '}'
+        output_name = self.id + ':' + post_group.id + '<-' + pre_group.id + ':' + '{' + self.pre_var_name + '}'
+        return input_name, output_name
 
     def get_input_name(self, pre_group: Assembly, post_group: Assembly):
         '''
         Give a name for input group's output spikes,  the name consists of two parts: pre_group.id + ':' + '{0}
         Args:
             pre_group(Assembly): The neuron group which need to connect with post_group neuron.
-
+            post_group(Assembly): the neuron group which needs to connect with the pre_group
         Returns:
             name(str)
         '''
-
         if self.max_delay > 0:
             name = self.id + ':' + post_group.id + '<-' + pre_group.id + ':' + '{' + self.pre_var_name + '}'
         else:
             name = pre_group.id + ':' + '{' + self.pre_var_name + '}'
-
         return name
-
-
-
-    def maxpool_kernel_size_name(self, pre_group: Assembly):
-        '''
-        Give a name for  maxpool_kernel_size,  the name consists of two parts: pre_group.id + '{maxpool_kernel_size}'
-        Args:
-            pre_group(Assembly): the neuron group which needs to be connected
-            post_group(Assembly): the neuron group which needs to connect with the pre_group
-
-        Returns:
-            name(str)
-        '''
-        name = pre_group.id + ':' + '{maxpool_kernel_size}'
-        return name
-    def stride_name(self, pre_group: Assembly):
-        name = pre_group.id + ':' + '{stride}'
-        return name
-    def padding_name(self, pre_group: Assembly):
-        name = pre_group.id + ':' + '{padding}'
-        return name
-    def dilation_name(self, pre_group: Assembly):
-        name = pre_group.id + ':' + '{dilation}'
-        return name
-    def groups_name(self, pre_group: Assembly):
-        name = pre_group.id + ':' + '{groups}'
-        return name
-
-    def get_delay_input_output(self,  pre_group: Assembly, post_group: Assembly):
-        input_name = pre_group.id + ':' + '{' + self.pre_var_name + '}'
-        output_name = self.id + ':' + post_group.id + '<-' + pre_group.id + ':' + '{' + self.pre_var_name + '}'
-        return input_name, output_name
 
     def get_target_output_name(self, output_group: Assembly):
         name = output_group.id + ':' + '{' + self.pre_var_name + '}'
         return name
 
-    def get_V_name(self, post_group: Assembly): # target_output_name
-        name = post_group.id + ':' + '{V}'
-        return name
-    def get_V_updated_name(self, post_group: Assembly): # target_output_name
-        name = post_group.id + ':' + '{V}[updated]'
-        return name
-    def get_I_name(self, post_group: Assembly):
-        name = post_group.id + ':' + '{I}'
-        return name
-    def get_Vtemp_name(self,  pre_group: Assembly, post_group: Assembly): # target_output_name
-        name = post_group.id + '<-' + pre_group.id + ':' + '{Vtemp}'
-        return name
+    # def maxpool_kernel_size_name(self, pre_group: Assembly):
+    #     '''
+    #     Give a name for  maxpool_kernel_size,  the name consists of two parts: pre_group.id + '{maxpool_kernel_size}'
+    #     Args:
+    #         pre_group(Assembly): the neuron group which needs to be connected
+    #         post_group(Assembly): the neuron group which needs to connect with the pre_group
+    #
+    #     Returns:
+    #         name(str)
+    #     '''
+    #     name = pre_group.id + ':' + '{maxpool_kernel_size}'
+    #     return name
 
-    def get_I_ele_name(self, post_group: Assembly):
-        name = post_group.id + ':' + '{I_ele}'
-        return name
+    # def stride_name(self, pre_group: Assembly):
+    #     name = pre_group.id + ':' + '{stride}'
+    #     return name
+    #
+    # def padding_name(self, pre_group: Assembly):
+    #     name = pre_group.id + ':' + '{padding}'
+    #     return name
+    #
+    # def dilation_name(self, pre_group: Assembly):
+    #     name = pre_group.id + ':' + '{dilation}'
+    #     return name
+    #
+    # def groups_name(self, pre_group: Assembly):
+    #     name = pre_group.id + ':' + '{groups}'
+    #     return name
+
+
+    # def get_target_name(self, post_group: Assembly):
+    #     '''
+    #     Give a name for WgtSum,  the name consists of two parts: post_group.id + ':' + '{WgtSum}
+    #
+    #     Args:
+    #         post_group(Assembly): The neuron group which needs to connect with the pre_group
+    #
+    #     Returns:
+    #         name(str)
+    #     '''
+    #     name = post_group.id + ':' + '{' + self.post_var_name + '}'
+    #     return name
+    #
+    # def get_V_name(self, post_group: Assembly): # target_output_name
+    #     name = post_group.id + ':' + '{V}'
+    #     return name
+    #
+    # def get_V_updated_name(self, post_group: Assembly): # target_output_name
+    #     name = post_group.id + ':' + '{V}[updated]'
+    #     return name
+    #
+    # def get_I_name(self, post_group: Assembly):
+    #     name = post_group.id + ':' + '{I}'
+    #     return name
+    #
+    # def get_I_ele_name(self, post_group: Assembly):
+    #     name = post_group.id + ':' + '{I_ele}'
+    #     return name
 
     def Chemistry_I_synapse(self):
         """
         Chemistry current synapse
-        I = tauP*I + WgtSum
+        I = tauP*I + W0gtSum
         """
-
-        I = self.get_I_ele_name(self.post_assembly)
-        WgtSum = self.get_target_name(self.post_assembly)
-        tauP = self.post_assembly.id + ':' + '{tauP}'
+        I = self.get_post_name(self.post_assembly, 'I')
+        WgtSum = self.get_post_name(self.post_assembly, 'WgtSum')
+        tauP = self.get_post_name(self.post_assembly, 'tauP')
+        # I = self.get_I_ele_name(self.post_assembly)
+        # WgtSum = self.get_target_name(self.post_assembly)
+        # tauP = self.post_assembly.id + ':' + '{tauP}'
         self._syn_variables[I] = 0
         self._syn_variables[WgtSum] = 0
         self._syn_tau_constant_variables[tauP] = self.tau_p
 
         self._syn_operations.append([I, 'var_linear', tauP, I, WgtSum])
 
-
-
     def Electrical_synapse(self):
         """
         Electrical synapse
-        I_ele = weight *（V(l-1) - V(l)）
+        WgtSum = weight *（V(l-1) - V(l)）
         """
-
-        V_post = self.get_V_name(self.post_assembly)
-        V_pre = self.get_V_name(self.pre_assembly)
-        Vtemp1_post = self.get_Vtemp_name(self.pre_assembly, self.post_assembly)
-        I_post = self.get_I_ele_name(self.post_assembly)
-        weight = self.get_weight_name(self.pre_assembly, self.post_assembly)
-        Vtemp1_pre = self.get_Vtemp_name(self.post_assembly, self.pre_assembly)
-        I_pre = self.get_I_ele_name(self.pre_assembly)
-
+        V_post = self.get_post_name(self.post_assembly, 'V')
+        V_pre = self.get_pre_name(self.post_assembly, 'V')
+        Vtemp1_post = self.get_link_name(self.pre_assembly, self.post_assembly, 'Vtemp')
+        I_post = self.get_post_name(self.post_assembly, 'I')
+        weight = self.get_link_name(self.pre_assembly, self.post_assembly, 'weight')
+        Vtemp1_pre = self.get_link_name(self.post_assembly, self.pre_assembly, 'Vtemp')
+        I_pre = self.get_pre_name(self.post_assembly, 'I_ele')
+        # V_post = self.get_V_name(self.post_assembly)
+        # V_pre = self.get_V_name(self.pre_assembly)
+        # Vtemp1_post = self.get_Vtemp_name(self.pre_assembly, self.post_assembly)
+        # I_post = self.get_I_ele_name(self.post_assembly)
+        # weight = self.get_weight_name(self.pre_assembly, self.post_assembly)
+        # Vtemp1_pre = self.get_Vtemp_name(self.post_assembly, self.pre_assembly)
+        # I_pre = self.get_I_ele_name(self.pre_assembly)
 
         self._syn_variables[Vtemp1_post] = 0
         self._syn_variables[I_post] = 0
@@ -549,8 +581,6 @@ class Connection(BaseModule):
         self._syn_operations.append([I_post, 'var_mult', weight, Vtemp1_post + '[updated]'])
         self._syn_operations.append([Vtemp1_pre, 'minus', V_post, V_pre])
         self._syn_operations.append([I_pre, 'var_mult', weight, Vtemp1_pre + '[updated]'])
-
-
 
 
 class FullConnection(Connection):
@@ -569,21 +599,23 @@ class FullConnection(Connection):
 
     '''
 
-
-
-    def __init__(self, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse', 'conv','...'), policies=[],
+    def __init__(self, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse_connect', 'conv','...'), policies=[],
                  max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='WgtSum', **kwargs):
 
-        super(FullConnection, self).__init__(pre_assembly=pre_assembly, post_assembly=post_assembly, name=name, link_type=link_type,
-                                             policies=policies, max_delay=max_delay, sparse_with_mask=sparse_with_mask,
+        super(FullConnection, self).__init__(pre_assembly=pre_assembly, post_assembly=post_assembly, name=name,
+                                             link_type=link_type, policies=policies, max_delay=max_delay,
+                                             sparse_with_mask=sparse_with_mask,
                                              pre_var_name=pre_var_name, post_var_name=post_var_name, **kwargs)
         self.weight = kwargs.get('weight', None)
-        self.mask = kwargs.get('mask', None)
         self.w_std = kwargs.get('w_std', 0.05)
         self.w_mean = kwargs.get('w_mean', 0.005)
         self.w_max = kwargs.get('w_max', None)
         self.w_min = kwargs.get('w_min', None)
-        self.flatten_on = kwargs.get('flatten', False)
+        self.param_init = kwargs.get('param_init', None)
+        self.is_parameter = kwargs.get('is_parameter', True)
+        self.is_sparse = kwargs.get('is_sparse', False)
+        # self.flatten_on = kwargs.get('flatten', False)
+
     def unit_connect(self, pre_group, post_group):
         # The number of neurons in neuron group
         pre_num = pre_group.num
@@ -599,37 +631,35 @@ class FullConnection(Connection):
 
         # The name for backend variables
         input_name = self.get_input_name(pre_group, post_group)
-        weight_name = self.get_weight_name(pre_group, post_group)
-        target_name = self.get_target_name(post_group)
+        # 如果需要避开固有延迟的问题，采用strategy_build.
+        # 取消下面一行的注释，取用突触前神经元当前步的发放情况
+        input_name = input_name
+        weight_name = self.get_link_name(pre_group, post_group, 'weight')
+        target_name = self.get_post_name(post_group, self.post_var_name)
 
         # The backend variable
         # var_code = (weight_name, shape, weight, True, False, 'uniform')   # (var_name, shape, value, is_parameter, is_sparse, init)
-        var_code = (weight_name, shape, weight, True, False)
+        var_code = (weight_name, shape, weight, self.is_parameter, self.is_sparse, self.param_init)
 
         # The backend basic operation
-        if self.max_delay > 0 and self.flatten_on != True:
-            op_code = [target_name, 'mult_sum', input_name, weight_name]
-        elif self.max_delay > 0 and self.flatten_on == True:
-            raise ValueError("Conv_connectoin cannot do delay recently!")
-        elif self.max_delay <= 0 and self.flatten_on == True:
-            op_code = [target_name, 'reshape_mat_mult', input_name, weight_name]
+        if self.max_delay > 0 :
+            op_code = [target_name, 'mult_sum_weight', input_name, weight_name]
         else:
-            op_code = [target_name, 'mat_mult', input_name, weight_name]
+            op_code = [target_name, 'mat_mult_weight', input_name, weight_name]
 
+
+        # if self.max_delay > 0 and self.flatten_on != True:
+        #     op_code = [target_name, 'mult_sum_weight', input_name, weight_name]
+        # elif self.max_delay > 0 and self.flatten_on == True:
+        #     raise ValueError("Conv_connectoin cannot do delay recently!")
+        # elif self.max_delay <= 0 and self.flatten_on == True:
+        #     op_code = [target_name, 'reshape_mat_mult', input_name, weight_name]
+        # else:
+        #     op_code = [target_name, 'mat_mult_weight', input_name, weight_name]
 
         connection_information = (pre_group, post_group, link_num, var_code, op_code)
         self.unit_connections.append(connection_information)
 
-        if self.sparse_with_mask:
-            if self.mask is None:
-                mask = (weight != 0)
-            else:
-                mask = self.mask
-            mask_name = self.get_mask_name(pre_group, post_group)
-            mask_var_code = (mask_name, shape, mask)
-            mask_op = (weight_name, self.mask_operation, [weight_name, mask_name])
-            mask_information = (mask_var_code, mask_op)
-            self.mask_info.append(mask_information)
         pass
 
     def condition_check(self, pre_group, post_group):
@@ -644,11 +674,19 @@ class FullConnection(Connection):
 Connection.register('full',FullConnection)
 
 class one_to_one_sparse(Connection):
-    def __init__(self, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse', 'conv','...'), policies=[],
+    def __init__(self, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse_connect', 'conv','...'), policies=[],
                  max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='WgtSum', **kwargs):
-        super(one_to_one_sparse, self).__init__(pre_assembly, post_assembly, name, link_type,
-                                                policies, max_delay, sparse_with_mask, pre_var_name, post_var_name, **kwargs)
-        self.w_std = kwargs.get('w_std', 0.05)
+        super(one_to_one_sparse, self).__init__(pre_assembly=pre_assembly, post_assembly=post_assembly, name=name,
+                                                link_type=link_type, policies=policies, max_delay=max_delay,
+                                                sparse_with_mask=sparse_with_mask,
+                                                pre_var_name=pre_var_name, post_var_name=post_var_name, **kwargs)
+        self.weight = kwargs.get('weight', None)
+        self.w_mean = kwargs.get('w_mean', 0.05)
+        self.w_max = kwargs.get('w_max', None)
+        self.w_min = kwargs.get('w_min', None)
+        self.param_init = kwargs.get('param_init', None)
+        self.is_parameter = kwargs.get('is_parameter', False)
+        self.is_sparse = kwargs.get('is_sparse', True)
 
     def unit_connect(self, pre_group, post_group):
         pre_num = pre_group.num
@@ -660,19 +698,23 @@ class one_to_one_sparse(Connection):
         link_num = pre_num * post_num
         shape = (post_num, pre_num)
 
-        # Connection weight
-        weight = self.w_std * np.eye(*shape)
+        if self.weight is None:
+            # Connection weight
+            weight = self.w_mean * np.eye(*shape)
+        else:
+            assert (self.weight.shape == shape), f"The size of the given weight {self.weight.shape} does not correspond to the size of synaptic matrix {shape} "
+            weight = self.weight
 
         # The name for backend variables
         input_name = self.get_input_name(pre_group, post_group)
-        weight_name = self.get_weight_name(pre_group, post_group)
-        target_name = self.get_target_name(post_group)
+        weight_name = self.get_link_name(pre_group, post_group, 'weight')
+        target_name = self.get_post_name(post_group, self.post_var_name)
 
         # The backend variable
-        var_code = (weight_name, shape, weight, False, True)  # (var_name, shape, value, is_parameter, is_sparse)
+        var_code = (weight_name, shape, weight, self.is_parameter, self.is_sparse, self.param_init)  # (var_name, shape, value, is_parameter, is_sparse)
 
         # The backend basic operation
-        op_code = [target_name, 'sparse_mat_mult', weight_name, input_name]
+        op_code = [target_name, 'sparse_mat_mult_weight', weight_name, input_name]
 
         connection_information = (pre_group, post_group, link_num, var_code, op_code)
         self.unit_connections.append(connection_information)
@@ -690,12 +732,20 @@ class one_to_one_sparse(Connection):
 
 Connection.register('one_to_one_sparse', one_to_one_sparse)
 
-class one_to_one(Connection):
-    def __init__(self, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse', 'conv','...'), policies=[],
-                 max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='WgtSum', **kwargs):
-        super(one_to_one, self).__init__(pre_assembly, post_assembly, name, link_type,
-                                         policies, max_delay, sparse_with_mask, pre_var_name, post_var_name, **kwargs)
-        self.w_std = kwargs.get('w_std', 0.05)
+class one_to_one_mask(Connection):
+    def __init__(self, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse_connect', 'conv','...'), policies=[],
+                 max_delay=0, sparse_with_mask=True, pre_var_name='O', post_var_name='WgtSum', **kwargs):
+        super(one_to_one_mask, self).__init__(pre_assembly=pre_assembly, post_assembly=post_assembly, name=name,
+                                              link_type=link_type, policies=policies, max_delay=max_delay,
+                                              sparse_with_mask=sparse_with_mask,
+                                              pre_var_name=pre_var_name, post_var_name=post_var_name, **kwargs)
+        self.weight = kwargs.get('weight', None)
+        self.w_mean = kwargs.get('w_mean', 0.05)
+        self.w_max = kwargs.get('w_max', None)
+        self.w_min = kwargs.get('w_min', None)
+        self.param_init = kwargs.get('param_init', None)
+        self.is_parameter = kwargs.get('is_parameter', True)
+        self.is_sparse = kwargs.get('is_sparse', False)
 
     def unit_connect(self, pre_group, post_group):
         pre_num = pre_group.num
@@ -709,32 +759,34 @@ class one_to_one(Connection):
         link_num = pre_num * post_num
         shape = (post_num, pre_num)
 
-        # Connection weight
-        weight = self.w_std * np.eye(*shape)
-
+        if self.weight is None:
+            # Connection weight
+            weight = self.w_mean * np.eye(*shape)
+        else:
+            assert (self.weight.shape == shape), f"The size of the given weight {self.weight.shape} does not correspond to the size of synaptic matrix {shape} "
+            weight = self.weight
 
         # The name for backend variables
         input_name = self.get_input_name(pre_group, post_group)
-        weight_name = self.get_weight_name(pre_group, post_group)
-        target_name = self.get_target_name(post_group)
+        weight_name = self.get_link_name(pre_group, post_group, 'weight')
+        target_name = self.get_post_name(post_group, self.post_var_name)
 
         # The backend variable
-        var_code = (weight_name, shape, weight, True, False)  # (var_name, shape, value, is_parameter, is_sparse)
+        var_code = (weight_name, shape, weight, self.is_parameter, self.is_sparse, self.param_init)  # (var_name, shape, value, is_parameter, is_sparse)
 
         # The backend basic operation
-        op_code = [target_name, 'mat_mult', input_name, weight_name]
+        op_code = [target_name, 'mat_mult_weight', input_name, weight_name]
 
         connection_information = (pre_group, post_group, link_num, var_code, op_code)
         self.unit_connections.append(connection_information)
 
         if self.sparse_with_mask:
             mask = (weight != 0)
-            mask_name = self.get_mask_name(pre_group, post_group)
+            mask_name = self.get_link_name(pre_group, post_group, 'mask')
             mask_var_code = (mask_name, shape, mask)
             mask_op = (weight_name, self.mask_operation, [weight_name, mask_name])
             mask_information = (mask_var_code, mask_op)
             self.mask_info.append(mask_information)
-
         pass
 
     def condition_check(self, pre_group, post_group):
@@ -745,9 +797,15 @@ class one_to_one(Connection):
             flag = True
         return flag
         pass
-Connection.register('one_to_one', one_to_one)
+Connection.register('one_to_one', one_to_one_mask)
 
 class conv_connect(Connection):
+    def __init__(self, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse_connect', 'conv','...'), policies=[],
+                 max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='WgtSum', **kwargs):
+        super(conv_connect, self).__init__(pre_assembly=pre_assembly, post_assembly=post_assembly, name=name,
+                                           link_type=link_type, policies=policies, max_delay=max_delay,
+                                           sparse_with_mask=sparse_with_mask,
+                                           pre_var_name=pre_var_name, post_var_name=post_var_name, **kwargs)
 
     '''
     do the convolution connection.
@@ -761,9 +819,12 @@ class conv_connect(Connection):
         condition_check: check whether the pre_group.type is equal to the post_group.type, only if they are equal, return flag=Ture.
 
     '''
-    def __init__(self, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse', 'conv','...'),  policies=[],  max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='WgtSum',**kwargs):
-        super(conv_connect, self).__init__(pre_assembly=pre_assembly, post_assembly=post_assembly, name=name, link_type=link_type,
-                                             policies=policies, max_delay=max_delay, sparse_with_mask=sparse_with_mask, pre_var_name=pre_var_name, post_var_name=post_var_name, **kwargs)
+    def __init__(self, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse_connect', 'conv','...'), policies=[],
+                 max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='WgtSum', **kwargs):
+        super(conv_connect, self).__init__(pre_assembly=pre_assembly, post_assembly=post_assembly, name=name,
+                                           link_type=link_type, policies=policies, max_delay=max_delay,
+                                           sparse_with_mask=sparse_with_mask,
+                                           pre_var_name=pre_var_name, post_var_name=post_var_name, **kwargs)
         self.out_channels = kwargs.get('out_channels', 4)
         self.in_channels = kwargs.get('in_channels', 1)
         self.kernel_size = kwargs.get('kernel_size', (3, 3))
@@ -778,6 +839,7 @@ class conv_connect(Connection):
         self.padding = kwargs.get('padding', 0)
         self.dilation = kwargs.get('dilation', 1)
         self.groups = kwargs.get('groups', 1)
+
 
 
     def unit_connect(self, pre_group, post_group):
@@ -801,19 +863,15 @@ class conv_connect(Connection):
         Hin = pre_group.shape[-2]
         Win = pre_group.shape[-1]
 
-        Ho_conv = round((Hin + 2 * self.padding - self.kernel_size[0]) / self.stride + 1)  # Ho = (Hin + 2 * padding[0] - kernel_size[0]) / stride[0] + 1
-        Wo_conv = round((Win + 2 * self.padding - self.kernel_size[1]) / self.stride + 1)  # Wo = (Win + 2 * padding[0] - kernel_size[1]) / stride[0] + 1
-
-
         if self.maxpool_on:  # 池化
 
-            Ho = int(Ho_conv / self.maxpool_kernel_size[0])
-            Wo = int(Wo_conv / self.maxpool_kernel_size[1])
+            Hin = int(Hin / self.maxpool_kernel_size[0])
+            Win = int(Win / self.maxpool_kernel_size[1])
 
-        else:
-
-            Ho = int(Ho_conv)
-            Wo = int(Wo_conv)
+        Ho = round((Hin + 2 * self.padding - self.kernel_size[
+            0]) / self.stride + 1)  # Ho = (Hin + 2 * padding[0] - kernel_size[0]) / stride[0] + 1
+        Wo = round((Win + 2 * self.padding - self.kernel_size[
+            1]) / self.stride + 1)  # Wo = (Win + 2 * padding[0] - kernel_size[1]) / stride[0] + 1
 
         post_num = int(Ho * Wo * self.out_channels)
 
@@ -831,29 +889,35 @@ class conv_connect(Connection):
                 post_group.shape = (self.out_channels, Ho, Wo)
         link_num = post_num
         # The name for backend variables
-        input_name = self.get_input_name(pre_group,post_group)
-        weight_name = self.get_weight_name(pre_group, post_group)
-        target_name = self.get_target_name(post_group)
-
+        input_name = self.get_pre_name(pre_group, self.pre_var_name)
+        weight_name = self.get_link_name(pre_group, post_group, 'weight')
+        target_name = self.get_post_name(post_group, self.post_var_name)
 
         # The backend variable
-        var_code_weight= (weight_name, shape, weight, True)
-        stride = self.stride_name(pre_group)
+        var_code_weight = (weight_name, shape, weight, True)
+        stride = self.get_pre_name(pre_group, 'stride')
+        # stride = self.stride_name(pre_group)
         stride_value = np.array(self.stride)
         var_code_stride = (stride, stride_value.shape, stride_value)
-        padding = self.padding_name(pre_group)
+        padding = self.get_pre_name(pre_group, 'padding')
+        # padding = self.padding_name(pre_group)
         padding_value = np.array(self.padding)
         var_code_padding = (padding, padding_value.shape, padding_value)
-        dilation = self.dilation_name(pre_group)
+        dilation = self.get_pre_name(pre_group, 'dilation')
         dilation_value = np.array(self.dilation)
         var_code_dilation = (dilation, dilation_value.shape, dilation_value)
-        groups = self.groups_name(pre_group)
+        groups = self.get_pre_name(pre_group, 'groups')
         groups_value = np.array(self.groups)
         var_code_groups = (groups, groups_value.shape, groups_value)
 
-        maxpool_kernel_size_name = self.maxpool_kernel_size_name(pre_group)
+        maxpool_kernel_size_name = self.get_pre_name(pre_group, 'maxpool_kernel_size')
+        # maxpool_kernel_size_name = self.maxpool_kernel_size_name(pre_group)
         maxpool_kernel_size_value = np.array(self.maxpool_kernel_size)
         var_code_maxpool = (maxpool_kernel_size_name, maxpool_kernel_size_value.shape, maxpool_kernel_size_value)
+
+        # flatten_value = np.array(self.flatten)
+        # flatten = self.get_post_name(post_group, 'flatten')
+        # var_code_flatten = (flatten, flatten_value.shape, flatten_value)
 
         if self.maxpool_on:
 
@@ -865,7 +929,6 @@ class conv_connect(Connection):
             op_code1 = [target_name, 'conv_2d', input_name, weight_name, stride, padding, dilation, groups]
             connection_information = (pre_group, post_group, link_num, var_code_weight,
                                       var_code_stride, var_code_padding, var_code_dilation, var_code_groups, op_code1)
-
 
         self.unit_connections.append(connection_information)
 
@@ -893,15 +956,21 @@ Connection.register('conv',conv_connect)
 
 class sparse_connect_sparse(Connection):
 
-    def __init__(self, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse', 'conv', '...'), policies=[],
+    def __init__(self, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse_connect', 'conv','...'), policies=[],
                  max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='WgtSum', **kwargs):
         super(sparse_connect_sparse, self).__init__(pre_assembly=pre_assembly, post_assembly=post_assembly, name=name,
-                                                    link_type=link_type,
-                                                    policies=policies, max_delay=max_delay,
-                                                    sparse_with_mask=sparse_with_mask, pre_var_name=pre_var_name,
-                                                    post_var_name=post_var_name, **kwargs)
+                                                    link_type=link_type, policies=policies, max_delay=max_delay,
+                                                    sparse_with_mask=sparse_with_mask,
+                                                    pre_var_name=pre_var_name, post_var_name=post_var_name, **kwargs)
+        self.weight = kwargs.get('weight', None)
         self.w_std = kwargs.get('w_std', 0.05)
         self.density = kwargs.get('density', 0.1)
+        self.w_max = kwargs.get('w_max', None)
+        self.w_min = kwargs.get('w_min', None)
+        self.param_init = kwargs.get('param_init', None)
+        self.is_parameter = kwargs.get('is_parameter', False)
+        self.is_sparse = kwargs.get('is_sparse', True)
+
 
     def unit_connect(self, pre_group, post_group):
         # The number of neurons in neuron group
@@ -910,20 +979,24 @@ class sparse_connect_sparse(Connection):
         link_num = pre_num * post_num
         shape = (post_num, pre_num)
 
-        # Connection weight
-        sparse_matrix = self.w_std * sp.rand(post_num, pre_num, density=self.density, format='csr')
-        weight = sparse_matrix.toarray()
+        if self.weight is None:
+            # Connection weight
+            sparse_matrix = self.w_std * sp.rand(post_num, pre_num, density=self.density, format='csr')
+            weight = sparse_matrix.toarray()
+        else:
+            assert (self.weight.shape == shape), f"The size of the given weight {self.weight.shape} does not correspond to the size of synaptic matrix {shape} "
+            weight = self.weight
 
         # The name for backend variables
         input_name = self.get_input_name(pre_group, post_group)
-        weight_name = self.get_weight_name(pre_group, post_group)
-        target_name = self.get_target_name(post_group)
+        weight_name = self.get_link_name(pre_group, post_group, 'weight')
+        target_name = self.get_post_name(post_group, self.post_var_name)
 
         # The backend variable
-        var_code = (weight_name, shape, weight, False, True)  # (var_name, shape, value, is_parameter, is_sparse)
+        var_code = (weight_name, shape, weight, self.is_parameter, self.is_sparse, self.param_init)  # (var_name, shape, value, is_parameter, is_sparse)
 
         # The backend basic operation
-        op_code = [target_name, 'sparse_mat_mult', weight_name, input_name]
+        op_code = [target_name, 'sparse_mat_mult_weight', weight_name, input_name]
         connection_information = (pre_group, post_group, link_num, var_code, op_code)
         self.unit_connections.append(connection_information)
 
@@ -940,14 +1013,23 @@ class sparse_connect_sparse(Connection):
 
 Connection.register('sparse_connect_sparse', sparse_connect_sparse)
 
-class sparse_connect(Connection):
 
-    def __init__(self, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse', 'conv','...'), policies=[],
-                 max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='WgtSum', **kwargs):
-        super(sparse_connect, self).__init__(pre_assembly=pre_assembly, post_assembly=post_assembly, name=name, link_type=link_type,
-                                             policies=policies, max_delay=max_delay, sparse_with_mask=sparse_with_mask, pre_var_name=pre_var_name, post_var_name=post_var_name, **kwargs)
+class sparse_connect_mask(Connection):
+
+    def __init__(self, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse_connect', 'conv','...'), policies=[],
+                 max_delay=0, sparse_with_mask=True, pre_var_name='O', post_var_name='WgtSum', **kwargs):
+        super(sparse_connect_mask, self).__init__(pre_assembly=pre_assembly, post_assembly=post_assembly, name=name,
+                                                  link_type=link_type, policies=policies, max_delay=max_delay,
+                                                  sparse_with_mask=sparse_with_mask,
+                                                  pre_var_name=pre_var_name, post_var_name=post_var_name, **kwargs)
+        self.weight = kwargs.get('weight', None)
         self.w_std = kwargs.get('w_std', 0.05)
         self.density = kwargs.get('density', 0.1)
+        self.w_max = kwargs.get('w_max', None)
+        self.w_min = kwargs.get('w_min', None)
+        self.param_init = kwargs.get('param_init', None)
+        self.is_parameter = kwargs.get('is_parameter', True)
+        self.is_sparse = kwargs.get('is_sparse', False)
 
     def unit_connect(self, pre_group, post_group):
         # The number of neurons in neuron group
@@ -956,30 +1038,35 @@ class sparse_connect(Connection):
         link_num = pre_num * post_num
         shape = (post_num, pre_num)
 
-        # Connection weight
-        sparse_matrix = self.w_std * sp.rand(post_num, pre_num, density=self.density, format='csr')
-        weight = sparse_matrix.toarray()
+        if self.weight is None:
+            # Connection weight
+            sparse_matrix = self.w_std * sp.rand(post_num, pre_num, density=self.density, format='csr')
+            weight = sparse_matrix.toarray()
+        else:
+            assert (self.weight.shape == shape), f"The size of the given weight {self.weight.shape} does not correspond to the size of synaptic matrix {shape} "
+            weight = self.weight
 
         # The name for backend variables
         input_name = self.get_input_name(pre_group, post_group)
-        weight_name = self.get_weight_name(pre_group, post_group)
-        target_name = self.get_target_name(post_group)
+        weight_name = self.get_link_name(pre_group, post_group, 'weight')
+        target_name = self.get_post_name(post_group, self.post_var_name)
 
         # The backend variable
-        var_code = (weight_name, shape, weight, True, False)  # (var_name, shape, value, is_parameter, is_sparse)
+        var_code = (weight_name, shape, weight, self.is_parameter, self.is_sparse, self.param_init)  # (var_name, shape, value, is_parameter, is_sparse)
 
         # The backend basic operation
-        op_code = [target_name, 'mat_mult', input_name, weight_name]
+        op_code = [target_name, 'mat_mult_weight', input_name, weight_name]
 
         connection_information = (pre_group, post_group, link_num, var_code, op_code)
         self.unit_connections.append(connection_information)
 
-        mask = (weight != 0)
-        mask_name = self.get_mask_name(pre_group, post_group)
-        mask_var_code = (mask_name, shape, mask)
-        mask_op = (weight_name, self.mask_operation, [weight_name, mask_name])
-        mask_information = (mask_var_code, mask_op)
-        self.mask_info.append(mask_information)
+        if self.sparse_with_mask:
+            mask = (weight != 0)
+            mask_name = self.get_link_name(pre_group, post_group, 'mask')
+            mask_var_code = (mask_name, shape, mask)
+            mask_op = (weight_name, self.mask_operation, [weight_name, mask_name])
+            mask_information = (mask_var_code, mask_op)
+            self.mask_info.append(mask_information)
 
         pass
 
@@ -991,15 +1078,23 @@ class sparse_connect(Connection):
             flag = True
         return flag
         pass
-Connection.register('sparse_connect', sparse_connect)
+Connection.register('sparse_connect', sparse_connect_mask)
 
 class random_connect_sparse(Connection):
 
-    def __init__(self, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse', 'conv','...'), policies=[],
+    def __init__(self, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse_connect', 'conv','...'), policies=[],
                  max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='WgtSum', **kwargs):
-        super(random_connect_sparse, self).__init__(pre_assembly=pre_assembly, post_assembly=post_assembly, name=name, link_type=link_type,
-                                             policies=policies, max_delay=max_delay, sparse_with_mask=sparse_with_mask, pre_var_name=pre_var_name, post_var_name=post_var_name, **kwargs)
+        super(random_connect_sparse, self).__init__(pre_assembly=pre_assembly, post_assembly=post_assembly, name=name,
+                                                    link_type=link_type, policies=policies, max_delay=max_delay,
+                                                    sparse_with_mask=sparse_with_mask,
+                                                    pre_var_name=pre_var_name, post_var_name=post_var_name, **kwargs)
+        self.weight = kwargs.get('weight', None)
         self.probability = kwargs.get('probability', 0.1)
+        self.w_max = kwargs.get('w_max', None)
+        self.w_min = kwargs.get('w_min', None)
+        self.param_init = kwargs.get('param_init', None)
+        self.is_parameter = kwargs.get('is_parameter', False)
+        self.is_sparse = kwargs.get('is_sparse', True)
 
     def unit_connect(self, pre_group, post_group):
         # The number of neurons in neuron group
@@ -1008,26 +1103,29 @@ class random_connect_sparse(Connection):
         link_num = pre_num * post_num
         shape = (post_num, pre_num)
 
-        # Link_parameters
-
-        prob_weight = np.random.rand(*shape)
-        diag_index = np.arange(min([pre_num, post_num]))
-        prob_weight[diag_index, diag_index] = 1
-        index = (prob_weight < self.probability)
-
-        weight = np.zeros(shape)
-        weight[index] = prob_weight[index]
+        if self.weight is None:
+            # Link_parameters
+            prob_weight = np.random.rand(*shape)
+            diag_index = np.arange(min([pre_num, post_num]))
+            prob_weight[diag_index, diag_index] = 1
+            index = (prob_weight < self.probability)
+            # Connection weight
+            weight = np.zeros(shape)
+            weight[index] = prob_weight[index]
+        else:
+            assert (self.weight.shape == shape), f"The size of the given weight {self.weight.shape} does not correspond to the size of synaptic matrix {shape} "
+            weight = self.weight
 
         # The name for backend variables
         input_name = self.get_input_name(pre_group, post_group)
-        weight_name = self.get_weight_name(pre_group, post_group)
-        target_name = self.get_target_name(post_group)
+        weight_name = self.get_link_name(pre_group, post_group, 'weight')
+        target_name = self.get_post_name(post_group, self.post_var_name)
 
         # The backend variable
-        var_code = (weight_name, shape, weight, False, True)   # (var_name, shape, value, is_parameter, is_sparse)
+        var_code = (weight_name, shape, weight, self.is_parameter, self.is_sparse, self.param_init)   # (var_name, shape, value, is_parameter, is_sparse)
 
         # The backend basic operation
-        op_code = [target_name, 'sparse_mat_mult', weight_name, input_name]
+        op_code = [target_name, 'sparse_mat_mult_weight', weight_name, input_name]
 
         connection_information = (pre_group, post_group, link_num, var_code, op_code)
         self.unit_connections.append(connection_information)
@@ -1043,13 +1141,21 @@ class random_connect_sparse(Connection):
         pass
 Connection.register('random_connect_sparse', random_connect_sparse)
 
-class random_connect(Connection):
+class random_connect_mask(Connection):
 
-    def __init__(self, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse', 'conv', '...'), policies=[],
-                 max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='WgtSum', **kwargs):
-        super(random_connect, self).__init__(pre_assembly=pre_assembly, post_assembly=post_assembly, name=name, link_type=link_type,
-                                             policies=policies, max_delay=max_delay, sparse_with_mask=sparse_with_mask, pre_var_name=pre_var_name, post_var_name=post_var_name, **kwargs)
+    def __init__(self, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse_connect', 'conv', '...'), policies=[],
+                 max_delay=0, sparse_with_mask=True, pre_var_name='O', post_var_name='WgtSum', **kwargs):
+        super(random_connect_mask, self).__init__(pre_assembly=pre_assembly, post_assembly=post_assembly, name=name,
+                                                  link_type=link_type, policies=policies, max_delay=max_delay,
+                                                  sparse_with_mask=sparse_with_mask,
+                                                  pre_var_name=pre_var_name, post_var_name=post_var_name, **kwargs)
+        self.weight = kwargs.get('weight', None)
         self.probability = kwargs.get('probability', 0.1)
+        self.w_max = kwargs.get('w_max', None)
+        self.w_min = kwargs.get('w_min', None)
+        self.param_init = kwargs.get('param_init', None)
+        self.is_parameter = kwargs.get('is_parameter', True)
+        self.is_sparse = kwargs.get('is_sparse', False)
 
     def unit_connect(self, pre_group, post_group):
         # The number of neurons in neuron group
@@ -1058,34 +1164,40 @@ class random_connect(Connection):
         link_num = pre_num * post_num
         shape = (post_num, pre_num)
 
-        prob_weight = np.random.rand(*shape)
-        diag_index = np.arange(min([pre_num, post_num]))
-        prob_weight[diag_index, diag_index] = 1
-        index = (prob_weight < self.probability)
-
-        weight = np.zeros(shape)
-        weight[index] = prob_weight[index]
+        if self.weight is None:
+            # Link_parameters
+            prob_weight = np.random.rand(*shape)
+            diag_index = np.arange(min([pre_num, post_num]))
+            prob_weight[diag_index, diag_index] = 1
+            index = (prob_weight < self.probability)
+            # Connection weight
+            weight = np.zeros(shape)
+            weight[index] = prob_weight[index]
+        else:
+            assert (self.weight.shape == shape), f"The size of the given weight {self.weight.shape} does not correspond to the size of synaptic matrix {shape} "
+            weight = self.weight
 
         # The name for backend variables
         input_name = self.get_input_name(pre_group, post_group)
-        weight_name = self.get_weight_name(pre_group, post_group)
-        target_name = self.get_target_name(post_group)
+        weight_name = self.get_link_name(pre_group, post_group, 'weight')
+        target_name = self.get_post_name(post_group, self.post_var_name)
 
         # The backend variable
-        var_code = (weight_name, shape, weight, True, False)    # (var_name, shape, value, is_parameter, is_sparse)
+        var_code = (weight_name, shape, weight, self.is_parameter, self.is_sparse, self.param_init)    # (var_name, shape, value, is_parameter, is_sparse)
 
         # The backend basic operation
-        op_code = [target_name, 'mat_mult', input_name, weight_name]
+        op_code = [target_name, 'mat_mult_weight', input_name, weight_name]
 
         connection_information = (pre_group, post_group, link_num, var_code, op_code)
         self.unit_connections.append(connection_information)
 
-        mask = (weight != 0)
-        mask_name = self.get_mask_name(pre_group, post_group)
-        mask_var_code = (mask_name, shape, mask)
-        mask_op = (weight_name, self.mask_operation, [weight_name, mask_name])
-        mask_information = (mask_var_code, mask_op)
-        self.mask_info.append(mask_information)
+        if self.sparse_with_mask:
+            mask = (weight != 0)
+            mask_name = self.get_link_name(pre_group, post_group, 'mask')
+            mask_var_code = (mask_name, shape, mask)
+            mask_op = (weight_name, self.mask_operation, [weight_name, mask_name])
+            mask_information = (mask_var_code, mask_op)
+            self.mask_info.append(mask_information)
         pass
 
     def condition_check(self, pre_group, post_group):
@@ -1096,7 +1208,7 @@ class random_connect(Connection):
             flag = True
         return flag
         pass
-Connection.register('random_connect', random_connect)
+Connection.register('random_connect',  random_connect_mask)
 
 
 class DistDepd_connect(Connection):
@@ -1183,7 +1295,7 @@ class DistDepd_connect(Connection):
 Connection.register('dist_depd', DistDepd_connect)
 
 class reconnect(Connection):
-    def __init__(self, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse', 'conv', '...'), policies=[],
+    def __init__(self, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse_connect', 'conv', '...'), policies=[],
                  max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='WgtSum', **kwargs):
         super(reconnect, self).__init__(pre_assembly=pre_assembly, post_assembly=post_assembly, name=name, link_type=link_type,
                                              policies=policies, max_delay=max_delay, sparse_with_mask=sparse_with_mask, pre_var_name=pre_var_name, post_var_name=post_var_name, **kwargs)

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on 2020/9/14
-@project: SNNFlow
+@project: SPAIC
 @filename: Torch_Backend
 @author: Hong Chaofei
 @contact: hongchf@gmail.com
@@ -9,7 +9,6 @@ Created on 2020/9/14
 """
 from .Backend import Backend, backends
 import torch
-
 import numpy as np
 from torch import jit
 #from torch.nn import Module, Parameter
@@ -17,7 +16,7 @@ import torch.nn.functional as fn
 from typing import Tuple, Dict, Callable
 
 class Torch_Backend(Backend):
-    simulator_name = 'pytorch'
+    backend_name = 'pytorch'
 
     def __init__(self, device='cpu'):
         super(Torch_Backend, self).__init__()
@@ -99,23 +98,35 @@ class Torch_Backend(Backend):
                 else:
                     # add a non sparse matrices with all dimensions greater than 2
                     if init is not None:
-                        data = torch.empty(shape, dtype=torch.float32, device=self.device, requires_grad=grad)
-                        self._variables[name] = self.param_init_operate[init](data)
+                        # self._variables[name] = self.init_param(grad, init)
+                        data = torch.tensor(value, dtype=torch.float32, device=self.device, requires_grad=grad)
+                        init = init.lower()
+                        if init in self.param_init_operate.keys():
+                            self._variables[name] = self.param_init_operate[init](data)
+                        else:
+                            raise ValueError("No initialize method: %s in param_init_operate" % init)
                     else:
-                        self._variables[name] = torch.tensor(value, dtype=torch.float32, device=self.device,
-                                                                 requires_grad=grad)
+                        if isinstance(value, torch.Tensor):
+                            self._variables[name] = value.clone().detach()
+                        else:
+                            self._variables[name] = torch.tensor(value, dtype=torch.float32, device=self.device, requires_grad=grad)
             elif len(shape) == 0:
                 # add constant
                 self._variables[name] = torch.tensor(value, dtype=torch.float32, device=self.device, requires_grad=grad)
+
             else:
                 # add a matrix through constant
                 if init is not None:
                     # self._variables[name] = self.init_param(grad, init)
-                    data = torch.empty(shape, dtype=torch.float32, device=self.device, requires_grad=grad)
-                    self._variables[name] = self.param_init_operate[init](data)
+                    data = value*torch.ones(shape, dtype=torch.float32, device=self.device, requires_grad=grad)
+                    init = init.lower()
+                    if init in self.param_init_operate.keys():
+                        self._variables[name] = self.param_init_operate[init](data)
+                    else:
+                        raise ValueError("No initialize method: %s in param_init_operate" % init)
                 else:
                     self._variables[name] = value*torch.ones(shape, dtype=torch.float32, device=self.device, requires_grad=grad)
-                # self._variables[name] = value*torch.ones(shape, dtype=torch.float32, device=self.device, requires_grad=grad)
+
         return self._variables[name]
 
     # def init_param(self, grad, *init):
@@ -161,6 +172,15 @@ class Torch_Backend(Backend):
     def index_select(self, x,  indices, dim=1):
         return torch.index_select(x, dim=dim, index=indices)
 
+    def permute(self, x, permute_dim):
+        return x.permute(permute_dim)
+
+    def view(self, x, view_dim):
+
+        x = x.contiguous().view(view_dim)
+        return x
+
+
     def scatter(self, x, indices):
         return torch.scatter(x, dim=0, index=indices)
 
@@ -184,10 +204,10 @@ class Torch_Backend(Backend):
         else:
             return fn.conv2d(x, kernel, stride=int(stride), padding=int(padding), dilation=int(dilation), groups=int(groups))
 
-
     def conv_max_pool2d(self, x, kernel, max_kernel, stride, padding, dilation, groups):
 
-        return fn.max_pool2d(fn.conv2d(x, kernel, stride=int(stride), padding=int(padding), dilation=int(dilation), groups=int(groups)), int(max_kernel[0]))
+        return fn.conv2d(fn.max_pool2d(x, int(max_kernel[0])), kernel, stride=int(stride), padding=int(padding),
+                         dilation=int(dilation), groups=int(groups))
 
     def reshape_mat_mult(self, A, X):
 
@@ -199,6 +219,15 @@ class Torch_Backend(Backend):
             A = A.view(batchsize, extend, -1)
 
         return torch.matmul(A, X.permute(1, 0))
+
+    def im2col_indices(self, x, kh, kw, padding, stride):
+        return fn.unfold(x, (kh, kw), padding=padding, stride=stride)
+
+    def conv2d_flatten(self, x):
+        return x.view(x.shape[0], x.shape[1], -1)
+
+    def feature_map_flatten(self, x):
+        return x.view(x.shape[0], -1)
 
     def add(self, x, y):
 
@@ -213,10 +242,7 @@ class Torch_Backend(Backend):
     def relu(self, x):
         return torch.relu(x)
 
-    def sigmoid(self, x):
-        return torch.sigmoid(x)
-
-    def mat_mult(self, A, X):
+    def mat_mult_weight(self, A, X):
         '''
         Parameters
         ----------
@@ -228,7 +254,18 @@ class Torch_Backend(Backend):
         X = X.permute(1, 0)
         return torch.matmul(A, X)
 
-    def mat_mult_pre(self, A, X):
+    def mat_mult(self, A, X):
+        '''
+        Parameters
+        ----------
+        A--->preGroup:input
+        X--->postGroup:weight
+        Returns
+        -------
+        '''
+        return torch.matmul(A, X)
+
+    def bmm(self, A, X):
         '''
         Parameters
         ----------
@@ -237,10 +274,20 @@ class Torch_Backend(Backend):
         Returns
         -------
         '''
-        A = A.permute(1, 0)
-        return torch.matmul(A, X)
+        return torch.bmm(A, X)
 
-    def sparse_mat_mult(self, A, X):
+    def ger(self, A, X):
+        '''
+        Parameters
+        ----------
+        A---> postGroup
+        X---> preGroup
+        Returns
+        -------
+        '''
+        return torch.ger(A, X)
+
+    def sparse_mat_mult_weight(self, A, X):
         '''
        Parameters
        ----------
@@ -249,7 +296,6 @@ class Torch_Backend(Backend):
        Returns
        -------
        '''
-
         X = X.permute(1, 0)
         result = torch.sparse.mm(A, X)
         result = result.permute(1, 0)
@@ -258,11 +304,10 @@ class Torch_Backend(Backend):
     def var_mult(self, A, X):
         return A * X
 
-
-    def mult_sum(self, A, X):
+    def mult_sum_weight(self, A, X):
         try:
             X = X.permute(1, 0)
-            A = A.permute(0,2,1)
+            A = A.permute(0, 2, 1)
             return torch.sum(torch.matmul(A, X), dim=-2)
         except:
             pass
@@ -375,6 +420,34 @@ class Torch_Backend(Backend):
         '''
         return torch.nn.init.kaiming_uniform_(data, a, mode, nonlinearity)
 
+    def zero_init(self, data, constant_value=0.0):
+        '''
+        Args:
+            data(tensor): an n-dimensional torch.Tensor
+            constant_value(float): the value to fill the tensor with
+        Returns:
+            torch.nn.init.constant_(data, constant_value)
+        '''
+        return torch.nn.init.constant_(data, constant_value)
+
+    def sin(self, x):
+        return torch.sin(x)
+
+    def cos(self, x):
+        return torch.cos(x)
+
+    def tan(self, x):
+        return torch.tan(x)
+
+    def log(self, x):
+        return torch.log(x)
+
+    def log2(self, x):
+        return torch.log2(x)
+
+    def log10(self, x):
+        return torch.log10(x)
+
     # def reset(self, x, v_reset, u_reset, spike):
     #
     #     # if hasattr(x, "__len__"):
@@ -393,7 +466,8 @@ class Torch_Backend(Backend):
     #     u = u+self.dt*a*(b*v-u)
     #     return u
 
-backends[Torch_Backend.simulator_name] = Torch_Backend
+
+backends[Torch_Backend.backend_name] = Torch_Backend
 
 # test = Torch_Backend()
 # th = test.basic_operate['threshold']

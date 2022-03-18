@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on 2020/8/11
-@project: SNNFlow
+@project: SPAIC
 @filename: Node
 @author: Hong Chaofei
 @contact: hongchf@gmail.com
@@ -22,17 +22,17 @@ class Node(Assembly):
     def __init__(self, shape=None, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'),
                  coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
         super(Node, self).__init__()
-        # Node Parameters
-        # self.dataloader = dataloader
-
-        # if coding_time is not None:
-        #     self._time = coding_time
-        # else:
-        #     raise ValueError('The coding time window can not be None. Please set coding time window through coding_time parameter. The value should be equal to the simulation time of one epoch.')
 
         self._dt = dt
         self._time = None
         self.coding_var_name = coding_var_name
+        position = kwargs.get('position', None)
+        if position == None:
+            self.position = []
+        else:
+            position = np.array(position)
+            assert position.shape[0] == num, " Neuron_position not equal to neuron number"
+            self.position = position
 
         if coding_method == ('poisson', 'spike_counts', '...'):
             raise ValueError('Please specify the coding method such as poisson or spike_counts')
@@ -65,12 +65,7 @@ class Node(Assembly):
         else:
             self.type = node_type
 
-        if coding_method == ('poisson', 'spike_counts', '...'):
-            raise ValueError('Please specify the coding method such as poisson or spike_counts')
-        else:
-            self.coding_method = coding_method.lower()  # The name of coding method
 
-        self.coding_var_name = coding_var_name
 
         # Coding parameters
         self.coding_param = kwargs
@@ -78,9 +73,10 @@ class Node(Assembly):
         self.source = np.random.rand(*self.shape)
         #TODO:现在 Encoder, Decoder, Generator功能拆开了，是不是应该把这段放到Decoder类里了, 上边的coding_method也是同理
         if self.dec_target is not None:
-            # The size of reward and predict is equal to batch_size
-            self.reward = np.zeros((1,))
+            # The size of predict, reward and action is equal to batch_size
             self.predict = np.zeros((1,))
+            self.reward = np.zeros((1,))
+            self.action = np.zeros((1,))
 
         # Parameters of initial operation
         self.index = 0
@@ -97,12 +93,12 @@ class Node(Assembly):
 
     @property
     def time(self):
-        self._time = self._simulator.runtime
+        self._time = self._backend.runtime
         return self._time
 
     @property
     def time_step(self):
-        return int(self._simulator.runtime / self._dt)
+        return int(self._backend.runtime / self._dt)
 
 
     @time.setter
@@ -133,7 +129,7 @@ class Node(Assembly):
         Args:
             source (): It is input spike trains for encoding class and output spike trains for decoding class.
             target (): It is None  for encodoing class and labels for decoding class.
-            device (): CPU or CUDA, this parameter is taken from simulator
+            device (): CPU or CUDA, this parameter is taken from backend
 
         Returns:
 
@@ -146,26 +142,37 @@ class Node(Assembly):
     def tensorflow_coding(self, source, target, device):
         raise NotImplementedError
 
-    def build(self, simulator):
-        self._simulator = simulator
+    def build(self, backend):
+        self._backend = backend
         raise NotImplementedError
 
-    def __call__(self, data):
-        self.source = data
-        if isinstance(self, Encoder) or isinstance(self, Generator):
+    def __call__(self, data=None):
+
+        if isinstance(self, Encoder) or isinstance(self, Generator) or isinstance(self, Reward):
             if isinstance(data, np.ndarray):
+                self.source = data
                 batch_size = data.shape[0]
-            elif isinstance(data, list):
-                batch_size = len(data)
-            else:
+            elif isinstance(data, torch.Tensor):
+                self.source = data
+                batch_size = data.shape[0]
+            elif hasattr(data, '__iter__'):
                 self.source = np.array(data)
+                batch_size = self.source.shape[0]
+            else:
+                self.source = np.array([data])
                 batch_size = 1
 
-            if self._simulator is None:
+            if self._backend is None:
                 self.batch_size = batch_size
             else:
-                self._simulator.set_batch_size(batch_size)
+                self._backend.set_batch_size(batch_size)
                 self.batch_size = None
+
+            self.new_input = True
+
+        elif isinstance(self, Decoder):
+            return self.predict
+
 
 # ======================================================================================================================
 # Encoders
@@ -184,6 +191,7 @@ class Encoder(Node):
                  coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
         super(Encoder, self).__init__(shape, num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
         self.batch_size = None
+        self.new_input = True
         coding_method = coding_method.lower()
         if coding_method == 'null':
             self.is_encoded = True
@@ -193,6 +201,7 @@ class Encoder(Node):
     def __new__(cls, shape=None, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'),
                 coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
         coding_method = coding_method.lower()
+
         if cls is not Encoder:
             return super().__new__(cls)
         elif coding_method in Encoder._coding_subclasses:
@@ -236,18 +245,22 @@ class Encoder(Node):
 
     # stand alone operation: get spike pattern in every time step
     def next_stage(self):
+        if self.new_input:
+            self.get_input()
+            self.new_input = False
+
         self.index += 1
         return self.all_spikes[self.index-1]
 
-    def build(self, simulator):
-        self._simulator = simulator
-        self.sim_name = simulator.simulator_name
-        self.device = simulator.device
+    def build(self, backend):
+        self._backend = backend
+        self.sim_name = backend.backend_name
+        self.device = backend.device
 
         if self.dt is None:
-            self.dt = simulator.dt
+            self.dt = backend.dt
         if self.batch_size is not None:
-            self._simulator.set_batch_size(self.batch_size)
+            self._backend.set_batch_size(self.batch_size)
 
         if self.sim_name == 'pytorch':
             spikes = self.torch_coding(self.source, self.device)  # (time_step, batch_size, neuron_shape)
@@ -255,44 +268,33 @@ class Encoder(Node):
             spikes = self.numpy_coding(self.source, self.device)
         self.all_spikes = spikes
 
-        if self.is_encoded:
-            self.shape = spikes.shape
-            singlestep_spikes = 0*spikes
-        else:
-            singlestep_spikes = 0*spikes[0]
-            self.shape = singlestep_spikes.shape
+        self.shape = spikes[0].shape
 
         key = self.id + ':' + '{'+self.coding_var_name+'}'
         self._var_names.append(key)
-        simulator.add_variable(key, self.shape, value=singlestep_spikes)
-        simulator.register_initial(None, self.get_input, [])
-        simulator.register_standalone(key, self.next_stage, [])
+        backend.add_variable(key, self.shape, value=0)
+        # backend.register_initial(None, self.get_input, [])
+        backend.register_standalone(key, self.next_stage, [])
 
 
 # ======================================================================================================================
 # Decoders
-#=======================================================================================================================
+# ======================================================================================================================
+
 class Decoder(Node):
     '''
-        Eleven decoding method are provided, as shown below (key: class):
+        Five decoding method are provided, as shown below (key: class):
         1. 'spike_counts': Spike_Counts
         2. 'first_spike': First_Spike
         3. 'time_spike_counts': TimeSpike_Counts
         4. 'time_softmax': Time_Softmax
-
-        5. 'step_reward': EachStep_Reward
-        6. 'global_reward': Global_Reward
-
-        7. 'pop_rate_action': PopulationRate_Action
-        8. 'softmax_action': Softmax_Action
-        9. 'highest_spikes_action': Highest_Spikes_Action
-        10. 'first_spike_action': First_Spike_Action
-        11. 'random_action': Random_Action
+        5. 'final_step_voltage': Final_Step_Voltage
     '''
     _coding_subclasses = dict()
     def __init__(self, shape=None, num=None, dec_target=None,  dt=None, coding_method=('poisson', 'spike_counts', '...'),
                  coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
         super(Decoder, self).__init__(shape, num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
+        assert num == dec_target.num, ('The num of Decoder is not consistent with neuron_number of NeuronGroup')
 
     def __new__(cls, shape=None, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'),
                 coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
@@ -340,8 +342,8 @@ class Decoder(Node):
                 self.records = torch.zeros(dec_shape, device=self.device)
             else:
                 self.records = np.zeros(dec_shape)
-        # self.records = self.records + output
-        self.records[self.index, :] = output
+            self.index = 0
+        self.records[self.index % self.time_step, :] = output
         self.index += 1
         if self.index >= self.time_step:
             if self.sim_name == 'pytorch':
@@ -350,12 +352,78 @@ class Decoder(Node):
                 self.predict = self.numpy_coding(self.records, self.source, self.device)
         return 0
 
-    # stand alone operation: get reward from output activities
-    def get_global_reward(self, output):
+    def build(self, backend):
+        self._backend = backend
+        self.sim_name = backend.backend_name
+        self.device = backend.device
+        if self.dt is None:
+            self.dt = backend.dt
 
-        if (self.index % self.time_step) == 0:
+        output_name = self.dec_target.id + ':' + '{'+self.coding_var_name+'}'
+        backend.register_initial(None, self.init_state, [])
+        backend.register_standalone(None, self.get_output, [output_name])
+
+# ======================================================================================================================
+# Rewards
+# ======================================================================================================================
+
+class Reward(Node):
+    '''
+        Three reward method are provided, as shown below (key: class):
+        1. 'global_reward', Global_Reward
+        2. 'xor_reward': XOR_Reward
+        3. 'da_reward': DA_Reward
+        4. 'environment_reward': Environment_Reward
+    '''
+    _coding_subclasses = dict()
+    def __init__(self, shape=None, num=None, dec_target=None,  dt=None, coding_method=('poisson', 'spike_counts', '...'),
+                 coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
+        super(Reward, self).__init__(shape, num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
+        self.dec_sample_step = kwargs.get('dec_sample_step', 1)
+
+    def __new__(cls, shape=None, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'),
+                coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
+        coding_method = coding_method.lower()
+        if cls is not Reward:
+            return super().__new__(cls)
+        elif coding_method in Reward._coding_subclasses:
+            return super().__new__(Reward._coding_subclasses[coding_method])
+        else:
+            raise ValueError("No reward method: %s in Reward classes" % coding_method)
+
+    @staticmethod
+    def register(name, coding_class):
+        '''
+        Register a Reward class. Registered reward classes can be referred to
+        # via their name.
+        Parameters
+        ----------
+        name : str
+            A short name for the state updater (e.g. 'step_reward')
+        coding_class :
+            The subclass of coding object, e.g. an 'Step_Reward'.
+        '''
+
+        # only deal with lower case names
+        name = name.lower()
+        if name in Reward._coding_subclasses:
+            raise ValueError(('A reward class with the name "%s" has already been registered') % name)
+
+        if not issubclass(coding_class, Reward):
+            raise ValueError(
+                ('Given class of type %s does not seem to be a valid reward class.' % str(type(coding_class))))
+
+        Reward._coding_subclasses[name] = coding_class
+
+    def init_state(self):
+        self.index = 0
+
+    # stand alone operation: get reward from output activities
+    def get_reward(self, output):
+        if (self.index % self.dec_sample_step) == 0:
+            self.index = 0
             shape = list(output.shape)
-            dec_shape = [self.time_step] + shape
+            dec_shape = [self.dec_sample_step] + shape
             if type(output).__name__ == 'Tensor':
                 self.records = torch.zeros(dec_shape, device=self.device)
             else:
@@ -363,55 +431,26 @@ class Decoder(Node):
         reward = torch.zeros(1, device=self.device)
         self.records[self.index, :] = output
         self.index += 1
-        if self.index >= self.time_step:
+        if self.index >= self.dec_sample_step:
             if self.sim_name == 'pytorch':
                 reward = self.torch_coding(self.records, self.source, self.device)
-                self.predict = self.records.sum(0)  # (batch_size, label_num)
                 self.reward = reward
             else:
                 reward = self.numpy_coding(self.records, self.source, self.device)
         return reward
 
-    def get_step_reward(self, output):
-        if (self.index % self.time_step) == 0:
-            if type(output).__name__ == 'Tensor':
-                self.reward = torch.zeros(self.shape, device=self.device)
-                self.predict = torch.zeros(output.shape, device=self.device)
-            else:
-                self.reward = np.zeros(*self.shape)
-                self.predict = np.zeros(*self.shape)
-        self.index += 1
-        if self.sim_name == 'pytorch':
-            reward = self.torch_coding(output, self.source, self.device)
-            self.reward = reward
-            self.predict += output  # (batch_size, label_num)
-        else:
-            reward = self.numpy_coding(output, self.source, self.device)
-        return reward
-
-    def build(self, simulator):
-        self._simulator = simulator
-        self.sim_name = simulator.simulator_name
-        self.device = simulator.device
+    def build(self, backend):
+        self._backend = backend
+        self.sim_name = backend.backend_name
+        self.device = backend.device
         if self.dt is None:
-            self.dt = simulator.dt
-        # self.time_step = int(self.time / self.dt)
-
+            self.dt = backend.dt
 
         output_name = self.dec_target.id + ':' + '{'+self.coding_var_name+'}'
-        simulator.register_initial(None, self.init_state, [])
-        if self.coding_method == 'step_reward':
-            reward_name = 'Output_Reward'
-            simulator.add_variable(reward_name, (1, ), value=self.reward)
-            simulator.register_standalone(reward_name, self.get_step_reward, [output_name])
-        elif self.coding_method == 'global_reward':
-            # reward_name = self.dec_target.id + ':' + '{Reward}'
-            reward_name = 'Output_Reward'
-            simulator.add_variable(reward_name, (1, ), value=self.reward)
-            simulator.register_standalone(reward_name, self.get_global_reward, [output_name])
-        else:
-            # register_standalone(self, output_name: str, function, input_names: list):
-            simulator.register_standalone(None, self.get_output, [output_name])
+        backend.register_initial(None, self.init_state, [])
+        reward_name = 'Output_Reward'
+        backend.add_variable(reward_name, (1, ), value=self.reward)
+        backend.register_standalone(reward_name, self.get_reward, [output_name])
 
 
 class Generator(Node):
@@ -425,6 +464,10 @@ class Generator(Node):
                   coding_method=('poisson_generator', 'cc_generator', '...'),
                   coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
         super(Generator, self).__init__(shape, num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
+        self.gen_first = kwargs.get("gen_first", False) #only generate data for the first time, then use this date for later usage
+        self.all_spikes = None
+        self.build_level = 0
+        self.new_input = True
 
     def __new__(cls, shape=None, num=None, dec_target=None, dt=None,
                 coding_method=('poisson_generator', 'cc_generator', '...'),
@@ -463,24 +506,29 @@ class Generator(Node):
     # initial operation: encoding input features into spike patterns
     def get_input(self):
         self.index = 0
-        if self.sim_name == 'pytorch':
-            spikes = self.torch_coding(self.source, self.device)
-        else:
-            spikes = self.numpy_coding(self.source, self.device)
-        self.all_spikes = spikes
+        if (self.gen_first is True and self.all_spikes is None) or self.gen_first is False:
+            if self.sim_name == 'pytorch':
+                spikes = self.torch_coding(self.source, self.device)
+            else:
+                spikes = self.numpy_coding(self.source, self.device)
+            self.all_spikes = spikes
         return self.all_spikes
 
     # stand alone operation: get spike pattern in every time step
     def next_stage(self):
+        if self.new_input:
+            self.get_input()
+            self.new_input = False
+
         self.index += 1
         return self.all_spikes[self.index-1]
 
-    def build(self, simulator):
-        self._simulator = simulator
-        self.sim_name = simulator.simulator_name
-        self.device = simulator.device
+    def build(self, backend):
+        self._backend = backend
+        self.sim_name = backend.backend_name
+        self.device = backend.device
         if self.dt is None:
-            self.dt = simulator.dt
+            self.dt = backend.dt
 
         if self.sim_name == 'pytorch':
             singlestep_spikes = torch.zeros(self.shape, device=self.device)
@@ -489,9 +537,94 @@ class Generator(Node):
 
         if self.dec_target is None:
             key = self.id + ':' + '{'+self.coding_var_name+'}'
-            simulator.add_variable(key, self.shape, value=singlestep_spikes)
+            backend.add_variable(key, self.shape, value=singlestep_spikes)
         else:
             key = self.dec_target.id + ':' + '{'+self.coding_var_name+'}'
         self._var_names.append(key)
-        simulator.register_initial(None, self.get_input, [])
-        simulator.register_standalone(key, self.next_stage, [])
+        # backend.register_initial(None, self.get_input, [])
+        backend.register_standalone(key, self.next_stage, [])
+
+# ======================================================================================================================
+# Actions
+# ======================================================================================================================
+
+class Action(Node):
+    '''
+        Six action method are provided, as shown below (key: class):
+        1. 'pop_rate_action': PopulationRate_Action
+        2. 'softmax_action': Softmax_Action
+        3. 'highest_spikes_action': Highest_Spikes_Action
+        4. 'highest_voltage_action', Highest_Voltage_Action
+        5. 'first_spike_action': First_Spike_Action
+        6. 'random_action': Random_Action
+    '''
+    _coding_subclasses = dict()
+    def __init__(self, shape=None, num=None, dec_target=None,  dt=None, coding_method=('poisson', 'spike_counts', '...'),
+                 coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
+        super(Action, self).__init__(shape, num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
+
+    def __new__(cls, shape=None, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'),
+                coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
+        coding_method = coding_method.lower()
+        if cls is not Action:
+            return super().__new__(cls)
+        elif coding_method in Action._coding_subclasses:
+            return super().__new__(Action._coding_subclasses[coding_method])
+        else:
+            raise ValueError("No action method: %s in Action classes" % coding_method)
+
+    @staticmethod
+    def register(name, coding_class):
+        '''
+        Register an action class. Registered action classes can be referred to
+        # via their name.
+        Parameters
+        ----------
+        name : str
+            A short name for the state updater (e.g. 'pop_rate_action')
+        coding_class :
+            The subclass of coding object, e.g. an 'PopulationRate_Action'.
+        '''
+
+        # only deal with lower case names
+        name = name.lower()
+        if name in Action._coding_subclasses:
+            raise ValueError(('A action class with the name "%s" has already been registered') % name)
+
+        if not issubclass(coding_class, Action):
+            raise ValueError(
+                ('Given class of type %s does not seem to be a valid action class.' % str(type(coding_class))))
+
+        Action._coding_subclasses[name] = coding_class
+
+    def init_state(self):
+        self.index = 0
+
+    # stand alone operation: decoding spike patterns. Output is RL action
+    def get_action(self, output):
+        if (self.index % self.time_step) == 0:
+            shape = list(output.shape)
+            dec_shape = [self.time_step] + shape
+            if type(output).__name__ == 'Tensor':
+                self.records = torch.zeros(dec_shape, device=self.device)
+            else:
+                self.records = np.zeros(dec_shape)
+        self.records[self.index % self.time_step, :] = output
+        self.index += 1
+        if self.index >= self.time_step:
+            if self.sim_name == 'pytorch':
+                self.action = self.torch_coding(self.records, self.source, self.device)
+            else:
+                self.action = self.numpy_coding(self.records, self.source, self.device)
+        return 0
+
+    def build(self, backend):
+        self._backend = backend
+        self.sim_name = backend.backend_name
+        self.device = backend.device
+        if self.dt is None:
+            self.dt = backend.dt
+
+        output_name = self.dec_target.id + ':' + '{'+self.coding_var_name+'}'
+        backend.register_initial(None, self.init_state, [])
+        backend.register_standalone(None, self.get_action, [output_name])

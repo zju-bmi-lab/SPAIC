@@ -6,7 +6,7 @@
 Network内置函数
 ---------------------------------------------------------
 采用了Network中内置的 :code:`save_state` 与 :code:`state_from_dict` 函数将权重直接进行存储，该方式需要给予\
-一个文件的名称dir_name，然后平台会在当前程序的运行目录下新建'NetData/dir_name/simulator/_parameters_dict'\
+一个文件的名称dir_name，然后平台会在当前程序的运行目录下新建'NetData/dir_name/backend/_parameters_dict'\
 用于保存权重文件，然后使用 :code:`Net.state_from_dict(dir_name)` 就可以从文件中读取权重赋予当前的Net。
 
 .. code-block:: python

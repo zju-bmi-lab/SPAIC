@@ -32,7 +32,7 @@ SPAIC平台的教程文档： https://spaic.readthedocs.io/en/latest/index.html
 - **Connection(连接)**：建立各神经集合间连接的类，包含了不同类型突触连接的生成、管理的功能。
 - **NeuronGroup (神经元集群)**：是一定数量神经元集群的类，通常称为一层神经元，具有相同的神经元模型、连接形式等，虽然继承自Assembly类，但其内部的 _groups和 _connections属性为空。
 - **Node (节点)**：神经网络输入输出的中转节点，包含编解码机制，将输入转化为放电或将放电转会为输出。与NeuronGroup一样，内部的_groups和 _connections属性都为空。
-- **Network(网络)**: Assembly子类中的最上层结构，每个构建的神经网络的所有模块都包含到一个Network对象中，同时负责网络训练、仿真、数据交互等网络建模外的工作。除了Assemby对象的 _groups和 _connections等属性外，还具有 _monitors, _learners, _optimizers, _simulator, _pipeline等属性，同时 _supers, _input_connections,  _output_connections等属性为空。为训练等功能提供如下接口：
+- **Network(网络)**: Assembly子类中的最上层结构，每个构建的神经网络的所有模块都包含到一个Network对象中，同时负责网络训练、仿真、数据交互等网络建模外的工作。除了Assemby对象的 _groups和 _connections等属性外，还具有 _monitors, _learners, _optimizers, _backend, _pipeline等属性，同时 _supers, _input_connections,  _output_connections等属性为空。为训练等功能提供如下接口：
     - set_runtime：设置仿真时间
     - run: 进行一次仿真
     - save_state: 保存网络权重
@@ -188,9 +188,9 @@ Net3 = Net.select_assembly([Net.layer2, net_layer])
 
 
 ```python
-simulator = spaic.Torch_Backend()
-sim_name = simulator.simulator_name
-Net.build(simulator)
+backend = spaic.Torch_Backend()
+sim_name = backend.backend_name
+Net.build(backend)
 ```
 
 ### *定义优化算法、训练调度器（暂时可以用pytorch模块）
