@@ -35,9 +35,8 @@ class NeuronGroup(Assembly):
                  **kwargs
                  ):
         super(NeuronGroup, self).__init__(name=name)
-        self.num = neuron_number
         # self.name = name
-        self.shape = neuron_shape
+        self._set_num_shape(num = neuron_number, shape = neuron_shape)
         self.outlayer = kwargs.get("outlayer", False)
         # self.neuron_model = neuron_model
         if neuron_type == ('excitatory', 'inhibitory', 'pyramidal', '...'):
@@ -60,8 +59,6 @@ class NeuronGroup(Assembly):
         self.model_name = neuron_model  # self.neuron_model -> self.model_name
         self._var_names = list()
         self._operations = OrderedDict()
-
-
 
     def set_parameter(self):
         pass
@@ -174,6 +171,19 @@ class NeuronGroup(Assembly):
             backend.register_standalone(self.add_neuron_label('V'), self.model.return_V, [])
             backend.register_standalone(self.add_neuron_label('S'), self.model.return_S, [])
 
+    def _set_num_shape(self, num, shape):
+        self.num = num
+        self.shape = shape
+        if self.shape is not None:
+            num = np.prod(self.shape)
+            if self.num is None:
+                self.num = num
+            else:
+                assert self.num == num, "The number of neurons is not consistent with shape."
+        elif self.num is not None:
+            self.shape = [self.num]
+        else:
+            ValueError("The number of neurons or the shape must be defined.")
 
 class NeuronModel(ABC):
     '''
