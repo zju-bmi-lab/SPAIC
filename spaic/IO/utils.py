@@ -7,6 +7,7 @@
 @description:
 """
 import os
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 from random import shuffle
 from shutil import copy
 import numpy as np
@@ -15,10 +16,16 @@ import scipy.io.wavfile as wav
 from scipy.ndimage import maximum_filter
 # import soundfile as sf
 # import cv2
+import math
 
 import struct
 from spaic.utils import plot, gtgram
 import matplotlib.pyplot as plt
+
+import scipy.io.wavfile as wav
+
+
+
 '''
 ==================audio preprocess method==================
 '''
@@ -37,6 +44,20 @@ def wav_file_resample(file_path, dest_sample=16e3):
     resampled = signal.resample(sound_signal, signal_num)
     return resampled, dest_sample
 
+def wav_file_cut(file_path, signal_num=16e3):
+    """
+    对WAV文件进行裁剪操作
+    Args:
+        file_path: 需要进行resample操作的wav文件的路径
+        signal_num:目标数据数量
+    Returns:
+        cropped_data: 裁剪后的数据
+
+    """
+    sample_rate, sound_signal = wav.read(file_path)
+    cropped_data = signal.resample(sound_signal, int(signal_num))
+    return cropped_data
+
 def _dataset_exists(root, class_labels):
     if os.path.exists(root):
         for cls_id in class_labels.keys():
@@ -48,7 +69,58 @@ def _dataset_exists(root, class_labels):
     else:
         return False
 
-def save_numpy_format(root, is_train, sample_rate=16e3, class_labels=None, **kwargs):
+def save_mfcc_feature(root, npz_name, sample_rate=16e3, signal_num=16e3, class_labels=None, **kwargs):
+    from python_speech_features import mfcc
+    if npz_name is '':
+        feature_name = 'mfcc_feature'
+
+    # set class labels
+    if class_labels is None:
+        raise ValueError('Missing class labels dict')
+    else:
+        classes = class_labels
+
+    data = {
+        'train_audios': [],
+        'train_labels': [],
+        'test_audios': [],
+        'test_labels': [],
+        'Time': [],
+        'neuron_num': []
+    }
+
+    dataset_name = ['train', 'test']  # if is_train else 'test'
+    for subset in dataset_name:
+        for cls in classes.keys():
+            cur_dir = os.path.join(root, subset, cls)
+            for file in os.listdir(cur_dir):
+                if not file.endswith('wav'):
+                    continue
+
+                wavform = wav_file_cut(os.path.join(cur_dir, file), signal_num)
+                feature_mfcc = mfcc(wavform, samplerate=sample_rate)
+                feature_mfcc = feature_mfcc.flatten()
+                audios_name = "{}_audios".format(subset.lower())
+                labels_name = "{}_labels".format(subset.lower())
+                data[audios_name].append(feature_mfcc)
+                data[labels_name].append(classes[cls])
+
+    # 将音频数据存储为.npz文件
+    data_root = os.path.join(root, feature_name)
+    npz_name = feature_name + '.npz'
+    data['neuron_num'] = len(data['train_audios'][0])
+    trainMaxTime = get_Max(data['train_audios'])
+    testMaxTime = get_Max(data['test_audios'])
+    data['Time'] = max(trainMaxTime, testMaxTime)
+
+    for k in data.keys():
+        data[k] = np.array(data[k], dtype=object)
+    np.savez(data_root, train_audios=data['train_audios'], train_labels=data['train_labels'],
+             test_audios=data['test_audios'], test_labels=data['test_labels'], Time=data['Time'], neuron_num=data['neuron_num'])
+    print(">> mfcc_features saved")
+    return npz_name
+
+def save_kp_feature(root=None, npz_name=None, sample_rate=16e3, class_labels=None, **kwargs):
     # parameters for extracting key points of audio
     window_size = kwargs.get('window_size', 0.016)
     stride = kwargs.get('stride', 0.008)
@@ -57,69 +129,100 @@ def save_numpy_format(root, is_train, sample_rate=16e3, class_labels=None, **kwa
     Dr = kwargs.get('Dr', 3)
     Dc = kwargs.get('Dc', 3)
     significance_level = kwargs.get('significance_level', 3)
+    if npz_name is '':
+        feature_name = 'kp_feature'
 
     # set class labels
     if class_labels is None:
-        classes = {
-            "0": 0,
-            "1": 1,
-            "2": 2,
-            "3": 3,
-            "4": 4,
-            "5": 5,
-            "6": 6,
-            "7": 7,
-            "8": 8,
-            "9": 9
-        }
+        raise ValueError('Missing class labels dict')
     else:
         classes = class_labels
 
-    # whether the data set exists
-    if _dataset_exists(root, classes):
-        print(">> The dataset exists")
-    else:
-        print(">> Wrong root dir path")
-
-    subset = 'train' if is_train else 'test'
     data = {
         'train_audios': [],
         'train_labels': [],
         'test_audios': [],
         'test_labels': [],
         'train_ids': [],
-        'test_ids': []
+        'test_ids': [],
+        'Time': [],
+        'neuron_num': []
     }
 
-    for cls in classes.keys():
-        cur_dir = os.path.join(root, subset, cls)
-        for file in os.listdir(cur_dir):
-            if not file.endswith('wav'):
-                continue
+    dataset_name = ['train', 'test']  # if is_train else 'test'
+    for subset in dataset_name:
+        for cls in classes.keys():
+            cur_dir = os.path.join(root, subset, cls)
+            for file in os.listdir(cur_dir):
+                if not file.endswith('wav'):
+                    continue
 
-            wavform, sr = wav_file_resample(os.path.join(cur_dir, file), sample_rate)
-            gmspec = fetchGmSpectrogram(wavform, sample_rate, window_size, stride, kernels_num, freq_min) # gtgram.gtgram(wavform, sample_rate, window_size, stride, kernels_num, freq_min, show=True)
-            irow, icol, ival = extractKeyPoints(gmspec, Dr, Dc, significance_level)
-
-            audios_name = "{}_audios".format(subset.lower())
-            labels_name = "{}_labels".format(subset.lower())
-            id_name = "{}_ids".format(subset.lower())
-            data[audios_name].append(ival)
-            data[labels_name].append(classes[cls])
-            data[id_name].append(irow)
+                wavform, sr = wav_file_resample(os.path.join(cur_dir, file), sample_rate)
+                gmspec = fetchGmSpectrogram(wavform, sample_rate, window_size, stride, kernels_num, freq_min) # gtgram.gtgram(wavform, sample_rate, window_size, stride, kernels_num, freq_min, show=True)
+                irow, icol, ival = extractKeyPoints(gmspec, Dr, Dc, significance_level)
+                audios_name = "{}_audios".format(subset.lower())
+                labels_name = "{}_labels".format(subset.lower())
+                id_name = "{}_ids".format(subset.lower())
+                data[audios_name].append(ival)
+                data[labels_name].append(classes[cls])
+                data[id_name].append(irow)
 
     # 将音频数据存储为.npz文件
-    data_root = os.path.join(root, subset.lower())
+    data_root = os.path.join(root, feature_name)
+    npz_name = feature_name + '.npz'
+    data['neuron_num'] = kernels_num
+    trainMaxTime = get_Max(data['train_audios'])
+    testMaxTime = get_Max(data['test_audios'])
+    data['Time'] = max(trainMaxTime, testMaxTime)
 
     for k in data.keys():
         data[k] = np.array(data[k], dtype=object)
-    np.savez(data_root, train_audios=data['train_audios'], train_labels=data['train_labels'], train_ids=data['train_ids'], test_audios=data['test_audios'], test_labels=data['test_labels'], test_ids=data['test_ids'])
-    print(">> " + subset + "_dataset saved")
+    np.savez(data_root, train_audios=data['train_audios'], train_labels=data['train_labels'], train_ids=data['train_ids'],
+             test_audios=data['test_audios'], test_labels=data['test_labels'], test_ids=data['test_ids'], Time=data['Time'], neuron_num=data['neuron_num'])
+    print(">> kp_feature saved")
+    return npz_name
 
-def load_audio_data(root, is_train):
-    filename = 'train.npz' if is_train else 'test.npz'
+def load_kp_data(root, filename):
+    data = {
+        'train_audios': [],
+        'test_audios': [],
+        'train_ids': [],
+        'test_ids': [],
+        'train_labels': [],
+        'test_labels': [],
+        'Time': [],
+        'neuron_num': []
+    }
     fileroot = os.path.join(root, filename)
-    data = np.load(fileroot, allow_pickle=True)
+    data_temp = np.load(fileroot, allow_pickle=True)
+    data['train_audios'] = data_temp['train_audios']
+    data['test_audios'] = data_temp['test_audios']
+    data['train_labels'] = data_temp['train_labels']
+    data['test_labels'] = data_temp['test_labels']
+    data['train_ids'] = data_temp['train_ids']
+    data['test_ids'] = data_temp['test_ids']
+    data['Time'] = data_temp['Time']
+    data['neuron_num'] = data_temp['neuron_num']
+    print(">> " + filename + " loaded")
+    return data
+
+def load_mfcc_data(root, filename):
+    data = {
+        'train_audios': [],
+        'test_audios': [],
+        'train_labels': [],
+        'test_labels': [],
+        'Time': [],
+        'neuron_num': []
+    }
+    fileroot = os.path.join(root, filename)
+    data_temp = np.load(fileroot, allow_pickle=True)
+    data['train_audios'] = data_temp['train_audios']
+    data['test_audios'] = data_temp['test_audios']
+    data['train_labels'] = data_temp['train_labels']
+    data['test_labels'] = data_temp['test_labels']
+    data['Time'] = data_temp['Time']
+    data['neuron_num'] = data_temp['neuron_num']
     print(">> " + filename + " loaded")
     return data
 
@@ -152,7 +255,7 @@ def dataset_split(source_root, target_root, ratio, is_shuffle):
         i = 0
         to_path = train_dir
         for data_name in samples:
-            split_num = ratio*samples_len
+            split_num = math.ceil(ratio*samples_len)
             if i == 0:
                 to_path = train_dir
             elif ((i % split_num) == 0):
@@ -277,9 +380,9 @@ def extractKeyPoints(gmspec, Dr=13, Dc=13, significance_level=3):
     print('..', sum(significant))
     return irow, icol, ival
 
-def get_Max_Min(data):
+def get_Max(data):
     '''
-    get the maximum and minimum number of data
+    get the maximum number of data
     Args:
         data (): can be spiking time or neuron ids
 
@@ -287,14 +390,10 @@ def get_Max_Min(data):
 
     '''
     maxData = 0
-    minData = float('inf')
     for i in range(len(data)):
         tempMax = max(data[i])
         maxData = max(maxData, tempMax)
-        tempMin = min(data[i])
-        minData = min(minData, tempMin)
-
-    return maxData, minData
+    return maxData
 '''
 ==================image preprocess method==================
 '''
@@ -323,18 +422,69 @@ def GraytoBinary(image):
     return cv2.threshold(image, 0, 1, cv2.THRESH_BINARY)[1]
 
 
-def reshape(image, x, y):
+def reshape(image, shape):
     """
     Scale the image to (x, y).
 
     Args：
         image: Image to be rescaled.
-        x: x dimension.
-        y: y dimension.
+        shape: Changed shape
     Returns:
         Re-scaled image.
     """
-    return cv2.resize(image, (x, y))
+    import cv2
+    return cv2.resize(image, shape)
+
+def im2col(img, kh, kw, stride, padding='same'):
+    '''
+    :param img: 4D array
+    :param kh: kernel_height
+    :param kw: kernel_width
+    :param stride:
+    :param padding:
+    :return:
+    '''
+    if padding == 'same':
+        p1 = kh//2
+        p2 = kw//2
+        img = np.pad(img, ((0, 0), (0, 0), (p1, p1), (p2, p2),), 'constant')
+    N, C, H, W = img.shape
+    out_h = (H-kh)//stride+1
+    out_w = (W-kw)//stride+1
+    outsize = out_w*out_h
+    col = np.empty((N, C, kw*kh, outsize,))
+    for y in range(out_h):
+        y_start = y * stride
+        y_end = y_start + kh
+        for x in range(out_w):
+            x_start = x * stride
+            x_end = x_start + kw
+            col[:, :, 0:, y*out_w+x] = img[:, :, y_start:y_end, x_start:x_end].reshape(N, C, kh * kw)
+    return col.reshape(N, -1, outsize)
+
+
+def un_tar(file_name, output_root):
+    # untar zip file to folder whose name is same as tar file
+    import tarfile
+    tar = tarfile.open(file_name)
+    names = tar.getnames()
+
+    file_name = os.path.basename(file_name)
+    extract_dir = os.path.join(output_root, file_name.split('.')[0])
+
+    # create folder if nessessary
+    if os.path.isdir(extract_dir):
+        pass
+    else:
+        os.makedirs(extract_dir)
+
+    file_list = os.listdir(extract_dir)
+    if len(file_list) == len(names):
+        pass
+    else:
+        for name in names:
+            tar.extract(name, extract_dir)
+    tar.close()
 
 
 '''
@@ -346,7 +496,7 @@ def load_aedat_v3(file_name: str):
         file_name(str): path of the aedat v3 file
     Returns:
         a dict whose keys are ['t', 'x', 'y', 'p'] and values are ``numpy.ndarray``
-    This function is written by referring to https://gitlab.com/inivation/dv/dv-python . It can be used for DVS128 Gesture.
+    This function is written by referring to https://gitlab.com/inivation/dv/dv-python. It can be used for DVS128 Gesture.
     '''
     with open(file_name, 'rb') as bin_f:
         # skip ascii header
@@ -401,9 +551,69 @@ def load_aedat_v3(file_name: str):
 
 
 # if __name__ == "__main__":
-    # sroot = r'C:\Users\hp\Desktop\SpeechMNIST'
-    # troot = r'C:\Users\hp\Desktop\SpeechMNIST1'
-    # dataset_split(sroot, troot, 0.7, True)
+#     import numpy as np
+#     import matplotlib.pyplot as plt
+#     import os
+#     import wave
+#
+#     # 读入音频。
+#     path = r"F:\GitCode\Python\datasets\TidigitsWAV1\train\zero"
+#     name = '1.wav'
+#     # 我音频的路径为E:\SpeechWarehouse\zmkm\zmkm0.wav
+#     filename = os.path.join(path, name)
+#
+#     # 打开语音文件。
+#     f = wave.open(filename, 'rb')
+#     # 得到语音参数
+#     params = f.getparams()
+#     nchannels, sampwidth, framerate, nframes = params[:4]
+#     # ---------------------------------------------------------------#
+#     # 将字符串格式的数据转成int型
+#     print("reading wav file......")
+#     strData = f.readframes(nframes)
+#     waveData = np.fromstring(strData, dtype=np.short)
+#     # 归一化
+#     waveData = waveData * 1.0 / max(abs(waveData))
+#     # 将音频信号规整乘每行一路通道信号的格式，即该矩阵一行为一个通道的采样点，共nchannels行
+#     waveData = np.reshape(waveData, [nframes, nchannels]).T  # .T 表示转置
+#     f.close()  # 关闭文件
+#     print("file is closed!")
+#     # ----------------------------------------------------------------#
+#     '''绘制语音波形'''
+#     print("plotting signal wave...")
+#     time = np.arange(0, nframes) * (1.0 / framerate)  # 计算时间
+#     time = np.reshape(time, [nframes, 1]).T
+#     plt.plot(time[0, :nframes], waveData[0, :nframes], c="b")
+#     plt.axis('off')  # no axis
+#     plt.axes([0., 0., 1., 1.], frameon=False, xticks=[], yticks=[])
+#     # plt.xlabel("time")
+#     # plt.ylabel("amplitude")
+#     # plt.title("Original wave")
+#     plt.show()
+#     print('end')
+
+
+#     sroot = r'F:\GitCode\Python\datasets\TidigitsWAV'
+#     troot = r'F:\GitCode\Python\datasets\TidigitsWAV1'
+    # classes = {
+    #     "zero": 0,
+    #     "one": 1,
+    #     "two": 2,
+    #     "three": 3,
+    #     "four": 4,
+    #     "five": 5,
+    #     "six": 6,
+    #     "seven": 7,
+    #     "eight": 8,
+    #     "nine": 9,
+    #     "oh": 10
+    # }
+    # save_mfcc_feature(root=troot, npz_name='mfcc_test.npz', class_labels=classes)
+#     dataset_split(sroot, troot, 0.7, True)
+#     print('end')
+
+
+
 
     # sroot = r'C:\Users\hp\Desktop\AudioMNIST'
     # troot = r'C:\Users\hp\Desktop\SpeechMNIST'
@@ -428,21 +638,27 @@ def load_aedat_v3(file_name: str):
     # datasetAlignment(source, maxNum)
 
     # root = r'F:\GitCode\Python\datasets\AudioMNIST'
-    # filename = 'test.npz'
-    # fileroot = os.path.join(root, filename)
-    # data = np.load(fileroot, allow_pickle=True)
-    # trian_audios0 = data['train_ids'][0]
-    # trian_audios1 = data['train_ids'][1]
-    # trian_audios2 = data['train_ids'][2]
-    # trian_audios3 = data['train_ids'][3]
-    # maxvalue, minvalue = get_Max_Min(data['train_ids'])
-    # filename = 'test.npz'
-    # test_audios0 = data['test_audios'][0]
-    # test_audios1 = data['test_audios'][1]
-    # test_audios2 = data['test_audios'][2]
-    # test_audios3 = data['test_audios'][3]
-    # test_audios = data['test_audios']
-    # maxvalue, minvalue = get_Max_Min(data['test_ids'])
-    # print(maxvalue, minvalue)
+    # filenameTr = 'train.npz'
+    # root = r'F:\GitCode\Python\datasets\DigitsVoices'
+    # filenameTr = 'train_kernels_num50significance_level10.npz'
+    # filerootTr = os.path.join(root, filenameTr)
+    # dataTr = np.load(filerootTr, allow_pickle=True)
+    # trian_audios0 = dataTr['train_ids'][0]
+    # trian_audios1 = dataTr['train_ids'][1]
+    # trian_audios2 = dataTr['train_ids'][2]
+    # trian_audios3 = dataTr['train_ids'][3]
+    # train_ids = dataTr['train_ids']
+    # maxvalue = get_Max(dataTr['train_audios'])
+    # filenameTe = 'test_kernels_num50significance_level10.npz'
+    # filerootTe = os.path.join(root, filenameTe)
+    # dataTe = np.load(filerootTe, allow_pickle=True)
+    # test_audios0 = dataTe['test_audios'][0]
+    # test_audios1 = dataTe['test_audios'][1]
+    # test_audios2 = dataTe['test_audios'][2]
+    # test_audios3 = dataTe['test_audios'][3]
+    # test_audios = dataTe['test_audios']
+    # test_ids = dataTe['test_ids']
+    # maxvalue = get_Max(dataTe['test_audios'])
+    # print(maxvalue)
     # print('')
 

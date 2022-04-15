@@ -1,4 +1,5 @@
 import numpy as np
+# Sampler class is written by referring to https://github.com/pytorch/pytorch/blob/master/torch/utils/data/sampler.py.
 class Sampler(object):
     r"""Base class for all Samplers.
 
@@ -131,13 +132,3 @@ class BatchSampler(Sampler):
             return len(self.sampler) // self.batch_size  # type: ignore
         else:
             return (len(self.sampler) + self.batch_size - 1) // self.batch_size  # type: ignore
-
-# class RepeatSampler(Sampler):
-#
-#     def __init__(self, sampler):
-#         self.sampler = sampler
-#
-#     def __iter__(self):
-#         while True:
-#             yield from iter(self.sampler)
-

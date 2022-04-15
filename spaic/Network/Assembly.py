@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on 2020/8/5
-@project: SNNFlow
+@project: SPAIC
 @filename: Assembly
 @author: Hong Chaofei
 @contact: hongchf@gmail.com
@@ -45,7 +45,7 @@ class Assembly(BaseModule):
 
         Attributes:
             _class_label(str): the label is a static variable to imply the class of this object
-            _simulator(Backend): the backend simulator this assembly runs on
+            _backend(Backend): the backend backend this assembly runs on
             _groups(OrderedDict): the container of member assemblies
             _connections(OrderedDict): the container of member connections
             _supers(list): the super assemblies that add this assembly as their member assemblies
@@ -71,7 +71,7 @@ class Assembly(BaseModule):
            name(str): name of the network assembly
 
         Attributes:
-            _simulator(Backend): the backend simulator this assembly runs on
+            _backend(Backend): the backend backend this assembly runs on
             _groups(OrderedDict): the container of member assemblies
             _connections(OrderedDict): the container of member connections
             _supers(list): the super assemblies that add this assembly as their member assemblies
@@ -86,7 +86,7 @@ class Assembly(BaseModule):
         init_count = spaic.global_assembly_init_count
 
         self.set_name(name)
-        self._simulator:spaic.Backend = None
+        self._backend:spaic.Backend = None
         self._groups: OrderedDict[str,Assembly] = OrderedDict()
         self._connections: OrderedDict[str, spaic.Connection] = OrderedDict()
         self._supers = list()
@@ -137,7 +137,7 @@ class Assembly(BaseModule):
             >>> TestAsb.add_assembly(name='layer1', assembly=Assembly())
         """
 
-        if self._simulator: self._simulator.builded = False
+        if self._backend: self._backend.builded = False
 
         assert assembly not in self._groups.values(), "assembly %s is already in the assembly %s"%(name, self.name)
         assert name not in self._groups, "assembly with name: %s have the same name with assembly already in the assembly %s"%(name, self.name)
@@ -166,7 +166,7 @@ class Assembly(BaseModule):
             >>> TestAsb = Assembly() # assuming contains neurongroups and network structure
             >>> TestAsb.del_assembly(name='layer1')
         """
-        if self._simulator: self._simulator.builded = False
+        if self._backend: self._backend.builded = False
 
         if assembly is not None:
             deleted_assembly = False
@@ -208,7 +208,7 @@ class Assembly(BaseModule):
             >>> TestAsb.add_connection(name='con1', connection=Connection(self.layer1, self.layer2, link_type='full'))
 
         """
-        if self._simulator: self._simulator.builded = False
+        if self._backend: self._backend.builded = False
         assert connection.pre_assembly in self._groups.values(), 'pre_assembly %s is not in the group'%connection.pre_assembly.name
         assert connection.post_assembly in self._groups.values(), 'post_assembly %s is not in the group'%connection.post_assembly.name
         if name in self._connections:
@@ -244,7 +244,7 @@ class Assembly(BaseModule):
             >>> TestAsb = Assembly()
             >>> TestAsb.del_connection(name='con1')
         """
-        if self._simulator: self._simulator.builded = False
+        if self._backend: self._backend.builded = False
         if connection is not None:
             deleted_connection = False
             for ckey, value in self._connections.items():
@@ -280,7 +280,7 @@ class Assembly(BaseModule):
             >>> Asb2 = Assembly() # assuming it contains neurongroups and network structure
             >>> Asb1.copy_assembly(name='layer2', assembly=Asb2)
         """
-        if self._simulator: self._simulator.builded = False
+        if self._backend: self._backend.builded = False
         rv = assembly.structure_copy(name)
         self.__setattr__(name, rv)
 
@@ -305,7 +305,7 @@ class Assembly(BaseModule):
             >>> asb2 = Assembly() # assuming it contains neurongroups and network structure
             >>> templateAsb.replace_assembly(templateAsb.asb1, asb2)
         """
-        if self._simulator: self._simulator.builded = False
+        if self._backend: self._backend.builded = False
         replaced_assembly = False
         for gkey in self._groups.keys():
             if self._groups[gkey] is old_assembly:
@@ -337,7 +337,7 @@ class Assembly(BaseModule):
             >>> test_asb = Assembly() # assuming it contains neurongroups and network structure
             >>> test_asb.merge_assembly(target_asb)
         """
-        if self._simulator: self._simulator.builded = False
+        if self._backend: self._backend.builded = False
 
         for key, value in assembly._groups.item():
             if key in self._groups:
@@ -384,7 +384,7 @@ class Assembly(BaseModule):
             >>> newAsb1 = testAsb.select_assembly(['asb1', 'asb2'], 'newAsb') # using names
             >>> newAsb2 = testAsb.select_assembly([testAsb.asb2, testAsb.asb3], 'newAsb') # using assembly objects
         """
-        if self._simulator: self._simulator.builded = False
+        if self._backend: self._backend.builded = False
         new_asb = Assembly(name)
         for asb in assemblies:
             if isinstance(asb, str):
@@ -427,7 +427,7 @@ class Assembly(BaseModule):
             >>> TestAsb = Assembly()
             >>> TestAsb.assembly_hide()
         """
-        if self._simulator: self._simulator.builded = False
+        if self._backend: self._backend.builded = False
         self.hided = True
         for key, value in self._groups.items():
             value.assembly_hide()
@@ -448,7 +448,7 @@ class Assembly(BaseModule):
         >>> TestAsb.assembly_show()
 
         """
-        if self._simulator: self._simulator.builded = False
+        if self._backend: self._backend.builded = False
         self.hided = False
         for key, value in self._groups.items():
             value.assembly_show()
@@ -622,28 +622,124 @@ class Assembly(BaseModule):
         return repr_str
 
     # back-end functions
-    def build(self, simulator):
+    def build(self, backend=None, strategy=2):
         """
         Build the front-end network structure into a back-end computation graph.
 
         Args:
-            simulator(Backend): the backend simulator to be builded into
+            backend(Backend): the backend backend to be builded into
 
         Returns:
             None
 
         """
-        self._simulator = simulator
+        self._backend = backend
         # for asb in self.get_groups():
         #     asb.set_id()
         # for con in self.get_connections():
         #     con.set_id()
 
-        for key, value in self._connections.items():
-            value.build(simulator)
-        for key, value in self._groups.items():
-            value.build(simulator)
+        if strategy == 1:
+            pass
+        elif strategy == 2:
+            self.strategy_build(self.get_groups(False))
+        else:
+            for key, value in self._connections.items():
+                value.build(backend)
+            for key, value in self._groups.items():
+                value.build(backend)
 
+    def strategy_build(self, all_groups=None):
+        builded_groups = []
+        unbuild_groups = {}
+        output_groups = []
+        level = 0
+        from ..Neuron.Node import Encoder, Decoder, Generator
+        # ===================从input开始按深度构建计算图==============
+        for group in all_groups:
+            if isinstance(group, Encoder) or isinstance(group, Generator) or (self._class_label == '<asb>'):
+                # 如果是input节点，则开始深度构建计算图
+                group.build(self._backend)
+                builded_groups.append(group)
+                # all_groups.remove(group)
+                for conn in group._output_connections:
+                    builded_groups, unbuild_groups = self.deep_build_conn(conn, builded_groups,
+                                                                          unbuild_groups, level)
+            elif isinstance(group, Decoder):
+                # 如果节点是output节点，则放入output组在最后进行构建
+                output_groups.append(group)
+            else:
+                if (not group._input_connections) and (not group._output_connections):
+                    # 孤立点的情况
+                    import warnings
+                    warnings.warn('Isolated group occurs, please check the network.')
+                    group.build(self._backend)
+
+        if unbuild_groups:
+            import warnings
+            warnings.warn('Loop occurs')
+        # ====================开始构建环路==================
+        for key in unbuild_groups.keys():
+            for i in unbuild_groups[key]:
+                if i in builded_groups:
+                    continue
+                else:
+                    builded_groups = self.deep_build_neurongroup_with_delay(i, builded_groups)
+
+        # ====================构建output节点===============
+        for group in output_groups:
+            group.build(self._backend)
+
+    def deep_build_neurongroup(self, neuron=None, builded_groups=None, unbuild_groups=None, level=0):
+        conns = [i for i in neuron._input_connections if i not in builded_groups]
+        # conns表示神经元还没有被建立的依赖连接
+        if conns: #==========如果存在conns说明有input_connections还没有被build===========
+            if str(level) in unbuild_groups.keys():
+                unbuild_groups[str(level)].append(neuron)
+            else:
+                unbuild_groups[str(level)] = [neuron]
+            return builded_groups, unbuild_groups
+        else:
+
+            if neuron not in builded_groups:
+                if neuron._class_label == '<asb>':
+                    neuron.build(self._backend, 2)
+                else:
+                    neuron.build(self._backend)
+                builded_groups.append(neuron)
+                for conn in neuron._output_connections:
+                    builded_groups, unbuild_groups = self.deep_build_conn(conn, builded_groups,
+                                                                          unbuild_groups, level)
+            return builded_groups, unbuild_groups
+
+    def deep_build_conn(self, conn=None, builded_groups=None, unbuild_groups=None, level=0):
+        conn.build(self._backend)
+        builded_groups.append(conn)
+        level += 1
+        builded_groups, unbuild_groups = self.deep_build_neurongroup(conn.post_assembly, builded_groups, unbuild_groups, level)
+        return builded_groups, unbuild_groups
+
+    def deep_build_conn_with_delay(self, conn, builded_groups):
+        conn.build(self._backend)
+        builded_groups.append(conn)
+        if conn.post_assembly not in builded_groups:
+            builded_groups = self.deep_build_neurongroup_with_delay(conn.post_assembly, builded_groups)
+        return builded_groups
+
+    def deep_build_neurongroup_with_delay(self, neuron, builded_groups):
+        conns = [i for i in neuron._input_connections if i not in builded_groups]
+        if conns:
+            for conn in conns:
+                conn.build(self._backend)
+                builded_groups.append(conn)
+            neuron.build(self._backend)
+        else:
+            neuron.build(self._backend)
+        builded_groups.append(neuron)
+        for conn in neuron._output_connections:
+            if conn not in builded_groups:
+                builded_groups = self.deep_build_conn_with_delay(conn, builded_groups)
+        return builded_groups
 
     def set_id(self):
         """
@@ -688,12 +784,28 @@ class Assembly(BaseModule):
         '''
 
         # connection_obj.post_groups
+        # if presynaptic:
+        #     if connection_obj not in self._output_connections:
+        #         self._output_connections.append(connection_obj)
+        # else:
+        #     if connection_obj not in self._input_connections:
+        #         self._input_connections.append(connection_obj)
+
+        ###对复杂结构的assembly也进行注册
+        for key, i in self._groups.items():
+            if presynaptic:
+                if connection_obj not in i._output_connections:
+                    i._output_connections.append(connection_obj)
+            else:
+                if connection_obj not in i._input_connections:
+                    i._input_connections.append(connection_obj)
         if presynaptic:
             if connection_obj not in self._output_connections:
                 self._output_connections.append(connection_obj)
         else:
             if connection_obj not in self._input_connections:
                 self._input_connections.append(connection_obj)
+
 
 
     def structure_copy(self, name=None):
@@ -788,13 +900,13 @@ class Assembly(BaseModule):
             return
 
         if isinstance(value, Assembly):
-            if self._simulator: self._simulator.builded = False
+            if self._backend: self._backend.builded = False
             value.set_name(name)
             self._groups[name] = value
             self.num += value.num
             value.add_super(self)
         elif isinstance(value, Connection):
-            if self._simulator: self._simulator.builded = False
+            if self._backend: self._backend.builded = False
             self._connections[name] = value
             value.set_name(name)
             value.add_super(self)
@@ -802,11 +914,11 @@ class Assembly(BaseModule):
     def __delattr__(self, name):
         super(Assembly, self).__delattr__(name)
         if name in self._groups:
-            if self._simulator: self._simulator.builded = False
+            if self._backend: self._backend.builded = False
             self._groups[name].del_super(self)
             del self._groups[name]
         elif name in self._connections:
-            if self._simulator: self._simulator.builded = False
+            if self._backend: self._backend.builded = False
             self._connections[name].del_super(self)
             del self._connections[name]
 

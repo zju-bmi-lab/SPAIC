@@ -6,7 +6,7 @@
 Network内置函数
 ---------------------------------------------------------
 采用了Network中内置的 :code:`save_state` 与 :code:`state_from_dict` 函数将权重直接进行存储，该方式需要给予\
-一个文件的名称dir_name，然后平台会在当前程序的运行目录下新建'NetData/dir_name/simulator/_parameters_dict'\
+一个文件的名称dir_name，然后平台会在当前程序的运行目录下新建'NetData/dir_name/backend/_parameters_dict'\
 用于保存权重文件，然后使用 :code:`Net.state_from_dict(dir_name)` 就可以从文件中读取权重赋予当前的Net。
 
 .. code-block:: python
@@ -24,7 +24,7 @@ network_save 与 network_load
 ---------------------------------------------------------------------------------------------------------------------------------------
 Library中的网络存储模块 :code:`spaic.Network_saver.network_save` 函数与 :code:`spaic.Network_loader.network_load` 函数\
 将会将完整的网络结构以及权重信息分别存储下来，该方式在使用时需要一个文件名dir_name，然后平台会在当前程序的运行目录下新\
-建'NetData/dir_name/dir_name.json'用于保存网络结构，权重的存储路径与net.save_state相同，都会在用户当前目录下新建NetData文件夹，然后存于\
+建'NetData/dir_name/dir_name.json'用于保存网络结构，权重的存储路径与 :code:`net.save_state` 相同，都会在用户当前目录下新建NetData文件夹，然后存于\
 NetData/。其次，用户在使用 :code:`network_save` 时，还可以选择存储的文件格式，是采用json文件的格式或是yaml。
 
 .. code-block:: python

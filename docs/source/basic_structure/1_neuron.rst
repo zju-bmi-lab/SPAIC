@@ -56,10 +56,15 @@ LIF神经元
 
 CLIF神经元
 -------------------------
-pass
+CLIF(Current Leaky Integrated-and-Fire Model)神经元的参数:
+
+- tau_p, tau_q - 突触的时间常量，默认为12.0和8.0
+- tau_m - 神经元膜电位的时间常量，默认为20.0
+- v_th - 神经元的阈值电压，默认为1.0
 
 GLIF神经元
 -------------------------
+GLIF(Generalized Leaky Integrate-and-Fire Model) [#f1]_ 神经元参数:
 
 - R, C, E_L
 - Theta_inf
@@ -74,6 +79,7 @@ GLIF神经元
 
 aEIF神经元
 -------------------------
+aEIF(Adaptive Exponential Integrated-and-Fire Model) [#f2]_ 神经元参数:
 
 - tau_p, tau_q, tau_w, tau_m
 - a, b
@@ -82,16 +88,36 @@ aEIF神经元
 
 IZH神经元
 --------------------------
-
+IZH(Izhikevich Model) 神经元参数:
 - tau_p, tau_q
-- a, b, c, d
+- a, b
+- Vrest, Ureset
 
 HH神经元
 --------------------------
 
+- dt
+- g_NA, g_K, g_L
+- E_NA, E_K, E_L
+- alpha_m1, alpha_m2, alpha_m3
+- beta_m1, beta_m2, beta_m3
+- alpha_n1, alpha_n2, alpha_n3
+- beta_n1, beta_n2, beta_n3
+- alpha_h1, alpha_h2, alpha_h3
+- beta_1, beta_h2, beta_h3
+- V65
+- m, n, h
+- V, vth
 
 
 自定义
 ----------------
 在稍后的 :ref:`my-custom-neuron` 这一章节中，我们会更加详细具体地讲述该如何在我们平台上添加自定义的神\
 经元模型。
+
+
+
+.. [#f1] GLIF model. Mihalaş S, Niebur E. A generalized linear integrate-and-fire neural model produces diverse spiking behaviors. Neural Comput. 2009 Mar;21(3):704-18.` doi:10.1162/neco.2008.12-07-680. <https://doi.org/10.1162/neco.2008.12-07-680>`_ . PMID: 18928368; PMCID: PMC2954058.
+.. [#f2] AEIF model. Brette, Romain & Gerstner, Wulfram. (2005). Adaptive Exponential Integrate-And-Fire Model As An Effective Description Of Neuronal Activity. Journal of neurophysiology. 94. 3637-42.` doi:10.1152/jn.00686.2005. <https://doi.org/10.1152/jn.00686.2005>`_
+
+

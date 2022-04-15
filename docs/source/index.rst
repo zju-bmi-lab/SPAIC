@@ -42,7 +42,7 @@ II. 如何从零开始构建一个脉冲神经网络
 
 2.1 创建并添加节点层与神经元组
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-对于一个使用STCA训练识别MNIST数据集的网络而言，我们需要的节点分别是一个input层用于编码并输\
+对于一个使用STCA训练识别MNIST数据集的网络而言，我们需要的节点分别是一个 :code:`input` 层用于编码并输\
 入数据，一个 :code:`clif` 神经元层用于训练以及一个输出层用于解码脉冲输出。所以我们所添加的就是：
 
 .. code-block:: python
@@ -83,9 +83,9 @@ II. 如何从零开始构建一个脉冲神经网络
    self.mon_O = spaic.StateMonitor(self.layer1, 'O')
 
 
-2.5 添加simulator
+2.5 添加backend
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Simulator是SPAIC中极为重要的一个部分，负责后端的网络实际模拟。 :code:`simulator.dt` 用于\
+Backend是SPAIC中极为重要的一个部分，负责后端的网络实际模拟。 :code:`backend.dt` 用于\
 设置网络模拟时的时间步长，需要在建立网络前提前进行设定。不同后端以及设备的选择也需要在搭建网络前设置\
 完成。在本示例，我们采用pytorch作为后端模拟器，将网络构建与cuda上，以 :code:`0.1ms` 作为时间步长：
 
@@ -95,9 +95,9 @@ Simulator是SPAIC中极为重要的一个部分，负责后端的网络实际模
        device = 'cuda'
    else:
        device = 'cpu'
-   simulator = spaic.Torch_Backend(device)
-   simulator.dt = 0.1
-   self.set_simulator(simulator)
+   backend = spaic.Torch_Backend(device)
+   backend.dt = 0.1
+   self.set_backend(backend)
 
 2.6 整体网络结构
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -135,10 +135,10 @@ Simulator是SPAIC中极为重要的一个部分，负责后端的网络实际模
                device = 'cuda'
            else:
                device = 'cpu'
-           simulator = spaic.Torch_Backend(device)
-           simulator.dt = 0.1
+           backend = spaic.Torch_Backend(device)
+           backend.dt = 0.1
 
-           self.set_simulator(simulator)
+           self.set_backend(backend)
 
    # 网络实例化
    Net = TestNet()
@@ -346,7 +346,7 @@ Simulator是SPAIC中极为重要的一个部分，负责后端的网络实际模
 
    basic_structure/0_index
    input_output
-   simulator
+   backend
    save_model
    custom/0_index
    monitor

@@ -51,7 +51,7 @@ Network (网络)
 --------------------------
 Assembly子类中的最上层结构，每个构建的神经网络的所有模块都包含到一个Network对象中，同时负责网络训练、仿真、数据交互等网络建模外的工作。
 除了Assemby对象的 :code:`_groups` 和 :code:`_connections` 等属性外，还具有 :code:`_monitors` , :code:`_learners` ,\
-:code:`_optimizers` , :code:`_simulator` , :code:`_pipeline` 等属性，同时 :code:`_supers` , \
+:code:`_optimizers` , :code:`_backend` , :code:`_pipeline` 等属性，同时 :code:`_supers` , \
 :code:`_input_connections` ,  :code:`_output_connections` 等属性为空。为训练等功能提供如下接口：
 
     - set_runtime: 设置仿真时间
@@ -62,9 +62,9 @@ Assembly子类中的最上层结构，每个构建的神经网络的所有模块
 
 平台前端结构图：
 
-.. image:: ../_static/SPAIC_FRONTEND.png
+.. image:: ../_static/SPAIC_FRONTEND.jpg
     :width: 100%
 
-Simulator
+Backend
 ===================
 

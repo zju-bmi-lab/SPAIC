@@ -7,7 +7,3 @@ Created on 2020/8/11
 
 @description: 
 """
-
-from .Network import Network
-from .Connection import Connection
-from .Assembly import Assembly

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on 2020/8/17
-@project: SNNFlow
+@project: SPAIC
 @filename: Network_loader
 @author: Mengxiao Zhang
 @contact: mxzhangice@gmail.com
@@ -17,12 +17,12 @@ from ..Neuron.Neuron import NeuronGroup
 from ..Neuron.Node import Node, Encoder, Decoder
 from ..Learning.Learner import Learner
 from ..Monitor.Monitor import StateMonitor
-from ..Simulation.Torch_Backend import Torch_Backend
+from ..Backend.Torch_Backend import Torch_Backend
 
 import torch
 
 
-def network_load(filename=None, device='cuda:0'):
+def network_load(filename=None, device='cuda:0', data=None):
     '''
         The main function for getting the target filename and reloading the
             network.
@@ -41,7 +41,6 @@ def network_load(filename=None, device='cuda:0'):
             Net = network_load('TestNetwork', dataloader, 'poisson')
 
     '''
-
     import os
     path = filename.split('.')[0]
     origin_path = os.getcwd()
@@ -91,7 +90,7 @@ class ReloadedNetwork(Network):
                 large scale of data, we will not save the data.
             encoding(str) : The encoding model, default as poisson, will change
                 in the future.
-            simulator(simulator) : Backend that user want to use.
+            backend(backend) : Backend that user want to use.
             learner(str) : The learning model of this network, will change in
                 the future.
             learner_alpha(int) : The parameter alpha for learning model, will
@@ -106,28 +105,30 @@ class ReloadedNetwork(Network):
                 connections.
             load_node(self, node: dict) : The function for load node like input
                 or output.
-            load_simulator(self, path: str): The function for load simulator.
+            load_backend(self, path: str): The function for load backend.
 
         Example:
-            Net = ReloadNetwork(net_data, dataloader, 'poisson', simulator,
+            Net = ReloadNetwork(net_data, dataloader, 'poisson', backend,
                 'STCA', 0.5)
 
     '''
-    def __init__(self, net_data: dict, simulator=None, device='cpu', sub_net=False):
+    def __init__(self, net_data: dict, backend=None, device='cpu', sub_net=False):
         super(ReloadedNetwork, self).__init__()
 
         self.device = device
         self.name = list(net_data)[0]
-        if simulator is None:
-            simulator = Torch_Backend(device)
+        self._backend_info = []
+        if backend is None:
+            backend = Torch_Backend(device)
+
         self.load_net(net_data)
 
         if not sub_net:
-            self.set_backend(simulator)
+            self.set_backend(backend)
             # self._learner = Learner(algorithm='STCA', lr=0.5, trainable=self)
             self.build()
 
-            self.load_simulator(device)
+            self.load_backend(device)
 
     def load_net(self, data: dict):
         '''
@@ -140,6 +141,11 @@ class ReloadedNetwork(Network):
         '''
         data = data[list(data)[0]]
         for g in data:
+            if list(g)[0] == 'monitor':
+                continue
+            if list(g)[0] == 'backend':
+                self._backend_info = g[list(g)[0]]
+                continue
             para = g[list(g)[0]]
             if type(para) is dict:
                 if para.get('_class_label') == '<neg>':
@@ -162,7 +168,6 @@ class ReloadedNetwork(Network):
 
                     break
             else:
-
                 self.add_assembly(name=list(g)[0], assembly=ReloadedNetwork(
                                                     net_data=g, sub_net=True))
 
@@ -181,7 +186,7 @@ class ReloadedNetwork(Network):
         return NeuronGroup(
             neuron_number   = layer.get('num', 100),
             neuron_shape    = layer.get('shape', [100]),
-            neuron_type     = layer.get('type', None),
+            neuron_type     = layer.get('type', 'non_type'),
             neuron_position = layer.get('position', 'x, y, z'),
             neuron_model    = layer.get('model_name', 'clif'),
             name            = layer.get('name'),
@@ -258,47 +263,34 @@ class ReloadedNetwork(Network):
             )
 
 
-    def load_simulator(self, device):
+    def load_backend(self, device):
         '''
-            The function for load simulator parameters.
+            The function for load backend parameters.
 
         '''
 
-        key_parameters_dict = ['_variables', '_parameters_dict', '_InitVariables_dict']
+        # key_parameters_dict = ['_variables', '_parameters_dict', '_InitVariables_dict']
+        key_parameters_dict = ['_parameters_dict']
         key_parameters_list = ['dt', 'time', 'n_time_step']
         typical = ['_graph_var_dicts']
 
         import torch
-        import os
-        if os.path.exists('simulator.yml'):
-            with open('simulator.yml', 'r') as f:
-                data = yaml.load(f, Loader=yaml.FullLoader)
-
-        elif os.path.exists('simulator.json'):
-            with open('simulator.json', 'r') as f:
-                data = json.load(f)
-        else:
-            import warnings
-            warnings.warn('Backend data files not exists, does data with combined '
-                          'net structure and weights?')
-            return
-
-        simulator = data[list(data)[0]]
+        # import os
 
         for key in key_parameters_list:
-            self._simulator.__dict__[key] = simulator[key]
+            self._backend.__dict__[key] = self._backend_info[key]
 
-        for key in key_parameters_dict:
-            for k, path in simulator[key].items():
-                self._simulator.__dict__[key][k] = torch.load(path)
+        # for key in key_parameters_dict:
+        path = self._backend_info['_parameters_dict']
+        data = torch.load(path)
+        for key, value in data.items():
+            print(key, 'value:', value)
+            self._backend.__dict__[key] = value
+        # #
+        # for key, value in self._backend.__dict__['_parameters_dict'].items():
+        #     self._backend.__dict__['_variables'][key] = value  # 这些变量的 requires_grad应该都是True
 
-        self._simulator.__dict__[typical[0]]['variables_dict'] = \
-            self._simulator.__dict__['_variables']
-
-        for key, value in self._simulator.__dict__['_InitVariables_dict'].items():
-            self._simulator.__dict__['_variables'][key] = value  # 这些变量的 requires_grad应该都是False
-        for key, value in self._simulator.__dict__['_parameters_dict'].items():
-            self._simulator.__dict__['_variables'][key] = value  # 这些变量的 requires_grad应该都是True
+        return
 
     def load_learner(self, learner:dict):
         '''
@@ -307,8 +299,10 @@ class ReloadedNetwork(Network):
         '''
         if '<net>' in learner['trainable']:
             learner.pop('trainable')
+
+
             builded_learner = Learner(
-                algorithm = learner.pop('algorithm'),
+                algorithm = learner.get('algorithm'),
                 trainable = self,
                 **learner.get('parameters')
             )
@@ -320,10 +314,18 @@ class ReloadedNetwork(Network):
                 elif trains in self._connections:
                     trainable_list.append(self._connections[trains])
             learner.pop('trainable')
-            builded_learner = Learner(
-                algorithm = learner.pop('algorithm'),
-                trainable = trainable_list,
-                **learner.get('parameters')
+
+            if 'algorithm' in learner.get('parameters').keys():
+                builded_learner = Learner(
+                    # algorithm = learner.get('algorithm'),
+                    trainable = trainable_list,
+                    **learner.get('parameters')
+                    )
+            else:
+                builded_learner = Learner(
+                    algorithm = learner.get('algorithm'),
+                    trainable=trainable_list,
+                    **learner.get('parameters')
                 )
         if learner.get('optim_name', None):
             builded_learner.set_optimizer(optim_name=learner.get('optim_name'),

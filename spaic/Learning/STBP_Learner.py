@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on 2021/3/30
-@project: SNNFlow
+@project: SPAIC
 @filename: STBP_Learner
 @author: Mengxiao Zhang
 @contact: mxzhangice@gmail.com
@@ -20,7 +20,7 @@ class STBP(Learner):
             trainable : The parameter whether it can be trained.
 
         Methods:
-            build(self, simulator): Build the simulator, realize the algorithm of STBP model.
+            build(self, backend): Build the backend, realize the algorithm of STBP model.
             threshold(self, x, v_th): Get the threshold of the STBP model.
 
         Example:
@@ -42,24 +42,21 @@ class STBP(Learner):
         self.firing_func = None
         self.parameters = kwargs
 
-    def build(self, simulator):
+    def build(self, backend):
         '''
-            Build the simulator, realize the algorithm of STBP model.
-
+            Build the backend, realize the algorithm of STBP model.
             Args：
-                simulator: The simulator we used to compute.
-
+                backend: The backend we used to compute.
         '''
-        super(STBP, self).build(simulator)
-        self.device = simulator.device
-        if simulator.simulator_name == 'pytorch':
+        super(STBP, self).build(backend)
+        self.device = backend.device
+        if backend.backend_name == 'pytorch':
             import torch
             import math
             class ActFun(torch.autograd.Function):
                 """
                 Approximate firing func.
                 """
-
                 @staticmethod
                 def forward(
                         ctx,
@@ -89,7 +86,7 @@ class STBP(Learner):
 
             self.firing_func = ActFun()
             self.alpha = torch.tensor(self.alpha).to(self.device)
-            # self.simulator.basic_operate['threshold'] = self.threshold
+            # self.backend.basic_operate['threshold'] = self.threshold
 
             # replace threshold operation in all trainable neuron_groups
             for neuron in self.trainable_groups.values():

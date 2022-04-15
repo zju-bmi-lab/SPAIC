@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on 2020/8/6
-@project: SNNFlow
+@project: SPAIC
 @filename: Backend
 @author: Hong Chaofei
 @contact: hongchf@gmail.com
@@ -21,18 +21,18 @@ backends = dict()
 
 class Backend(BaseModule, ABC):
     '''
-    Basic simulator class. All specified simulator backend should subclass it.
-    The simulator is a parameter for the build function and becomes an attribute of all objects defined
-    in the frontend simulation network in building process. These objects build their initial data
-    and specified operations into the attributes of simulator, according to _variables
+    Basic backend class. All specified backend backend should subclass it.
+    The backend is a parameter for the build function and becomes an attribute of all objects defined
+    in the frontend backend network in building process. These objects build their initial data
+    and specified operations into the attributes of backend, according to _variables
     and _operations respectively. The data will update in each step according the computation graph.
     Args:
-        dt (float, optional): the length of a simulator timestep, in millisecond.
+        dt (float, optional): the length of a backend timestep, in millisecond.
     Attributes:
         device (str): the desired device of returned tensor. Its value can be 'cpu' or 'cuda'. If None, uses
             the current device for the default tensor type.
-        builded (bool): whether the object defined in the frontend simulation network has been builded.
-        time (float): current simulation time, in millisecond.
+        builded (bool): whether the object defined in the frontend backend network has been builded.
+        time (float): current backend time, in millisecond.
         n_time_step (int): the num of current time step.
 
         _variables (OrderedDict): records all variables from the build function of frontend objects.
@@ -58,7 +58,7 @@ class Backend(BaseModule, ABC):
         build_graph: build a computation graph before performing the calculation.
         graph_update_step: update value of _graph_var_dicts.
         initial_step: initialize network variables.
-        update_step: update the return variables of standalone operations and basic operations and current simulation time.
+        update_step: update the return variables of standalone operations and basic operations and current backend time.
         r_update_step: update the return variables of basic operations without using graph_update_step().
         add_variable: add variables from front objects to _variables of Backend.
         add_backend_variable: add variables according to the specified backend.
@@ -69,14 +69,14 @@ class Backend(BaseModule, ABC):
     basic_operate = dict()
     param_init_operate = dict() # -> param_init_operate
 
-    simulator_name = 'None'
+    backend_name = 'None'
     def __init__(self, dt=0.1):
         super(Backend, self).__init__()
         self.device = None
         self.runtime = None
         self.builded = False
-        self.dt = dt  # the length of a simulator timestep
-        self.time = 0.0  # current simulation time
+        self.dt = dt  # the length of a backend timestep
+        self.time = 0.0  # current backend time
         self.n_time_step = 0  # the num of current time step
         self._batch_size = 1
 
@@ -98,32 +98,47 @@ class Backend(BaseModule, ABC):
         self.basic_operate['threshold'] = self.threshold
         self.basic_operate['var_linear'] = self.var_linear
         self.basic_operate['mat_linear'] = self.mat_linear
+        self.basic_operate['mat_mult_weight'] = self.mat_mult_weight
         self.basic_operate['mat_mult'] = self.mat_mult
-        self.basic_operate['mat_mult_pre'] = self.mat_mult_pre
-        self.basic_operate['sparse_mat_mult'] = self.sparse_mat_mult
+        self.basic_operate['bmm'] = self.bmm
+        self.basic_operate['ger'] = self.ger
+        self.basic_operate['sparse_mat_mult_weight'] = self.sparse_mat_mult_weight
         self.basic_operate['var_mult'] = self.var_mult
         self.basic_operate['add'] = self.add
         self.basic_operate['minus'] = self.minus
         self.basic_operate['div'] = self.div
-        self.basic_operate['relu'] = self.relu
         self.basic_operate['cat'] = self.cat
         self.basic_operate['stack'] = self.stack
+        self.basic_operate['permute'] = self.permute
+        self.basic_operate['view'] = self.view
+        self.basic_operate['equal'] = self.equal
+
         self.basic_operate['reduce_sum'] = self.reduce_sum
         self.basic_operate['conv_2d'] = self.conv_2d
+        self.basic_operate['relu'] = self.relu
+
+        self.basic_operate['sin'] = self.sin
+        self.basic_operate['cos'] = self.cos
+        self.basic_operate['tan'] = self.tan
+        self.basic_operate['log'] = self.log
+        self.basic_operate['log2'] = self.log2
+        self.basic_operate['log10'] = self.log10
 
         self.basic_operate['conv_max_pool2d'] = self.conv_max_pool2d
         self.basic_operate['reshape_mat_mult'] = self.reshape_mat_mult
         self.basic_operate['exp'] = self.exp
-        self.basic_operate['mult_sum'] = self.mult_sum
-        # self.basic_operate['reset'] = self.reset
-        # self.basic_operate['izh_v'] = self.izh_v
-        # self.basic_operate['izh_u'] = self.izh_u
+        self.basic_operate['mult_sum_weight'] = self.mult_sum_weight
+        self.basic_operate['im2col_indices'] = self.im2col_indices
+        self.basic_operate['conv2d_flatten'] = self.conv2d_flatten
+        self.basic_operate['feature_map_flatten'] = self.feature_map_flatten
+
         self.param_init_operate['uniform'] = self.uniform
         self.param_init_operate['normal'] = self.normal
         self.param_init_operate['xavier_uniform'] = self.xavier_uniform
         self.param_init_operate['xavier_noraml'] = self.xavier_normal
         self.param_init_operate['kaiming_uniform'] = self.kaiming_uniform
         self.param_init_operate['kaiming_normal'] = self.kaiming_normal
+        self.param_init_operate['zero_init'] = self.zero_init
 
         self._graph_var_dicts = {'variables_dict': self._variables, 'temp_dict': dict(), 'update_dict': dict(),
                                  'reduce_dict': dict()}
@@ -230,10 +245,7 @@ class Backend(BaseModule, ABC):
                 #         raise ValueError(" No State Variable [%s] in the update_dict" % var_name)
 
             # add the operation to builded graph
-            try:
-                 self._graph_operations.append([(operation_type, op[0]), op[1], label_inputs])
-            except:
-                a = 1
+            self._graph_operations.append([(operation_type, op[0]), op[1], label_inputs])
 
 
         for reduce_op in temp_reduce_sum_ops:
@@ -289,8 +301,9 @@ class Backend(BaseModule, ABC):
         Initialize network variables.
         '''
 
-        # Initialize the current simulation time and the num of time step
-        self.time = 0.0  # current simulation time
+        # Initialize the current backend time and the num of time step
+        self.last_time = 0.0
+        self.time = 0.0  # current backend time
         self.n_time_step = 0
         for key, value in self._variables.items():
             if '[stay]' in key:
@@ -314,7 +327,7 @@ class Backend(BaseModule, ABC):
             value_name = key + '_sparse_value'
             shape_name = key + '_sparse_shape'
             if index_name in self._variables.keys() and value_name in self._variables.keys():
-                if self.simulator_name == 'pytorch':
+                if self.backend_name == 'pytorch':
                     self._variables[key] = torch.sparse.FloatTensor(self._variables[index_name],
                                                                     self._variables[value_name],
                                                                     self._variables[shape_name])
@@ -339,9 +352,9 @@ class Backend(BaseModule, ABC):
 
         # Change intial variable's batch_size
         for key in self._variables.keys():
-            if 'shape' not in key:
+            if hasattr(self._variables[key], 'shape'):
                 shape = self._variables[key].shape
-                if shape and shape[0] == 1 and (key not in self._parameters_dict):
+                if self._variables[key].ndim > 1 and shape[0] == 1 and (key not in self._parameters_dict):
                     expand_shape = -np.ones_like(shape, dtype=int)
                     expand_shape[0] = self._batch_size
                     self._variables[key] = self._variables[key].expand(tuple(expand_shape))
@@ -357,10 +370,19 @@ class Backend(BaseModule, ABC):
             #             shape.append(self._batch_size)
             #     self._variables[key] = torch.zeros(shape, dtype=torch.float32, device=self.device)
 
+    def initial_continue_step(self):
+        '''
+        Initialize network for continuous run.
+        '''
+
+        self.last_time = self.time
+
+
+
 
     def update_step(self):
         '''
-        Update the return variables of standalone operations and basic operations and current simulation time.
+        Update the return variables of standalone operations and basic operations and current backend time.
         Returns:
             tuple(self._variables.values())
         '''
@@ -387,8 +409,9 @@ class Backend(BaseModule, ABC):
 
 
     def update_time_steps(self):
-        while(self.runtime>self.time):
+        while(self.runtime>self.time-self.last_time):
             self.update_step()
+
 
 
 
@@ -428,7 +451,7 @@ class Backend(BaseModule, ABC):
                 inputs = []
                 for var_name in op[2:]:
                     if '[updated]' in var_name:
-                        var_name = var_name.replace("[updated]","")
+                        var_name = var_name.replace("[updated]", "")
                         if var_name in self._graph_var_dicts['update_dict']:
                             inputs.append(self._graph_var_dicts['update_dict'][var_name])
                         else:
@@ -498,7 +521,7 @@ class Backend(BaseModule, ABC):
         reduced = self.reduce_sum(self.stack(value))
         return reduced
 
-    def add_variable(self, name, shape, value=None, is_parameter=False, is_sparse=False, init=None, min=None, max=None):
+    def add_variable(self, name, shape, value=None, is_parameter=False, is_sparse=False, init=None, min=None, max=None, is_constant=False):
         '''
         Add variables from front objects to _variables of Backend and get copies to assign to _parameters_dict and _InitVariables_dict.
         Args:
@@ -518,14 +541,24 @@ class Backend(BaseModule, ABC):
             elif max is not None:
                 self._clamp_parameter_dict[name] = (self.clamp_max_, [self._parameters_dict[name], max])
 
+            return self._parameters_dict[name]
 
         # 稀疏矩阵weight非叶子节点，反传的时候更新的是weight中的value,但前向计算的时候用的是weight,所以对于稀疏矩阵要单独用个dict记录以便初始化
         elif is_sparse:
             self._SparseVariables_dict[name] = self.add_backend_variable(name, shape, value, grad=True,
                                                                          is_sparse=is_sparse, init=init)
+            return self._SparseVariables_dict[name]
+
+        elif is_constant:
+            self._InitVariables_dict[name] = value
+            self._variables[name] = value
+            return self._InitVariables_dict[name]
+
         else:
             self._InitVariables_dict[name] = self.add_backend_variable(name, shape, value, grad=False,
                                                                        is_sparse=is_sparse, init=init)
+            return self._InitVariables_dict[name]
+
 
     def add_delay(self, var_name, max_delay):
         max_len = int(max_delay/self.dt)
@@ -590,11 +623,11 @@ class Backend(BaseModule, ABC):
 
     def store(self, name='default'):
         '''
-        Store simulator_name and _variables into _stored_states dictionary.
+        Store backend_name and _variables into _stored_states dictionary.
         Args:
             name (str, optional): the name of network state.
         '''
-        self._stored_states[name] = (self.simulator_name, self._variables)
+        self._stored_states[name] = (self.backend_name, self._variables)
 
     def restore(self, name='default'):
         '''
@@ -605,10 +638,10 @@ class Backend(BaseModule, ABC):
         if name not in self._stored_states:
             raise ValueError("No network state named: %s is stored" % name)
         else:
-            stored_simulator = self._stored_states[name][0]
-            if stored_simulator != self.simulator_name:
+            stored_backend = self._stored_states[name][0]
+            if stored_backend != self.backend_name:
                 raise ValueError(
-                    "The stored network is simulated by %s not %s" % (stored_simulator, self.simulator_name))
+                    "The stored network is run by %s not %s" % (stored_backend, self.backend_name))
             else:
                 self._variables = self._stored_states[name]
 
@@ -648,12 +681,46 @@ class Backend(BaseModule, ABC):
         '''
 
     @abstractmethod
+    def permute(self, x, permute_dim):
+        '''
+        Parameters
+        ----------
+        x---> input
+        permute_dim---> the dimension index of permute operation
+        Returns
+        -------
+        '''
+
+    @abstractmethod
+    def view(self, x, view_dim):
+        '''
+        Parameters
+        ----------
+        x---> input
+        view_dim---> the shape of view operation
+        Returns
+        -------
+        '''
+
+    def equal(self, x):
+        '''
+        Parameters
+        ----------
+        y---> target
+        x---> input
+        Returns
+        -------
+        '''
+        y = x
+        return y
+
+    @abstractmethod
     def reduce_sum(self, x, *dim):
         '''
         Reduce the dimensions of the data
         Args:
             x (list):
-            dim (int): the dimension to reduce.
+            dim (tuple(int)): the dimension to reduce.
         Returns:
             sum(x, dim)
         '''
@@ -703,6 +770,43 @@ class Backend(BaseModule, ABC):
         '''
 
     @abstractmethod
+    def im2col_indices(self, x, kh, kw, padding, stride):
+        '''
+        Parameters
+        ----------
+        x: 4D array  N, FH, FW, C_{in}
+        kh: kernel_height
+        kw: kernel_width
+        stride:
+        padding:
+        Returns
+        ----------
+        '''
+
+    @abstractmethod
+    def conv2d_flatten(self, x):
+        '''
+        Parameters
+        ----------
+        x: 4D array (batch_size, out_channels, height, width)
+        Returns
+        3D array (batch_size, out_channels, height * width)
+        ----------
+        '''
+
+    @abstractmethod
+    def feature_map_flatten(self, x):
+        '''
+        For RSTDP and STDP learning rules which is  follwed with conv pre_layer
+        Parameters
+        ----------
+        x: 4D array (batch_size, out_channels, height, width)
+        Returns
+        2D array (batch_size, out_channels * height * width)
+        ----------
+        '''
+
+    @abstractmethod
     def add(self, x, y):
         '''
         Add the tensor y to the input x and returns a new result.
@@ -740,6 +844,7 @@ class Backend(BaseModule, ABC):
         '''
         NotImplementedError()
 
+    @abstractmethod
     def relu(self, x):
         '''
         Rectified Linear
@@ -749,6 +854,18 @@ class Backend(BaseModule, ABC):
         Returns:
             x = x if x>0. else x = 0
         '''
+
+    @abstractmethod
+    def mat_mult_weight(self, A, X):
+        '''
+        Matrix product.
+        Args:
+            A (Tensor): the first input to be multiplied
+            X (Tensor): the second input to be multiplied
+        Returns:
+            mat_mult_weight(A,X)
+        '''
+        NotImplementedError()
 
     @abstractmethod
     def mat_mult(self, A, X):
@@ -763,26 +880,37 @@ class Backend(BaseModule, ABC):
         NotImplementedError()
 
     @abstractmethod
-    def mat_mult_pre(self, A, X):
+    def reshape_mat_mult(self, A, X):
         '''
         Matrix product.
         Args:
             A (Tensor): the first input to be multiplied
             X (Tensor): the second input to be multiplied
         Returns:
-            mat_mult_pre(A,X)
         '''
         NotImplementedError()
 
     @abstractmethod
-    def sparse_mat_mult(self, A, X):
+    def bmm(self, A, X):
+        '''
+        Performs a batch matrix-matrix product.
+        Args:
+            A (Tensor): the first input to be multiplied  [batch_size, n, m]
+            X (Tensor): the second input to be multiplied  [batch_size, m, p]
+        Returns:
+            bmm(A,X)   [batch_size, n, p]
+        '''
+        NotImplementedError()
+
+    @abstractmethod
+    def sparse_mat_mult_weight(self, A, X):
         '''
         Sparse matrix product.
         Args:
             A (Tensor): the first input to be multiplied
             X (Tensor): the second input to be multiplied
         Returns:
-            sparse_mat_mult(A,X)
+            sparse_mat_mult_weight(A,X)
         '''
         NotImplementedError()
 
@@ -797,7 +925,7 @@ class Backend(BaseModule, ABC):
         NotImplementedError()
 
     @abstractmethod
-    def mult_sum(self, A, X):
+    def mult_sum_weight(self, A, X):
         '''
          sum(A*X, dim=-2)
         Args:
@@ -818,6 +946,17 @@ class Backend(BaseModule, ABC):
             b
         Returns:
             mat_mul(A,X)+b
+        '''
+        NotImplementedError()
+
+    @abstractmethod
+    def ger(self, A, X):
+        '''
+        Args:
+            A
+            X
+        Returns:
+            ger(A,X)
         '''
         NotImplementedError()
 
@@ -945,6 +1084,17 @@ class Backend(BaseModule, ABC):
         '''
         NotImplementedError()
 
+    @abstractmethod
+    def zero_init(self, data, constant_value=0.0):
+        '''
+        Args:
+            data(tensor): an n-dimensional torch.Tensor
+            constant_value(float): the value to fill the tensor with
+        Returns:
+            torch.nn.init.constant_(data, constant_value)
+        '''
+        NotImplementedError()
+
     # @abstractmethod
     # def euler_update(self):
     #     pass
@@ -1036,16 +1186,68 @@ class Backend(BaseModule, ABC):
 
     def exp(self, x):
         '''
-
-        Parameters
-        ----------
-        data
-
-        Returns
-        -------
-
+        Args:
+            x(tensor): an n-dimensional torch.Tensor
+        Returns:
+           return exp(x)
         '''
         NotImplementedError()
+
+    def sin(self, x):
+        '''
+        Args:
+            x(tensor): an n-dimensional torch.Tensor
+        Returns:
+           return exp(x)
+        '''
+        NotImplementedError()
+
+    def cos(self, x):
+        '''
+        Args:
+            x(tensor): an n-dimensional torch.Tensor
+        Returns:
+           return exp(x)
+        '''
+        NotImplementedError()
+
+    def tan(self, x):
+        '''
+        Args:
+            x(tensor): an n-dimensional torch.Tensor
+        Returns:
+           return exp(x)
+        '''
+        NotImplementedError()
+
+    def log(self, x):
+        '''
+        Args:
+            x(tensor): an n-dimensional torch.Tensor
+        Returns:
+           return exp(x)
+        '''
+        NotImplementedError()
+
+    def log2(self, x):
+        '''
+        Args:
+            x(tensor): an n-dimensional torch.Tensor
+        Returns:
+           return exp(x)
+        '''
+        NotImplementedError()
+
+    def log10(self, x):
+        '''
+        Args:
+            x(tensor): an n-dimensional torch.Tensor
+        Returns:
+           return exp(x)
+        '''
+        NotImplementedError()
+
+
 
 
 class Darwin_Backend(Backend):
