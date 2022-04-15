@@ -835,9 +835,9 @@ class conv_connect(Connection):
 
         self.weight = kwargs.get('weight', None)
         self.mask = kwargs.get('mask', None)
-        self.stride = kwargs.get('stride', 1)
-        self.padding = kwargs.get('padding', 0)
-        self.dilation = kwargs.get('dilation', 1)
+        self.stride = kwargs.get('stride', (1, 1))
+        self.padding = kwargs.get('padding', (0, 0))
+        self.dilation = kwargs.get('dilation', (1, 1))
         self.groups = kwargs.get('groups', 1)
 
 
@@ -868,10 +868,18 @@ class conv_connect(Connection):
             Hin = int(Hin / self.maxpool_kernel_size[0])
             Win = int(Win / self.maxpool_kernel_size[1])
 
-        Ho = round((Hin + 2 * self.padding - self.kernel_size[
-            0]) / self.stride + 1)  # Ho = (Hin + 2 * padding[0] - kernel_size[0]) / stride[0] + 1
-        Wo = round((Win + 2 * self.padding - self.kernel_size[
-            1]) / self.stride + 1)  # Wo = (Win + 2 * padding[0] - kernel_size[1]) / stride[0] + 1
+        # Ho = (Hin + 2 * padding[0] - kernel_size[0]) / stride[0] + 1
+        Ho = \
+            round(
+                (Hin + 2 * self.padding[0] - self.kernel_size[0]) / \
+                self.stride[0] + \
+                1)
+        # Wo = (Win + 2 * padding[1] - kernel_size[1]) / stride[1] + 1
+        Wo = \
+            round(
+                (Win + 2 * self.padding[1] - self.kernel_size[1]) / \
+                self.stride[1] + \
+                1)
 
         post_num = int(Ho * Wo * self.out_channels)
 
