@@ -196,18 +196,37 @@ class Torch_Backend(Backend):
             xshape[0] = xshape[0]*xshape[1]
             extend_size = xshape[1]
             xshape.pop(1)
-            out = fn.conv2d(x.reshape(xshape), kernel, stride=int(stride), padding=int(padding), dilation=int(dilation), groups=int(groups))
+            out = \
+                fn.conv2d(
+                    x.reshape(xshape),
+                    kernel,
+                    stride=tuple(stride.type(torch.int).tolist()),
+                    padding=tuple(padding.type(torch.int).tolist()),
+                    dilation=tuple(dilation.type(torch.int).tolist()),
+                    groups=int(groups))
             outshape = list(out.shape)
             outshape[0] = outshape[0]//extend_size
             outshape.insert(1, extend_size)
             return out.view(outshape)
         else:
-            return fn.conv2d(x, kernel, stride=int(stride), padding=int(padding), dilation=int(dilation), groups=int(groups))
+            return \
+                fn.conv2d(
+                    x,
+                    kernel,
+                    stride=tuple(stride.type(torch.int).tolist()),
+                    padding=tuple(padding.type(torch.int).tolist()),
+                    dilation=tuple(dilation.type(torch.int).tolist()),
+                    groups=int(groups))
 
     def conv_max_pool2d(self, x, kernel, max_kernel, stride, padding, dilation, groups):
-
-        return fn.conv2d(fn.max_pool2d(x, int(max_kernel[0])), kernel, stride=int(stride), padding=int(padding),
-                         dilation=int(dilation), groups=int(groups))
+        return \
+            fn.conv2d(
+                fn.max_pool2d(x, int(max_kernel[0])),
+                kernel,
+                stride=tuple(stride.type(torch.int).tolist()),
+                padding=tuple(padding.type(torch.int).tolist()),
+                dilation=tuple(dilation.type(torch.int).tolist()),
+                groups=int(groups))
 
     def reshape_mat_mult(self, A, X):
 
