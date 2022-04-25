@@ -835,12 +835,19 @@ class conv_connect(Connection):
 
         self.weight = kwargs.get('weight', None)
         self.mask = kwargs.get('mask', None)
-        self.stride = kwargs.get('stride', (1, 1))
-        self.padding = kwargs.get('padding', (0, 0))
-        self.dilation = kwargs.get('dilation', (1, 1))
+        self.stride = kwargs.get('stride', 1)
+        self.padding = kwargs.get('padding', 0)
+        self.dilation = kwargs.get('dilation', 1)
         self.groups = kwargs.get('groups', 1)
-
-
+        
+        if isinstance(self.stride, int):
+            self.stride = (self.stride,) * 2
+        
+        if isinstance(self.padding, int):
+            self.padding = (self.padding,) * 2
+        
+        if isinstance(self.dilation, int):
+            self.dilation = (self.dilation,) * 2
 
     def unit_connect(self, pre_group, post_group):
         '''
