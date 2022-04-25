@@ -156,10 +156,9 @@ class PoissonEncoding(Encoder):
         self.unit_conversion = kwargs.get('unit_conversion', 0.1)
 
     def numpy_coding(self, source, device):
-        assert (source >= 0).all(), "Inputs must be non-negative"
+        # assert (source >= 0).all(), "Inputs must be non-negative"
         shape = list(source.shape)
-        # source_temp = source.view(shape[0], -1)
-        spk_shape = [self.time_step] + list(shape)
+        spk_shape = [self.time_step] + shape
         spikes = np.random.rand(*spk_shape).__le__(source * self.dt).astype(float)
         return spikes
 

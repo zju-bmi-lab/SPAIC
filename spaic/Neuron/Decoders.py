@@ -22,15 +22,23 @@ class Spike_Counts(Decoder):
 
     def numpy_coding(self, record, target, device):
         # the shape of record is (time_step, batch_size, n_neurons)
-        record_temp = record.sum(0)
-        spikes_list = record_temp.tolist()
-        max_value = np.max(record_temp, 1)
-        batch_size = record_temp.shape[0]
-        predict_labels = []
-        for i in range(batch_size):
-            index = spikes_list[:, i].index(max_value[i])
-            predict_labels.append(index)
-        return predict_labels
+        spike_rate = record.sum(0)
+        pop_num = int(self.num / self.pop_size)
+        pop_spikes_temp = (
+            [
+                np.sum(spike_rate[:, (i * self.pop_size): (i * self.pop_size) + self.pop_size], axis=1)
+                for i in range(pop_num)
+            ]
+        )
+        pop_spikes = np.stack(pop_spikes_temp, axis=1)
+        # spikes_list = pop_spikes.tolist()
+        # max_value = np.max(pop_spikes, 1)
+        # batch_size = pop_spikes.shape[0]
+        # predict_labels = []
+        # for i in range(batch_size):
+        #     index = spikes_list[i].index(max_value[i])
+        #     predict_labels.append(index)
+        return pop_spikes
 
     def torch_coding(self, record, target, device):
         # the shape of record is (time_step, batch_size, n_neurons)

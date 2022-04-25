@@ -245,12 +245,17 @@ class Encoder(Node):
 
     # stand alone operation: get spike pattern in every time step
     def next_stage(self):
+        # For hardware applications, call next_stage at each time step to get spike data of the current time step.
         if self.new_input:
             self.get_input()
             self.new_input = False
 
         self.index += 1
         return self.all_spikes[self.index-1]
+
+    def reset(self):
+        # Called at the start of each epoch
+        self.init_state()
 
     def build(self, backend):
         self._backend = backend
@@ -351,6 +356,19 @@ class Decoder(Node):
             else:
                 self.predict = self.numpy_coding(self.records, self.source, self.device)
         return 0
+
+    def decode_step(self, output):
+        # For hardware applications, call decode_step at each time step to store the output spike data.
+        self.records[self.index, :] = output
+        self.index += 1
+        # When terminating an epoch, numpy_coding can be called if you want to get the predict matrix
+        # self.predict = self.numpy_coding(self.records, self.source, self.device)
+
+    def reset(self, decode_shape):
+        # decode_shape is [self.time_step] + output.shape
+        self.init_state()
+        dec_shape = decode_shape
+        self.records = np.zeros(dec_shape)
 
     def build(self, backend):
         self._backend = backend
