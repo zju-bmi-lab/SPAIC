@@ -273,7 +273,7 @@ class Encoder(Node):
             spikes = self.numpy_coding(self.source, self.device)
         self.all_spikes = spikes
 
-        self.shape = spikes[0].shape
+        # self.shape = spikes[0].shape
 
         key = self.id + ':' + '{'+self.coding_var_name+'}'
         self._var_names.append(key)
