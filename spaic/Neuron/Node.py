@@ -24,7 +24,7 @@ class Node(Assembly):
         super(Node, self).__init__()
 
         self._dt = dt
-        self._time = None
+        self._time = kwargs('time', None)
         self.coding_var_name = coding_var_name
         position = kwargs.get('position', None)
         if position == None:
@@ -47,16 +47,19 @@ class Node(Assembly):
             self.is_encoded = kwargs.get('is_encoded', False)
 
         # 单神经元多脉冲的语音数据集的shape包含脉冲时间以及发放神经元标签，所以不能通过np.prod(shape)获取num，最好还是外部输入num
+        assert num is not None or shape is not None, "One of the shape and num must not be None"
         if num is None:
-            raise ValueError('Please set the number of node')
+            if coding_method == 'mstb' or coding_method == 'sstb':
+                raise ValueError('Please set the number of node')
+            self.num = np.prod(shape)
         else:
             self.num = num
 
         if shape is None:
             if self.is_encoded:
-                self.shape = (1, 1, num)
+                self.shape = (1, 1, self.num)
             else:
-                self.shape = (1, num)
+                self.shape = (1, self.num)
         else:
             self.shape = tuple([1] + list(shape))
 
@@ -85,7 +88,10 @@ class Node(Assembly):
 
     @property
     def dt(self):
-        return self._dt
+        if self._dt is None:
+            return self._backend.dt
+        else:
+            return self._dt
 
     @dt.setter
     def dt(self, dt):
@@ -93,12 +99,14 @@ class Node(Assembly):
 
     @property
     def time(self):
-        self._time = self._backend.runtime
-        return self._time
+        if self._time is None:
+            return self._backend.runtime
+        else:
+            return self._time
 
     @property
     def time_step(self):
-        return int(self._backend.runtime / self._dt)
+        return int(self.time / self.dt)
 
 
     @time.setter
@@ -266,8 +274,8 @@ class Encoder(Node):
         self.sim_name = backend.backend_name
         self.device = backend.device
 
-        if self.dt is None:
-            self.dt = backend.dt
+        # if self.dt is None:
+        #     self.dt = backend.dt
         if self.batch_size is not None:
             self._backend.set_batch_size(self.batch_size)
 
@@ -344,6 +352,7 @@ class Decoder(Node):
 
     # stand alone operation: decoding spike patterns. Predict can be predict labels or RL action
     def get_output(self, output):
+        # For hardware applications, call get_output at each time step to store the output spike data.
         if (self.index % self.time_step) == 0:
             shape = list(output.shape)
             dec_shape = [self.time_step] + shape
@@ -361,25 +370,16 @@ class Decoder(Node):
                 self.predict = self.numpy_coding(self.records, self.source, self.device)
         return 0
 
-    def decode_step(self, output):
-        # For hardware applications, call decode_step at each time step to store the output spike data.
-        self.records[self.index, :] = output
-        self.index += 1
-        # When terminating an epoch, numpy_coding can be called if you want to get the predict matrix
-        # self.predict = self.numpy_coding(self.records, self.source, self.device)
-
-    def reset(self, decode_shape):
-        # decode_shape is [self.time_step] + output.shape
+    def reset(self):
+        # Called at the start of each epoch
         self.init_state()
-        dec_shape = decode_shape
-        self.records = np.zeros(dec_shape)
 
     def build(self, backend):
         self._backend = backend
         self.sim_name = backend.backend_name
         self.device = backend.device
-        if self.dt is None:
-            self.dt = backend.dt
+        # if self.dt is None:
+        #     self.dt = backend.dt
 
         output_name = self.dec_target.id + ':' + '{'+self.coding_var_name+'}'
         backend.register_initial(None, self.init_state, [])
@@ -465,8 +465,8 @@ class Reward(Node):
         self._backend = backend
         self.sim_name = backend.backend_name
         self.device = backend.device
-        if self.dt is None:
-            self.dt = backend.dt
+        # if self.dt is None:
+        #     self.dt = backend.dt
 
         output_name = self.dec_target.id + ':' + '{'+self.coding_var_name+'}'
         backend.register_initial(None, self.init_state, [])
@@ -552,8 +552,8 @@ class Generator(Node):
         self._backend = backend
         self.sim_name = backend.backend_name
         self.device = backend.device
-        if self.dt is None:
-            self.dt = backend.dt
+        # if self.dt is None:
+        #     self.dt = backend.dt
 
         if self.sim_name == 'pytorch':
             singlestep_spikes = torch.zeros(self.shape, device=self.device)
@@ -648,8 +648,8 @@ class Action(Node):
         self._backend = backend
         self.sim_name = backend.backend_name
         self.device = backend.device
-        if self.dt is None:
-            self.dt = backend.dt
+        # if self.dt is None:
+        #     self.dt = backend.dt
 
         output_name = self.dec_target.id + ':' + '{'+self.coding_var_name+'}'
         backend.register_initial(None, self.init_state, [])
