@@ -64,6 +64,7 @@ class nearest_online_STDP(Learner):
 
 
             weight.clamp_(0.0, 1.0)
+            return weight
 
 
     def build(self, backend):
@@ -95,15 +96,15 @@ class nearest_online_STDP(Learner):
         for conn in self.trainable_connections.values():
             preg = conn.pre_assembly
             postg = conn.post_assembly
+            # pre_name = conn.get_input_name(preg, postg)
+            # post_name = conn.get_target_output_name(postg)
+            # weight_name = conn.get_weight_name(preg, postg)
             pre_name = conn.get_input_name(preg, postg)
-            post_name = conn.get_target_output_name(postg)
-            weight_name = conn.get_link_name(preg, postg, "weight")
+            post_name = conn.get_post_name(postg, conn.post_var_name)
+            weight_name = conn.get_link_name(preg, postg, 'weight')
 
             input_trace_name = pre_name + '_{input_trace}'
             output_trace_name = post_name + '_{output_trace}'
-            permute_name = 'stdp_permute_dim'
-            permute_dim_value = [1, 0]
-            backend.add_variable(permute_name, shape=None, value=permute_dim_value, is_constant=True)
             dw_name = weight_name + '_{dw}'
             backend.add_variable(input_trace_name, backend._variables[pre_name].shape, value=0.0)
             backend.add_variable(output_trace_name, backend._variables[post_name].shape, value=0.0)
@@ -129,17 +130,12 @@ class nearest_online_STDP(Learner):
             backend.add_operation(['output_temp', 'minus', 'spike', post_name])
             backend.add_operation([output_trace_name, 'var_linear', 'output_temp', 'output_trace_s', post_name])
 
-            backend.add_operation(['post_permute', 'permute', post_name, permute_name])
-            backend.add_operation(['pre_post_temp', 'mat_mult', 'post_permute', input_trace_name+'[updated]'])
-
-            # backend.add_operation(['pre_post_temp', 'mat_mult_pre', post_name, input_trace_name+'[updated]'])
+            backend.add_operation(['pre_post_temp', 'mat_mult_pre', post_name, input_trace_name+'[updated]'])
             backend.add_operation(['pre_post', 'var_mult', 'Apost', 'pre_post_temp'])
-            backend.add_operation(['output_trace_permute', 'permute', output_trace_name + '[updated]', permute_name])
-            backend.add_operation(['post_pre_temp', 'mat_mult', 'output_trace_permute', pre_name])
-            # backend.add_operation(['post_pre_temp', 'mat_mult_weight', output_trace_name+'[updated]', pre_name])
+            backend.add_operation(['post_pre_temp', 'mat_mult_pre', output_trace_name+'[updated]', pre_name])
             backend.add_operation(['post_pre', 'var_mult', 'Apre', 'post_pre_temp'])
             backend.add_operation([dw_name, 'minus', 'pre_post', 'post_pre'])
-            backend.register_standalone(None, self.nearest_online_stdp_weightupdate, [dw_name, weight_name])
+            backend.add_operation([weight_name, self.nearest_online_stdp_weightupdate, dw_name, weight_name])
 Learner.register("nearest_online_stdp", nearest_online_STDP)
 
 
@@ -202,6 +198,7 @@ class full_online_STDP(Learner):
                 weight[...] = (self.w_norm * torch.div(weight, torch.sum(torch.abs(weight), 1, keepdim=True)))
 
             weight.clamp_(0.0, 1.0)
+            return weight
 
 
     def build(self, backend):
@@ -232,18 +229,15 @@ class full_online_STDP(Learner):
             preg = conn.pre_assembly
             postg = conn.post_assembly
             pre_name = conn.get_input_name(preg, postg)
-            post_name = conn.get_target_output_name(postg)
-            weight_name = conn.get_link_name(preg, postg, "weight")
+            post_name = conn.get_post_name(postg, conn.post_var_name)
+            weight_name = conn.get_link_name(preg, postg, 'weight')
 
             input_trace_name = pre_name + '_{input_trace}'
             output_trace_name = post_name + '_{output_trace}'
             dw_name = weight_name + '_{dw}'
-            permute_name = 'stdp_permute_dim'
-            permute_dim_value = [1, 0]
-            backend.add_variable(permute_name, shape=None, value=permute_dim_value, is_constant=True)
             backend.add_variable(input_trace_name, backend._variables[pre_name].shape, value=0.0)
             backend.add_variable(output_trace_name, backend._variables[post_name].shape, value=0.0)
-            backend.add_variable(dw_name, backend._variables[weight_name].shape, value=0.0)
+            # backend.add_variable(dw_name, backend._variables[weight_name].shape, value=0.0)
 
             # input_trace_s = (self.input_trace * self.trace_decay) + input
             # self.input_trace = input_trace_s
@@ -263,18 +257,12 @@ class full_online_STDP(Learner):
             backend.add_operation(['output_trace_temp', 'var_mult', output_trace_name, 'trace_decay'])
             backend.add_operation([output_trace_name, 'add', post_name, 'output_trace_temp'])
 
-            backend.add_operation(['post_permute', 'permute', post_name, permute_name])
-            backend.add_operation(['pre_post_temp', 'mat_mult', 'post_permute', input_trace_name + '[updated]'])
-
-            # backend.add_operation(['pre_post_temp', 'mat_mult_pre', post_name, input_trace_name+'[updated]'])
+            backend.add_operation(['pre_post_temp', 'mat_mult_pre', post_name, input_trace_name+'[updated]'])
             backend.add_operation(['pre_post', 'var_mult', 'Apost', 'pre_post_temp'])
-
-            backend.add_operation(['output_trace_permute', 'permute', output_trace_name + '[updated]', permute_name])
-            backend.add_operation(['post_pre_temp', 'mat_mult', 'output_trace_permute', pre_name])
-            # backend.add_operation(['post_pre_temp', 'mat_mult_pre', output_trace_name+'[updated]', pre_name])
+            backend.add_operation(['post_pre_temp', 'mat_mult_pre', output_trace_name+'[updated]', pre_name])
             backend.add_operation(['post_pre', 'var_mult', 'Apre', 'post_pre_temp'])
             backend.add_operation([dw_name, 'minus', 'pre_post', 'post_pre'])
-            backend.register_standalone(None, self.full_online_stdp_weightupdate, [dw_name, weight_name])
+            backend.add_operation([weight_name, self.full_online_stdp_weightupdate, dw_name, weight_name])
 
 
 

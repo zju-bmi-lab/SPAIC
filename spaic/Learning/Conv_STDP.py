@@ -51,6 +51,7 @@ class Conv2d_STDP(Learner):
         # Compute weight update based on the eligibility value of the past timestep.
         with torch.no_grad():
             weight.add_(self.learning_rate * eligibility)
+            return weight
 
     def build(self, backend):
         super(Conv2d_STDP, self).build(backend)
@@ -163,6 +164,6 @@ class Conv2d_STDP(Learner):
             backend.add_operation(['eligibility_sum', 'reduce_sum', 'eligibility_temp', sum_dim_name])
             backend.add_operation([eligibility_name, 'view', 'eligibility_sum', view_name])
 
-            backend.register_standalone(None, self.weight_update, [weight_name, eligibility_name])
+            backend.add_operation([weight_name, self.weight_update, weight_name, eligibility_name])
 
 Learner.register('conv2d_stdp', Conv2d_STDP)

@@ -10,10 +10,9 @@ Created on 2020/8/6
 """
 from abc import abstractmethod, ABC
 from collections import OrderedDict
-from spaic import BaseModule
+from ..Network.BaseModule import BaseModule, VariableAgent
 from ..Network.DelayQueue import DelayQueue
 import numpy as np
-import spaic
 import torch
 
 backends = dict()
@@ -67,7 +66,7 @@ class Backend(BaseModule, ABC):
         register_initial: add initial operations from front objects to _initial_operations of Backend.
     '''
     basic_operate = dict()
-    param_init_operate = dict() # -> param_init_operate
+    param_init_operate = dict()  # -> param_init_operate
 
     backend_name = 'None'
     def __init__(self, dt=0.1):
@@ -80,13 +79,12 @@ class Backend(BaseModule, ABC):
         self.n_time_step = 0  # the num of current time step
         self._batch_size = 1
 
-        self._variables = OrderedDict()  # build from orderedDict to Tuple
-        self._parameters_dict = OrderedDict()
-        self._clamp_parameter_dict = OrderedDict()
-        self._delay_dict = OrderedDict() # store conduction delays
-        self._SparseVariables_dict = OrderedDict()
-        self._InitVariables_dict = OrderedDict()
-
+        self._variables = dict()  # build from orderedDict to Tuple
+        self._parameters_dict = dict()
+        self._clamp_parameter_dict = dict()
+        self._delay_dict = dict()  # store conduction delays
+        self._SparseVariables_dict = dict()
+        self._InitVariables_dict = dict()
 
         self._operations = list()
         self._standalone_operations = list()
@@ -99,6 +97,7 @@ class Backend(BaseModule, ABC):
         self.basic_operate['var_linear'] = self.var_linear
         self.basic_operate['mat_linear'] = self.mat_linear
         self.basic_operate['mat_mult_weight'] = self.mat_mult_weight
+        self.basic_operate['mat_mult_pre'] = self.mat_mult_pre
         self.basic_operate['mat_mult'] = self.mat_mult
         self.basic_operate['bmm'] = self.bmm
         self.basic_operate['ger'] = self.ger
@@ -140,18 +139,21 @@ class Backend(BaseModule, ABC):
         self.param_init_operate['kaiming_normal'] = self.kaiming_normal
         self.param_init_operate['zero_init'] = self.zero_init
 
-        self._graph_var_dicts = {'variables_dict': self._variables, 'temp_dict': dict(), 'update_dict': dict(),
-                                 'reduce_dict': dict()}
+        # self._graph_var_dicts = {'variables_dict': self._variables, 'temp_dict': dict(), 'update_dict': dict(),
+        #                          'reduce_dict': dict()}
+
         self._graph_operations = list()
+        self._push_operations = list()
+        self._fetch_operations = list()
 
     def set_batch_size(self, batch_size):
         self._batch_size = batch_size
 
     def get_batch_size(self):
         return self._batch_size
-    def set_runtime(self,runtime):
-        self.runtime = runtime
 
+    def set_runtime(self, runtime):
+        self.runtime = runtime
 
     def build_graph(self):
         '''
@@ -161,11 +163,6 @@ class Backend(BaseModule, ABC):
         Traverse all basic operations and add the corresponding keyword in the _graph_var_dicts as dict_type to each variable in basic operation.
         '''
 
-        temp_dict = OrderedDict()
-        update_dict = OrderedDict()
-        reduce_dict = OrderedDict()
-        temp_reduce_sum_ops = []
-
         variables_index = {k: i for i, k in enumerate(self._variables.keys())}
 
         self.initial_step()
@@ -173,23 +170,101 @@ class Backend(BaseModule, ABC):
         operation_type = 'update_dict or temp_dict or reduce_dict'
         # traverse basic operations
 
-        for ind, op in enumerate(self._operations):
+        fetch_operations = []
+        push_operations = []
+        graph_operations = []
+        for op in self._operations:
+            if len(op[0]) == 0 and len(op[2]) == 0:
+                # functions with no input and output will not push into the computation graph
+                raise ValueError(" Operation lacks both input and output can't be build")
+            elif len(op[0]) == 0:
+                fetch_operations.append(op)
+            elif len(op[2]) == 0:
+                push_operations.append(op)
+            else:
+                graph_operations.append(op)
+
+        ################################
+        ##  for push_operation build  ##
+        ################################
+        update_dict = dict()
+        reduce_dict = dict()
+
+        for ind, op in enumerate(push_operations):
+            outputs = []
+            label_outputs = []
+            # if the operation return one variable, then it is appended into a list, to accordant with multi-variable returns
+            if len(op[0]) == 1:
+                outputs.append(op[1]())
+            else:
+                outputs = op[1]()
+            for ind, var_name in enumerate(op[0]):
+                if var_name in self._variables:
+                    # when the same ret_var_name occurs more than once, op[0] is added to the reduce_dict of _graph_var_dicts
+                    if var_name in update_dict:
+                        reduce_dict[var_name] = [update_dict[var_name], outputs[ind]]
+                        label_outputs.append(('reduce_dict', var_name))
+                        # # add op[0] into graph: reduce_dict
+                        self._graph_var_dicts['reduce_dict'][op[0]] = []
+                        # revise the first reduce operation
+                        for gop in self._push_operations:
+                            tmp_label_outputs = gop[0]
+                            for tmp_ind, tmp_label in enumerate(tmp_label_outputs):
+                                if tmp_label[1] == var_name:
+                                    tmp_label_outputs[tmp_ind] = ('reduce_dict', var_name)
+                                    break
+                        del update_dict[var_name]
+                    elif var_name in reduce_dict:
+                        reduce_dict[var_name].append(outputs[ind])
+                        label_outputs.append(('reduce_dict', var_name))
+                    else:
+                        # In the push_operation, new data is directly pushed to update_dict, as
+                        # there is no need to remain the last step variable value
+                        update_dict[var_name] = outputs[ind]
+                        label_outputs.append(('update_dict', var_name))
+                else:
+                    raise ValueError("No state variable to get the input ")
+
+            # add the operation to built graph
+            self._push_operations.append([label_outputs, op[1], []])
+
+        # for var_name in reduce_dict:
+        #     # add the reduce_sum operation into the graph
+        #     self._graph_operations.append(
+        #         [[('update_dict', var_name)], self.reduce_sum_update, [('reduce_dict', var_name)]])
+
+        #################################
+        ##  for graph_operation build  ##
+        #################################
+        temp_dict = dict()
+        # update_dict = dict()
+        # reduce_dict = dict()
+        temp_reduce_sum_ops = []
+
+        for ind, op in enumerate(graph_operations):
             inputs = []
             label_inputs = []
-            for var_name in op[2:]:
+            for var_name in op[2]:
+                # try:
+                #     var_name in self._variables
+                # except:
+                #     a = 1
+
                 if '[updated]' in var_name:
                     var_name = var_name.replace("[updated]", "")
+
                     if var_name in update_dict:
                         inputs.append(update_dict[var_name])
                         label_inputs.append(('update_dict', var_name))
-                    elif var_name in reduce_dict:
-                        # if the reduce_dict[var_name] is frozen: do reduce_sum operation before this op, and put the value to update_dict
-                        value = self.reduce_sum(self.stack(reduce_dict[var_name]))
-                        inputs.append(value)
-                        label_inputs.append(('update_dict', var_name))
-                        temp_reduce_sum_ops.append((var_name, len(reduce_dict[var_name])))
-                        # add the reduce_sum operation into the graph
-                        self._graph_operations.append([('update_dict', var_name), self.reduce_sum_update, [('reduce_dict', var_name)]])
+                    # elif var_name in reduce_dict:
+                    #     # if the reduce_dict[var_name] is frozen: do reduce_sum operation before this op, and put the value to update_dict
+                    #     value = self.reduce_sum(self.stack(reduce_dict[var_name]))
+                    #     inputs.append(value)
+                    #     label_inputs.append(('update_dict', var_name))
+                    #     temp_reduce_sum_ops.append((var_name, len(reduce_dict[var_name])))
+                    #     # add the reduce_sum operation into the graph
+                    #     self._graph_operations.append(
+                    #         [[('update_dict', var_name)], self.reduce_sum_update, [('reduce_dict', var_name)]])
                     elif var_name in self._variables:
                         inputs.append(self._variables[var_name])
                         label_inputs.append(('variables_dict', var_name))
@@ -199,66 +274,100 @@ class Backend(BaseModule, ABC):
                 elif var_name in self._variables:
                     inputs.append(self._variables[var_name])
                     label_inputs.append(('variables_dict', var_name))
+
                 elif var_name in temp_dict:
                     inputs.append(temp_dict[var_name])
                     label_inputs.append(('temp_dict', var_name))
                 else:
                     raise ValueError(" No State Variable [%s] in the variable dict" % var_name)
 
-            if op[0] is None:
-                operation_type = None
+            outputs = []
+            label_outputs = []
+            if len(op[0]) == 0:
                 self.var_check(op[1], inputs)
                 op[1](*inputs)
-            elif op[0] in self._variables:
-                # when the same ret_var_name occurs more than once, op[0] is added to the reduce_dict of _graph_var_dicts
-                if op[0] in update_dict:
-                    operation_type = 'reduce_dict'
-                    self.var_check(op[1], inputs)
-                    reduce_dict[op[0]] = [update_dict[op[0]], op[1](*inputs)]
-                    # add op[0] into graph: reduce_dict
-                    self._graph_var_dicts['reduce_dict'][op[0]] = []
-                    # revise the first reduce operation
-                    for gop in self._graph_operations:
-                        if gop[0][1] == op[0]:
-                            gop[0] = ('reduce_dict', op[0])
-                            break
-                    del update_dict[op[0]]
-                elif op[0] in reduce_dict:
-                    operation_type = 'reduce_dict'
-                    self.var_check(op[1], inputs)
-                    reduce_dict[op[0]].append(op[1](*inputs))
-                else:
-                    operation_type = 'update_dict'
-                    self.var_check(op[1], inputs)
-                    update_dict[op[0]] = op[1](*inputs)
             else:
-                operation_type = 'temp_dict'
                 self.var_check(op[1], inputs)
-                temp_dict[op[0]] = op[1](*inputs)
+                if len(op[0]) == 1:
+                    outputs.append(op[1](*inputs))
+                else:
+                    outputs = op[1](*inputs)
+                for ind, var_name in enumerate(op[0]):
+                    if var_name in self._variables:
+                        # when the same ret_var_name occurs more than once, op[0] is added to the reduce_dict of _graph_var_dicts
+                        if var_name in update_dict:
+                            reduce_dict[var_name] = [update_dict[var_name], outputs[ind]]
+                            label_outputs.append(('reduce_dict', var_name))
+                            # # add op[0] into graph: reduce_dict
+                            # self._graph_var_dicts['reduce_dict'][op[0]] = []
+                            # revise the first reduce operation
+                            InGop = True
+                            for pop in self._push_operations:
+                                tmp_label_outputs = pop[0]
+                                for tmp_ind, tmp_label in enumerate(tmp_label_outputs):
+                                    if tmp_label[1] == var_name:
+                                        tmp_label_outputs[tmp_ind] = ('reduce_dict', var_name)
+                                        InGop = False
+                                        break
+                            if InGop:
+                                for gop in self._graph_operations:
+                                    tmp_label_outputs = gop[0]
+                                    for tmp_ind, tmp_label in enumerate(tmp_label_outputs):
+                                        if tmp_label[1] == var_name:
+                                            tmp_label_outputs[tmp_ind] = ('reduce_dict', var_name)
+                                            break
+                            del update_dict[var_name]
+                        elif var_name in reduce_dict:
+                            reduce_dict[var_name].append(outputs[ind])
+                            label_outputs.append(('reduce_dict', var_name))
+                        else:
+                            update_dict[var_name] = outputs[ind]
+                            label_outputs.append(('update_dict', var_name))
+                    else:
+                        temp_dict[var_name] = outputs[ind]
+                        label_outputs.append(('temp_dict', var_name))
 
-                # when [updated] occurs in ret_var_name
-                # if '[updated]' in op[0]:
-                #     op_name = op[0].rstrip('[updated]')
-                #     if op_name in update_dict:
-                #         update_dict[op_name] = temp_dict[op[0]]   # update the variable in update_dict
-                #     else:
-                #         raise ValueError(" No State Variable [%s] in the update_dict" % var_name)
-
-            # add the operation to builded graph
-            self._graph_operations.append([(operation_type, op[0]), op[1], label_inputs])
-
+            # add the operation to built graph
+            self._graph_operations.append([label_outputs, op[1], label_inputs])
 
         for reduce_op in temp_reduce_sum_ops:
             reduce_len = len(reduce_dict[reduce_op[0]])
             if reduce_len != reduce_op[1]:
-                raise ValueError("Can't use [updated] tag for variable: %s, as it is a reduce_dict variable which is have updating conflict"%reduce_op[0])
+                raise ValueError(
+                    "Can't use [updated] tag for variable: %s, as it is a reduce_dict variable which is have updating conflict" %
+                    reduce_op[0])
             else:
                 del reduce_dict[reduce_op[0]]
-
+        # for reduced variables that not used within [update]
         for var_name in reduce_dict:
             # add the reduce_sum operation into the graph
             self._graph_operations.append(
-                [('update_dict', var_name), self.reduce_sum_update, [('reduce_dict', var_name)]])
+                [[('update_dict', var_name)], self.reduce_sum_update, [('reduce_dict', var_name)]])
+
+        #################################
+        ##  for fetch_operation build  ##
+        #################################
+        for ind, op in enumerate(fetch_operations):
+            inputs = []
+            label_inputs = []
+            for var_name in op[2]:
+                if '[updated]' in var_name:
+                    # there is no need to have updated tag, as all variables computed in graph_operation have benn updated
+                    var_name = var_name.replace("[updated]", "")
+                if var_name in self._variables:
+                    inputs.append(self._variables[var_name])
+                    label_inputs.append(('variables_dict', var_name))
+                # elif var_name in temp_dict:
+                #     inputs.append(temp_dict[var_name])
+                #     label_inputs.append(('temp_dict', var_name))
+                else:
+                    raise ValueError(" No State Variable [%s] in the update_dict" % var_name)
+
+            self.var_check(op[1], inputs)
+            op[1](*inputs)
+
+            # add the operation to built graph
+            self._fetch_operations.append([[], op[1], label_inputs])
 
         # self._variables.update(update_dict)
         for ii in range(len(self._graph_operations)):
@@ -274,7 +383,7 @@ class Backend(BaseModule, ABC):
                 raise ValueError("%s and %s do not match" % (args[0].shape, args[1].shape))
         pass
 
-    def graph_update_step(self):
+    def graph_update_step_r(self):
 
         for op in self._graph_operations:
             inputs = []
@@ -293,8 +402,65 @@ class Backend(BaseModule, ABC):
             #     if op_name in self._graph_var_dicts['update_dict'] and op_name in self._graph_var_dicts['variables_dict']:
             #         self._graph_var_dicts['update_dict'][op_name] = self._graph_var_dicts['temp_dict'][op[0][1]]  # 更新返回名中带[updated]的变量的值
 
-        return  #tuple(self._graph_var_dicts['variables_dict'].values())
+        return  # tuple(self._graph_var_dicts['variables_dict'].values())
 
+    def graph_update_step(self, variables, update_dict, reduce_dict):
+        temp_dict = dict()
+        # update_dict = dict()
+        # reduce_dict = dict()
+
+        for op in self._graph_operations:
+            # for inputs
+            inputs = []
+            for var in op[2]:
+                if var[0] == 'variables_dict':
+                    inputs.append(variables[var[1]])
+                elif var[0] == 'temp_dict':
+                    inputs.append(temp_dict[var[1]])
+                elif var[0] == 'update_dict':
+                    inputs.append(update_dict[var[1]])
+                elif var[0] == 'reduce_dict':
+                    inputs.append(reduce_dict[var[1]])
+            # compute the operation
+            result = op[1](*inputs)
+            if len(op[0]) == 1: result = [result]
+            # assign the result variables
+            for ind, var in enumerate(op[0]):
+                if var[0] == 'temp_dict':
+                    temp_dict[var[1]] = result[ind]
+                elif var[0] == 'update_dict':
+                    update_dict[var[1]] = result[ind]
+                elif var[0] == 'reduce_dict':
+                    if var[1] in reduce_dict:
+                        reduce_dict[var[1]].append(result[ind])
+                    else:
+                        reduce_dict[var[1]] = [result[ind]]
+
+        return update_dict
+
+    def push_update_step(self):
+        reduce_dict = dict()
+        update_dict = dict()
+        for op in self._push_operations:
+            result = op[1]()
+            if len(op[0]) == 1: result = [result]
+            for ind, var in enumerate(op[0]):
+                if var[0] == 'update_dict':
+                    update_dict[var[1]] = result[ind]
+
+                elif var[1] in reduce_dict:
+                    reduce_dict[var[1]].append(result[ind])
+                else:
+                    reduce_dict[var[1]] = [result[ind]]
+        return update_dict, reduce_dict
+
+    def fetch_update_step(self):
+        for op in self._fetch_operations:
+            # for inputs
+            inputs = []
+            for var in op[2]:
+                inputs.append(self._variables[var[1]])
+            op[1](*inputs)
 
     def initial_step(self):
         '''
@@ -349,7 +515,6 @@ class Backend(BaseModule, ABC):
             else:
                 self._variables[op[0]] = op[1](*inputs)
 
-
         # Change intial variable's batch_size
         for key in self._variables.keys():
             if hasattr(self._variables[key], 'shape'):
@@ -377,9 +542,6 @@ class Backend(BaseModule, ABC):
 
         self.last_time = self.time
 
-
-
-
     def update_step(self):
         '''
         Update the return variables of standalone operations and basic operations and current backend time.
@@ -387,29 +549,28 @@ class Backend(BaseModule, ABC):
             tuple(self._variables.values())
         '''
 
-        # static graph compuation
-        self.graph_update_step()
+        # push input data
+        update_dict, reduce_dict = self.push_update_step()
 
+        # static graph compuation
+        update_dict = self.graph_update_step(self._variables, update_dict, reduce_dict)
 
         # Update time and state variables
         self.n_time_step += 1
         self.time = round(self.n_time_step * self.dt, 2)
-        self._variables.update(self._graph_var_dicts['update_dict'])
+        self._variables.update(update_dict)
+
+        # fetch output data
+        self.fetch_update_step()
 
         # Record Variables
         for monitor in self._monitors:
-            monitor.update_step(self._graph_var_dicts)
+            monitor.update_step(self._variables)
 
-        # Clear dicts
-        self._graph_var_dicts['update_dict'].clear()
-        self._graph_var_dicts['temp_dict'].clear()
-        for key in self._graph_var_dicts['reduce_dict']:
-            self._graph_var_dicts['reduce_dict'][key] = []
         return tuple(self._variables.values())
 
-
     def update_time_steps(self):
-        while(self.runtime>self.time-self.last_time):
+        while (self.runtime > self.time - self.last_time):
             self.update_step()
 
 
@@ -491,7 +652,7 @@ class Backend(BaseModule, ABC):
                 self._graph_var_dicts['temp_dict'][op[0]] = op[1](*inputs)
 
                 if '[updated]' in op[0]:
-                    op_name = op[0].replace("[updated]","")
+                    op_name = op[0].replace("[updated]", "")
                     if op_name in self._graph_var_dicts['update_dict']:
                         self._graph_var_dicts['update_dict'][op_name] = self._graph_var_dicts['temp_dict'][
                             op[0]]  # update the variable in update_dict
@@ -516,12 +677,21 @@ class Backend(BaseModule, ABC):
 
         return tuple(self._variables.values())
 
-
     def reduce_sum_update(self, value):
         reduced = self.reduce_sum(self.stack(value))
         return reduced
+    def get_varialble(self, name):
+        if name in self._variables:
+            return self._variables[name]
+        elif name in self._parameters_dict:
+            return self._parameters_dict[name]
+        elif name in self._InitVariables_dict:
+            return self._InitVariables_dict[name]
+        else:
+            raise ValueError("not found variable:%s in the backend"%name)
 
-    def add_variable(self, name, shape, value=None, is_parameter=False, is_sparse=False, init=None, min=None, max=None, is_constant=False):
+    def add_variable(self, name, shape, value=None, is_parameter=False, is_sparse=False, init=None, init_param=None,
+                     min=None, max=None, is_constant=False):
         '''
         Add variables from front objects to _variables of Backend and get copies to assign to _parameters_dict and _InitVariables_dict.
         Args:
@@ -533,7 +703,7 @@ class Backend(BaseModule, ABC):
         '''
         if is_parameter:
             self._parameters_dict[name] = self.add_backend_variable(name, shape, value, grad=True, is_sparse=is_sparse,
-                                               init=init)
+                                                                    init=init, init_param=init_param)
             if min is not None and max is not None:
                 self._clamp_parameter_dict[name] = (self.clamp_, [self._parameters_dict[name], min, max])
             elif min is not None:
@@ -541,38 +711,35 @@ class Backend(BaseModule, ABC):
             elif max is not None:
                 self._clamp_parameter_dict[name] = (self.clamp_max_, [self._parameters_dict[name], max])
 
-            return self._parameters_dict[name]
 
         # 稀疏矩阵weight非叶子节点，反传的时候更新的是weight中的value,但前向计算的时候用的是weight,所以对于稀疏矩阵要单独用个dict记录以便初始化
         elif is_sparse:
             self._SparseVariables_dict[name] = self.add_backend_variable(name, shape, value, grad=True,
-                                                                         is_sparse=is_sparse, init=init)
-            return self._SparseVariables_dict[name]
-
+                                                                         is_sparse=is_sparse, init=init,init_param=init_param)
         elif is_constant:
             self._InitVariables_dict[name] = value
             self._variables[name] = value
-            return self._InitVariables_dict[name]
-
         else:
             self._InitVariables_dict[name] = self.add_backend_variable(name, shape, value, grad=False,
-                                                                       is_sparse=is_sparse, init=init)
-            return self._InitVariables_dict[name]
+                                                                       is_sparse=is_sparse, init=init,
+                                                                       init_param=init_param)
 
+        var_agent = VariableAgent(self, name)
+        return var_agent
 
     def add_delay(self, var_name, max_delay):
-        max_len = int(max_delay/self.dt)
+        max_len = int(max_delay / self.dt)
         if var_name in self._delay_dict:
             if self._delay_dict[var_name].max_len < max_len:
                 self._delay_dict[var_name].max_len = max_len
         else:
             self._delay_dict[var_name] = DelayQueue(var_name, max_len, self)
-            self.register_initial(None, self._delay_dict[var_name].initial,  [var_name,])
-            self.register_standalone(None, self._delay_dict[var_name].push, [var_name,])
+            self.register_initial(None, self._delay_dict[var_name].initial, [var_name, ])
+            self.register_standalone(var_name, self._delay_dict[var_name].push, [var_name, ])
         return self._delay_dict[var_name]
 
     @abstractmethod
-    def add_backend_variable(self, name, shape, value=None, grad=False, is_sparse=False, init=None):
+    def add_backend_variable(self, name, shape, value=None, grad=False, is_sparse=False, init=None, init_param=None):
         '''
         This method will be overwritten by different subclasses to add variables to _variables of specified backend.
         Args:
@@ -590,14 +757,41 @@ class Backend(BaseModule, ABC):
         Add basic operations from front objects to _operations of Backend.
         Args:
             op (list): the operation includes [ret_var_name: str, operation_name, input_var_name1: str, input_var_name2 :str, ...]
+        transformed to : [[return_var_names], operation_name, [input_var_names]]
         '''
+        if not isinstance(op[0], list):
+            op[0] = [op[0]]
+        if len(op)==2:
+            op.append([])
+        elif not isinstance(op[2], list):
+            op[2] = op[2:]  # op[2]是list，说明本身就采用了list多输入的结构，如果op[3]还有数值，直接不考虑
+
         if op[1] in self.basic_operate:
             op[1] = self.basic_operate[op[1]]
+            # if isinstance(op[0], str):
+            #     op[0] = [op[0]]
+            # elif op[0] is None:
+            #     op[0] = []
+            # op[2] = op[2:]
             self._operations.append(op)
+        elif callable(op[1]):
+            self.register_standalone(op[0], op[1], op[2])
         else:
             raise ValueError("No operation %s in basic_operate" % op[1])
 
-    def register_standalone(self, output_name: str, function, input_names: list):
+        # if isinstance(op[0], str):
+        #     op[0] = [op[0]]
+        # elif op[0] is None:
+        #     op[0] = []
+        # op[2] = op[2:]
+        # if op[1] in self.basic_operate:
+        #     op[1] = self.basic_operate[op[1]]
+        # elif not callable(op[1]):
+        #     raise ValueError("No operation %s in basic_operate or not exist operation %s" % (op[1], op[1]))
+        #
+        # self._operations.append(op)
+
+    def register_standalone(self, output_names: list, function, input_names: list):
         '''
         Add standalone operations from front objects to _standalone_operations of Backend.
         Args:
@@ -606,10 +800,14 @@ class Backend(BaseModule, ABC):
             input_names (list): the name of the arguments of the method
         '''
         # TODO:
-        op = [output_name, function] + input_names
+        if isinstance(output_names, str):
+            output_names = [output_names]
+        elif output_names is None:
+            output_names = []
+        op = [output_names, function, input_names]
         self._operations.append(op)
 
-        #self._standalone_operations.append((output_name, function, input_names))
+        # self._standalone_operations.append((output_name, function, input_names))
 
     def register_initial(self, output_name: str, function, input_names: list):
         '''
@@ -645,8 +843,28 @@ class Backend(BaseModule, ABC):
             else:
                 self._variables = self._stored_states[name]
 
-    # -------- basic backends operations -----
+    def check_key(self, ckey, target_dict):
+        cnetname = ckey[:ckey.find('<net>')]
+        for key, value in target_dict.items():
+            netname = key[:key.find('<net>')]
+            break
+        ckey = ckey.replace(cnetname, netname)
+        if ckey in target_dict.keys():
+            return ckey
 
+        import warnings
+        warnings.warn('Key error occurs, please check keys.')
+
+
+        # result = [key for key in target_dict.keys() if key.endswith(variables[variables.find('<net>'):])]
+        # if result:
+        #     if len(result) > 1:
+        #         import warnings
+        #         warnings.warn('Given key matchs two variables in the backend dict, choose the first one as default')
+        #     result = result[0]
+        # return result
+
+    # -------- basic backends operations -----
     @abstractmethod
     def threshold(self, v, v_th):
         '''
@@ -868,6 +1086,29 @@ class Backend(BaseModule, ABC):
         NotImplementedError()
 
     @abstractmethod
+    def mat_mult_pre(self, A, X):
+        '''
+        Matrix product.
+        Args:
+            A (Tensor): the first input to be multiplied
+            X (Tensor): the second input to be multiplied
+        Returns:
+            mat_mult_pre(A,X)
+        '''
+        NotImplementedError()
+
+    @abstractmethod
+    def sigmoid(self, x):
+        '''
+
+        Args:
+            x:
+
+        Returns:
+
+        '''
+
+    @abstractmethod
     def mat_mult(self, A, X):
         '''
         Matrix product.
@@ -1010,7 +1251,6 @@ class Backend(BaseModule, ABC):
             in-place clamp the min of the data
         '''
         NotImplementedError()
-
 
     @abstractmethod
     def uniform(self, data, a=0.0, b=1.0):
@@ -1250,8 +1490,8 @@ class Backend(BaseModule, ABC):
 
 
 
-class Darwin_Backend(Backend):
-
-    def __init__(self):
-        super(Darwin_Backend, self).__init__()
-        pass
+# class Darwin_Backend(Backend):
+#
+#     def __init__(self):
+#         super(Darwin_Backend, self).__init__()
+#         pass

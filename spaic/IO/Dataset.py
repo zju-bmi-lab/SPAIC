@@ -2,7 +2,7 @@
 import os
 import matplotlib.pyplot as plt
 import numpy as np
-import tables
+
 
 import json
 import pickle
@@ -1221,6 +1221,7 @@ class SHD(Dataset):
 
     def _to_numpy_format(self):
         # trainset
+        import tables
         if self._is_train:
             train_fileh = tables.open_file(os.path.join(self.root, SHD.files['train_dataset']), mode='r')
             neuron_ids = train_fileh.root.spikes.units
@@ -1328,6 +1329,7 @@ class SSC(Dataset):
         self._is_train = is_train
 
     def _to_numpy_format(self):
+        import tables
         # trainset
         if self._is_train:
             train_fileh = tables.open_file(os.path.join(self.root, SSC.files['train_dataset']), mode='r')
@@ -1340,7 +1342,6 @@ class SSC(Dataset):
             self.data['train_labels'] = labels
 
         else:
-
             test_fileh = tables.open_file(os.path.join(self.root, SSC.files['test_dataset']), mode='r')
             neuron_ids = test_fileh.root.spikes.units
             spike_times = test_fileh.root.spikes.times
@@ -1420,12 +1421,13 @@ class DVS128Gesture(Dataset):
         self._is_train = is_train
 
     def _to_numpy_format(self):
+        import tables
         # trainset
         if self._is_train:
             train_file = tables.open_file(os.path.join(self.root, DVS128Gesture.files['train_dataset']), mode='r')
 
         else:
-            test_fileh = tables.open_file(os.path.join(self.root, DVS128Gesture.files['test_dataset']), mode='r')
+            test_file = tables.open_file(os.path.join(self.root, DVS128Gesture.files['test_dataset']), mode='r')
 
         print(">> Dataset loaded")
 

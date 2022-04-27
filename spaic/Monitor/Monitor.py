@@ -26,6 +26,9 @@ class Monitor(BaseModule):
         elif isinstance(target, Connection):
             self.target = target
             self.target_type = 'Connection'
+        elif target == None:
+            self.target = None
+            self.target_type = None
         else:
             raise ValueError("The target does not belong to types that can be watched (Assembly, Connection).")
 
@@ -55,10 +58,13 @@ class Monitor(BaseModule):
 
         '''
         tar_var_name = None
-        for tar_name in self.target.get_var_names():    # 没有中间变量
-            if var_name in tar_name:
-                tar_var_name = tar_name
-                break
+        if var_name[1:-1] in self.backend._variables.keys():
+            tar_var_name = var_name[1:-1]
+        else:
+            for tar_name in self.target.get_var_names():    # 没有中间变量
+                if var_name in tar_name:
+                    tar_var_name = tar_name
+                    break
 
         if tar_var_name is not None:
             return tar_var_name
@@ -147,11 +153,24 @@ class SpikeMonitor(Monitor):
         self._times = []
         self._transform_len = -1
 
+    def push_spike_train(self, spk_times, spk_index, batch_index=0):
+        if len(self._spk_index) < batch_index+1:
+            add_num = batch_index + 1 - len(self._spk_index)
+            for _ in range(add_num):
+                self._spk_index.append([])
+                self._spk_times.append([])
+        if isinstance(spk_times, list) or isinstance(spk_times, tuple):
+            self._spk_times[batch_index].extend(spk_times)
+            self._spk_index[batch_index].extend(spk_index)
+        else:
+            self._spk_times[batch_index].append(spk_times)
+            self._spk_index[batch_index].append(spk_index)
+
+        #to override the _spike_transform function when getting spk_times and spk_index
+        self._transform_len = 1
 
 
-
-
-    def update_step(self, graph_var_dicts):
+    def update_step(self, variables):
         '''
         Recoding the variable values of the current step.
 
@@ -162,20 +181,10 @@ class SpikeMonitor(Monitor):
         if self.is_recording is False:
             return
 
-        if self.var_container is None:
-            if self.var_name in graph_var_dicts['temp_dict']:
-                self.var_container = 'temp_dict'
-            elif self.var_name in graph_var_dicts['update_dict']:
-                self.var_container = 'update_dict'
-            elif self.var_name in graph_var_dicts['variables_dict']:
-                self.var_container = 'variables_dict'
-            else:
-                raise ValueError(" No variable:%s in the backend"%self.var_name)
-
         if int(10000 * self.backend.time / self.dt) % 10000 == 0:
-            record_value = graph_var_dicts[self.var_container][self.var_name]
+            record_value = variables[self.var_name]
             if self.get_grad:
-                graph_var_dicts[self.var_container][self.var_name].retain_grad()
+                variables[self.var_name].retain_grad()
             if self.index == 'full':
                 self._records.append(record_value)
                 self._times.append(self.backend.time)
@@ -333,7 +342,7 @@ class StateMonitor(Monitor):
             self._times = []
 
 
-    def update_step(self, graph_var_dicts):
+    def update_step(self, variables):
         '''
         Recoding the variable values of the current step.
 
@@ -344,20 +353,11 @@ class StateMonitor(Monitor):
         if self.is_recording is False:
             return
 
-        if self.var_container is None:
-            if self.var_name in graph_var_dicts['temp_dict']:
-                self.var_container = 'temp_dict'
-            elif self.var_name in graph_var_dicts['update_dict']:
-                self.var_container = 'update_dict'
-            elif self.var_name in graph_var_dicts['variables_dict']:
-                self.var_container = 'variables_dict'
-            else:
-                raise ValueError(" No variable:%s in the backend"%self.var_name)
-
+        # only data in variable_dict can be recorded now
         if int(10000 * self.backend.time / self.dt) % 10000 == 0:
-            record_value = graph_var_dicts[self.var_container][self.var_name]
+            record_value = variables[self.var_name]
             if self.get_grad:
-                var = graph_var_dicts[self.var_container][self.var_name]
+                var = variables[self.var_name]
                 if var.requires_grad is True:
                     var.retain_grad()
             if self.index == 'full':
@@ -428,67 +428,5 @@ class StateMonitor(Monitor):
         else:
             return np.stack(self._times, axis=-1)
 
-    def plot_weight(self, **kwargs):
-        from matplotlib import pyplot as plt
-        from mpl_toolkits.axes_grid1 import make_axes_locatable
-        neuron_id = kwargs.get('neuron_id')
-        time_id = kwargs.get('time_id')
-        batch_id = kwargs.get('batch_id')
-        new_shape = kwargs.get('new_shape')
-        reshape = kwargs.get('reshape')
-        axes = kwargs.get('Axes', None)
-        ims = kwargs.get('AxesImage', None)
-        n_sqrt = kwargs.get('n_sqrt', None)
-        side = kwargs.get('side', None)
-        figsize = kwargs.get('figsize', (5, 5))
-        cmap = kwargs.get('camp', 'hot_r')
-        wmin = kwargs.get('wmin', 0)
-        wmax = kwargs.get('wmax', 128)
-        im = kwargs.get('im', None)
 
-        if batch_id == None:
-            value = self.values[:, :, time_id]
-            # value = self.simulator._variables[
-            #     'autoname1<net>_connection1<con>:autoname1<net>_layer1<neg><-autoname1<net>_input<nod>:{weight}']
-            # value = value.cpu().detach().numpy()
-
-            if reshape:
-
-                value = value.reshape(n_sqrt, n_sqrt, side, side)
-
-                value = value.transpose(0, 2, 1, 3)
-                value = value.reshape(n_sqrt * side, n_sqrt * side)
-                square_weights = value
-
-            else:
-                square_weights = value
-
-        else:
-            value = self.nbatch_values[batch_id, :, time_id, :]
-            if reshape:
-                value = value.reshape(n_sqrt, n_sqrt, side, side)
-
-                value = value.transpose(0, 2, 1, 3)
-                value = value.reshape(n_sqrt * side, n_sqrt * side)
-                square_weights = value
-            else:
-                square_weights = value
-        if not im:
-            fig, ax = plt.subplots(figsize=figsize)
-
-            im = ax.imshow(square_weights, cmap=cmap, vmin=wmin, vmax=wmax)
-            div = make_axes_locatable(ax)
-            cax = div.append_axes("right", size="5%", pad=0.05)
-
-            ax.set_xticks(())
-            ax.set_yticks(())
-            ax.set_aspect("auto")
-
-            plt.colorbar(im, cax=cax)
-            fig.tight_layout()
-        else:
-            im.set_data(square_weights)
-
-        plt.pause(0.1)
-        return im
 

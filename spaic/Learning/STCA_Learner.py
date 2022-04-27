@@ -10,6 +10,44 @@ Created on 2020/11/9
 """
 from .Learner import Learner
 
+import torch
+# from torch import fx
+
+
+class ActFun(torch.autograd.Function):
+    """
+    Approximate firing func.
+    """
+
+    @staticmethod
+    def forward(
+            ctx,
+            input,
+            thresh,
+            alpha
+    ):
+        ctx.thresh = thresh
+        ctx.alpha = alpha
+        ctx.save_for_backward(input)
+        output = input.gt(thresh).float()
+        return output
+
+    @staticmethod
+    def backward(
+            ctx,
+            grad_output
+    ):
+        input, = ctx.saved_tensors
+        grad_input = grad_output.clone()
+        temp = abs(input - ctx.thresh) < ctx.alpha  # 根据STCA，采用了sign函数
+        result = grad_input * temp.float()
+        return result, None, None
+
+act_fun = ActFun()
+def firing_func(x, v_th, alpha):
+    return act_fun.apply(x, v_th, alpha)
+# fx.wrap('firing_func')
+
 
 class STCA(Learner):
     '''
@@ -43,7 +81,7 @@ class STCA(Learner):
         self.alpha = kwargs.get('alpha', 0.5)
         self.prefered_backend = ['pytorch']
         self.name = 'STCA'
-        self.firing_func = None
+        self.firing_func = firing_func
         self.parameters = kwargs
 
     def build(self, backend):
@@ -108,7 +146,7 @@ class STCA(Learner):
                 A method that use STCA model to compute the threshold.
 
         '''
-        return self.firing_func.apply(x, v_th, self.alpha)
+        return firing_func(x, v_th, self.alpha)
 
 Learner.register('stca', STCA)
 

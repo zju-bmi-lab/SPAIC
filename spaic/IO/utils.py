@@ -71,7 +71,7 @@ def _dataset_exists(root, class_labels):
 
 def save_mfcc_feature(root, npz_name, sample_rate=16e3, signal_num=16e3, class_labels=None, **kwargs):
     from python_speech_features import mfcc
-    if npz_name is '':
+    if npz_name == '':
         feature_name = 'mfcc_feature'
 
     # set class labels
@@ -96,8 +96,8 @@ def save_mfcc_feature(root, npz_name, sample_rate=16e3, signal_num=16e3, class_l
             for file in os.listdir(cur_dir):
                 if not file.endswith('wav'):
                     continue
-
                 wavform = wav_file_cut(os.path.join(cur_dir, file), signal_num)
+                from python_speech_features import mfcc
                 feature_mfcc = mfcc(wavform, samplerate=sample_rate)
                 feature_mfcc = feature_mfcc.flatten()
                 audios_name = "{}_audios".format(subset.lower())
@@ -129,7 +129,7 @@ def save_kp_feature(root=None, npz_name=None, sample_rate=16e3, class_labels=Non
     Dr = kwargs.get('Dr', 3)
     Dc = kwargs.get('Dc', 3)
     significance_level = kwargs.get('significance_level', 3)
-    if npz_name is '':
+    if npz_name == '':
         feature_name = 'kp_feature'
 
     # set class labels

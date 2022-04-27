@@ -2,10 +2,10 @@
 ============
 数据加载(Dataloader)
 -------------------------------
- :code:`Dataloader` 是数据集读取的接口，该接口的目的是将自定义的Dataset根据 :code:`batch_size` 大小、\
+:code:`Dataloader` 是数据集读取的接口，该接口的目的是将自定义的Dataset根据 :code:`batch_size` 大小、\
 是否shuffle等封装成一个 :code:`batch_size` 大小的数组，用于网络的训练。
 
- :code:`Dataloader` 由数据集和采样器组成，初始化参数如下：
+:code:`Dataloader` 由数据集和采样器组成，初始化参数如下：
 
 - dataset(Dataset)： 传入的数据集
 - batch_size(int, optional)： 每个batch的样本数, 默认为1
@@ -32,6 +32,6 @@
 .. note::
 
    需要注意的是：\
-    1、创建 :code:`Dataloader` 时如果指定了 :code:`sampler` 这个参数，那么 :code:`shuffle` 必须为 :code:`False`
+    1、创建 :code:`Dataloader` 时如果指定了 :code:`sampler` 这个参数，那么 :code:`shuffle` 必须为False
 
     2、如果指定 :code:`batch_sampler` 这个参数，那么 :code:`batch_size` ，:code:`shuffle` ，:code:`sampler`， :code:`drop_last` 就不能再指定了

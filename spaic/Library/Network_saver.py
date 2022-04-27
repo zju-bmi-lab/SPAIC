@@ -14,14 +14,15 @@ import os
 from ..Network.Assembly import Assembly
 from ..Neuron.Neuron import NeuronGroup
 from ..Neuron.Node import Node
-from ..Network.Connection import Connection
+from ..Network.Topology import Connection
 from ..Backend.Backend import Backend
+from ..Network.Topology import Projection
 from ..Monitor.Monitor import Monitor
 
 import time
 
 
-def network_save(Net: Assembly, filename=None, trans_format='json', combine=False, save=True):
+def network_save(Net: Assembly, filename=None, trans_format='json', combine=False, save=True, save_weight=True):
     '''
         Save network to files.
 
@@ -59,7 +60,7 @@ def network_save(Net: Assembly, filename=None, trans_format='json', combine=Fals
         if filename not in os.listdir(os.getcwd() + '/NetData'):
             os.mkdir(path)
 
-    result_dict = trans_net(Net=Net, path=path, combine=combine, save=save)
+    result_dict = trans_net(Net=Net, path=path, combine=combine, save=save, save_weight=save_weight)
 
     if trans_format == "yaml":
         import yaml
@@ -75,13 +76,15 @@ def network_save(Net: Assembly, filename=None, trans_format='json', combine=Fals
     if save:
         with open(path+'/'+filename+ends, 'w+') as f:
             f.write(result)
+        print("Save Complete.")
+        return filename
 
-    print("Save Complete.")
+    print("Complete.")
 
     return filename, result_dict
 
 
-def trans_net(Net: Assembly, path: str, combine: bool, save: bool):
+def trans_net(Net: Assembly, path: str, combine: bool, save: bool, save_weight: bool):
     '''
         Transform the structure of the network for saving.
 
@@ -103,7 +106,7 @@ def trans_net(Net: Assembly, path: str, combine: bool, save: bool):
     for g in Net._groups.values():
         if g._class_label == '<asb>' or g._class_label == '<net>':  # translate other nets
             sub_net_name = g.name
-            result_dict[net_name].append(trans_net(g, path+'/'+str(sub_net_name), combine, save))
+            result_dict[net_name].append(trans_net(g, path+'/'+str(sub_net_name), combine, save, save_weight=False))
         elif g._class_label == '<neg>':  # translate layers
             result_dict[net_name].append(trans_layer(g))
         elif g._class_label == '<nod>':  # translate nodes
@@ -113,24 +116,31 @@ def trans_net(Net: Assembly, path: str, combine: bool, save: bool):
             #  this element
             pass
 
+    for p in Net._projections.values():
+        result_dict[net_name].append(trans_projection(p))
+
     for c in Net._connections.values():  # translate connections
         result_dict[net_name].append(trans_connection(c, combine))
 
-    # if '_monitors' in dir(Net):
-    #     mon_dict = {'monitor': []}
-    #     result_dict[net_name].append(mon_dict)
-    #     for monitor in Net._monitors.items():
-    #         mon_dict['monitor'].append(trans_monitor(monitor))
+    if '_monitors' in dir(Net):
+        mon_dict = {'monitor': []}
+        result_dict[net_name].append(mon_dict)
+        for monitor in Net._monitors.items():
+            mon_dict['monitor'].append(trans_monitor(monitor))
 
     if '_learners' in dir(Net):
         for key, g in Net._learners.items():  # translate learners
             result_dict[net_name].append({key: trans_learner(g, key)})
     # result_dict[net_name].append({'learners':trans_learner(Net._learners)})
 
-    if not combine and (Net._backend):
-        result_dict[net_name].append(
-            {'backend': trans_backend(Net._backend, path, save)}
-        )
+    if (not combine) and save_weight:
+        if Net._backend:
+            result_dict[net_name].append(
+                {'backend': trans_backend(Net._backend, path, save)}
+            )
+        else:
+            import warnings
+            warnings.warn("Net._backend not exist. Please check whether need save weight")
 
     return result_dict
 
@@ -214,6 +224,36 @@ def trans_layer(layer: NeuronGroup):
     return result_dict
 
 
+def trans_projection(projection: Projection):
+    '''
+        Transform the structure of the projection for saving and extract the
+            parameters.
+
+        Args:
+            projection (Projection): target projection
+
+        return:
+            result_dict (dictionary): the result diction with necessary
+                parameters of the projection.
+
+    '''
+    result_dict = dict()
+    para_dict = dict()
+    name_needed = ['pre_assembly', 'post_assembly']
+    needed = ['name', '_policies', 'link_type', 'ConnectionParameters']
+
+    for key, para in projection.__dict__.items():
+        if key in name_needed:
+            para_dict[key] = para.name
+        elif key in needed:
+            para_dict[key] = para
+
+    para_dict['_class_label'] = '<prj>'
+    result_dict[projection.name] = para_dict
+
+    return result_dict
+
+
 def trans_connection(connection: Connection, combine: bool):
     '''
         Transform the structure of the connection for saving and extract the
@@ -221,7 +261,7 @@ def trans_connection(connection: Connection, combine: bool):
 
         Args:
             connection (Connection): target connection
-            path(string): Target path for saving net data.
+            combine (bool): whether combine weights.
 
         return:
             result_dict (dictionary): the result diction with necessary
@@ -283,6 +323,8 @@ def trans_backend(backend: Backend, path: str, save: bool):
 
 
     if backend._variables is None:
+        import warnings
+        warnings.warn('Backend end don\'t have variables. Have not built Backend. Weight not exists.')
         return
     else:
         if 'parameters' not in os.listdir(os.getcwd() + path[1:]):
@@ -352,22 +394,27 @@ def trans_learner(learner, learn_name):
 
     para_dict['algorithm'] = para_dict['name']
     para_dict['name'] = learn_name
+    if 'algorithm' in para_dict['parameters'].keys():
+        del para_dict['parameters']['algorithm']
 
     return para_dict
 
 
 def trans_monitor(monitor: Monitor):
-    needed = ['var_name', 'index']
+    from spaic.Monitor.Monitor import StateMonitor, SpikeMonitor
+    needed = ['var_name', 'index', 'dt', 'get_grad', 'nbatch']
     name, mon = monitor
     result_dict = dict()
     for i in needed:
         result_dict[i] = mon.__dict__[i]
+    result_dict['target'] = mon.target.name if mon.target else None
+    result_dict['monitor_type'] = 'StateMonitor' if type(monitor[1]) == StateMonitor else 'SpikeMonitor'
 
     return {name: result_dict}
 
 
 
-
+# def
 
 
 

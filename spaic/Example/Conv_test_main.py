@@ -45,7 +45,8 @@ class TestNet(spaic.Network):
 
 
         # can set neuron param dict, including 'tau_p', 'tau_q', 'tau_m', 'v_th' and 'v_reset'
-        self.input = spaic.Encoder(shape=(1, 28, 28), num=node_num, coding_time=run_time, coding_method='poisson')#需要将input_channel也传进去
+        self.input = spaic.Encoder(shape=(1, 28, 28), num=node_num, coding_time=run_time,
+                                     coding_method='poisson')#需要将input_channel也传进去
         # can set neuron param dict, including 'tau_p', 'tau_q', 'tau_m', 'v_th' and 'v_reset'
 
         #self.layer1 = spaic.NeuronGroup(676, neuron_shape=None, neuron_model='clif', batch_size=bat_size)  #26*26*4 经过池化 13*13*4, kernel_size=2
@@ -59,15 +60,21 @@ class TestNet(spaic.Network):
 
 
         self.layer3 = spaic.NeuronGroup(label_num, neuron_model='lif')
-        self.output = spaic.Decoder(num=label_num, dec_target=self.layer3, coding_time=run_time, coding_method='spike_counts')
+        self.output = spaic.Decoder(num=label_num, dec_target=self.layer3,
+                                      coding_time=run_time, coding_method='spike_counts')
 
         # Connection
-        self.connection1 = spaic.Connection(self.input, self.layer1, link_type='conv', in_channels=1, out_channels=4, kernel_size=(3, 3), maxpool_on=True, maxpool_kernel_size=(2, 2), w_std=0.05, w_mean=0.05)
+        self.connection1 = spaic.Connection(self.input, self.layer1, link_type='conv', in_channels=1, out_channels=4,
+                                              kernel_size=(3, 3), maxpool_on=True, maxpool_kernel_size=(2, 2),
+                                              w_std=0.05, w_mean=0.05)
 
 
-        self.connection2 = spaic.Connection(self.layer1, self.layer2, link_type='conv', in_channels=4, out_channels=8, kernel_size=(3, 3), maxpool_on=False, maxpool_kernel_size=(2, 2), w_std=0.05, w_mean=0.05)
+        self.connection2 = spaic.Connection(self.layer1, self.layer2, link_type='conv', in_channels=4, out_channels=8,
+                                              kernel_size=(3, 3), maxpool_on=False, maxpool_kernel_size=(2, 2),
+                                              w_std=0.05, w_mean=0.05)
 
-        self.connection3 = spaic.Connection(self.layer2, self.layer3, link_type='full', flatten=True, w_std=0.05, w_mean=0.02)
+        self.connection3 = spaic.Connection(self.layer2, self.layer3, link_type='full', flatten=True, w_std=0.05,
+                                              w_mean=0.02)
         # Learner
         self._learner = Learner(algorithm='STCA', a=0.01, trainable=[self.connection1, self.connection2, self.connection3, self.layer1, self.layer2, self.layer3])
         self.set_backend(backend)
@@ -77,8 +84,9 @@ class TestNet(spaic.Network):
 
 Net = TestNet()
 
-Net.build(backend)#创建网络
-param = Net.get_testparams()#得到网络模型参数
+Net.build(backend)  # 创建网络
+
+param = Net.get_testparams()  # 得到网络模型参数
 
 optim = torch.optim.Adam(param, lr=0.01)  # 创建优化器对象，并传入网络模型的参数
 shedule = torch.optim.lr_scheduler.StepLR(optim, 5)
@@ -89,7 +97,7 @@ eval_acces = []
 losses = []
 acces = []
 # with torch.autograd.set_detect_anomaly(True):
-for epoch in range(10):
+for epoch in range(1):
         # 训练阶段
         pbar = tqdm(total=len(train_loader))
         train_loss = 0
@@ -131,45 +139,55 @@ for epoch in range(10):
             pbar.set_description_str(
                 "[loss:%f, acc:%f]Batch progress: " % (batch_loss.item(), acc))
             pbar.update()
+            # break
         losses.append(train_loss / len(train_loader))
         acces.append(train_acc / len(train_loader))
         print('train_acc', train_acc / len(train_loader))
         pbar.close()
+        #
+        #
+        # # 测试阶段
+        # eval_loss = 0
+        # eval_acc = 0
+        # pbarTest = tqdm(total=len(test_loader))
+        # with torch.no_grad():
+        #     for i, item in enumerate(test_loader):
+        #         data, label = item
+        #         if Net.connection1.link_type is 'conv':
+        #
+        #             data = data.reshape(train_loader.batch_size, Net.input.shape[-3], Net.input.shape[-2], Net.input.shape[-1])#input.shape[0]:H, input.shape[1]:W
+        #
+        #         Net.input(data)
+        #         Net.run(run_time)
+        #         output = Net.output.predict
+        #         #output = (output - torch.mean(output).detach()) / (torch.std(output).detach() + 0.1)
+        #         if sim_name == 'pytorch':
+        #             label = torch.tensor(label, device=device, dtype=torch.long)
+        #         # q = torch.gather(output, dim=1, index=label.unsqueeze(dim=1).type(torch.int64))
+        #         # batch_loss = torch.mean(-torch.log(q + 1.0e-8))
+        #         batch_loss = F.cross_entropy(output, label)
+        #         eval_loss += batch_loss.item()
+        #
+        #         _, pred = output.max(1)
+        #         num_correct = (pred == label).sum().item()
+        #         acc = num_correct / data.shape[0]
+        #         eval_acc += acc
+        #         pbarTest.set_description_str("[loss:%f]Batch progress: " % batch_loss.item())
+        #         pbarTest.update()
+        #     eval_losses.append(eval_loss / len(test_loader))
+        #     eval_acces.append(eval_acc / len(test_loader))
+        # pbarTest.close()
+        # print('epoch:{},Train Loss:{:.4f},Train Acc:{:.4f},Test Loss:{:.4f},Test Acc:{:.4f}'
+        #       .format(epoch, train_loss / len(train_loader), train_acc / len(train_loader),
+        #               eval_loss / len(test_loader), eval_acc / len(test_loader)))
+        # print("")
+        #
 
+from spaic.Library.Network_saver import network_save
 
-        # 测试阶段
-        eval_loss = 0
-        eval_acc = 0
-        pbarTest = tqdm(total=len(test_loader))
-        with torch.no_grad():
-            for i, item in enumerate(test_loader):
-                data, label = item
-                if Net.connection1.link_type is 'conv':
+from spaic.Library.Network_loader import network_load
 
-                    data = data.reshape(train_loader.batch_size, Net.input.shape[-3], Net.input.shape[-2], Net.input.shape[-1])#input.shape[0]:H, input.shape[1]:W
+test_str, test_data = network_save(Net, 'TestNet', 'yaml', False, True)
 
-                Net.input(data)
-                Net.run(run_time)
-                output = Net.output.predict
-                #output = (output - torch.mean(output).detach()) / (torch.std(output).detach() + 0.1)
-                if sim_name == 'pytorch':
-                    label = torch.tensor(label, device=device, dtype=torch.long)
-                # q = torch.gather(output, dim=1, index=label.unsqueeze(dim=1).type(torch.int64))
-                # batch_loss = torch.mean(-torch.log(q + 1.0e-8))
-                batch_loss = F.cross_entropy(output, label)
-                eval_loss += batch_loss.item()
-
-                _, pred = output.max(1)
-                num_correct = (pred == label).sum().item()
-                acc = num_correct / data.shape[0]
-                eval_acc += acc
-                pbarTest.set_description_str("[loss:%f]Batch progress: " % batch_loss.item())
-                pbarTest.update()
-            eval_losses.append(eval_loss / len(test_loader))
-            eval_acces.append(eval_acc / len(test_loader))
-        pbarTest.close()
-        print('epoch:{},Train Loss:{:.4f},Train Acc:{:.4f},Test Loss:{:.4f},Test Acc:{:.4f}'
-              .format(epoch, train_loss / len(train_loader), train_acc / len(train_loader),
-                      eval_loss / len(test_loader), eval_acc / len(test_loader)))
-        print("")
-
+# test_2 = network_load(test_str)
+# print('t')

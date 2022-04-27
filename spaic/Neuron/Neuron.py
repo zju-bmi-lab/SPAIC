@@ -15,6 +15,7 @@ import numpy as np
 from ..Network import Assembly
 from abc import ABC, abstractmethod
 from collections import OrderedDict
+from ..Network.BaseModule import VariableAgent
 import re
 
 
@@ -35,14 +36,13 @@ class NeuronGroup(Assembly):
                  **kwargs
                  ):
         super(NeuronGroup, self).__init__(name=name)
-        self.num = neuron_number
-        # self.name = name
-        self.shape = neuron_shape
+        self.set_num_shape(num=neuron_number, shape=neuron_shape)
         self.outlayer = kwargs.get("outlayer", False)
+
         # self.neuron_model = neuron_model
         if neuron_type == ('excitatory', 'inhibitory', 'pyramidal', '...'):
             self.type = ['nontype']
-        elif isinstance(self.type, list):
+        elif isinstance(neuron_type, list):
             self.type = neuron_type
         else:
             self.type = [neuron_type]
@@ -55,13 +55,34 @@ class NeuronGroup(Assembly):
             self.position = neuron_position
 
         self.parameters = kwargs
-
-        self.model_class = NeuronModel.apply_model(neuron_model)
-        self.model_name = neuron_model  # self.neuron_model -> self.model_name
+        if isinstance(neuron_model, str):
+            self.model_class = NeuronModel.apply_model(neuron_model)
+            self.model_name = neuron_model  # self.neuron_model -> self.model_name
+            self.model = None
+        elif isinstance(neuron_model, NeuronModel):
+            self.model = neuron_model
+            self.model_class = None
+            self.model_name = 'custom_model'
+        else:
+            raise ValueError(" only support set neuron model with string or NeuronModel class constructed by @custom_model()")
         self._var_names = list()
+        self._var_dict = dict()
         self._operations = OrderedDict()
 
 
+    def set_num_shape(self, num, shape):
+        self.num = num
+        self.shape = shape
+        if self.shape is not None:
+            num = np.prod(self.shape)
+            if self.num is None:
+                self.num = num
+            else:
+                assert self.num == num, "the neuron number is not accord with neuron shape"
+        elif self.num is not None:
+            self.shape = [self.num]
+        else:
+            ValueError("neither neuron number nor neuron shape is defined")
 
     def set_parameter(self):
         pass
@@ -70,10 +91,23 @@ class NeuronGroup(Assembly):
         return self.model
 
     def add_neuron_label(self, key: str):
-        if '[updated]' in key:
-            return self.id + ':' +'{'+key.replace('[updated]',"")+'}' + '[updated]'
-        else:
-            return self.id + ':' +'{'+key+'}'
+        if isinstance(key, str):
+            if '[updated]' in key:
+                return self.id + ':' +'{'+key.replace('[updated]',"")+'}' + '[updated]'
+            else:
+                return self.id + ':' +'{'+key+'}'
+        elif isinstance(key, list) or isinstance(key, tuple):
+            keys = []
+            for k in key:
+                if isinstance(k, str):
+                    if '[updated]' in k:
+                        mk = self.id + ':' + '{' + k.replace('[updated]', "") + '}' + '[updated]'
+                    else:
+                        mk = self.id + ':' + '{' + k + '}'
+                    keys.append(mk)
+                elif isinstance(k, VariableAgent):
+                    keys.append(k.var_name)
+            return keys
 
     def build(self, backend):
         '''
@@ -89,17 +123,9 @@ class NeuronGroup(Assembly):
         #     self.model = self.model_class(**self.model_parameters)
         # else:
         #     self.model = self.model_class()
-        self.model = self.model_class(**self.parameters)
-        if self.shape is not None:
-            num = np.prod(self.shape)
-            if self.num is None:
-                self.num = num
-            else:
-                assert self.num == num, "the neuron number is not accord with neuron shape"
-        elif self.num is not None:
-            self.shape = [self.num]
-        else:
-            ValueError("neither neuron number nor neuron shape is defined")
+        if self.model_class is not None:
+            self.model = self.model_class(**self.parameters)
+
 
         dt = backend.dt
         for (key, tau_var) in self.model._tau_constant_variables.items():
@@ -108,6 +134,7 @@ class NeuronGroup(Assembly):
             shape = ()
             backend.add_variable(key, shape, value=tau_var)
             self._var_names.append(key)
+            self._var_dict[key] = VariableAgent(backend, key)
 
         for (key, membrane_tau_var) in self.model._membrane_variables.items():
             key = self.add_neuron_label(key)
@@ -115,6 +142,7 @@ class NeuronGroup(Assembly):
             shape = (1, *self.shape)  # (1, neuron_num)
             backend.add_variable(key, shape, value=membrane_tau_var)
             self._var_names.append(key)
+            self._var_dict[key] = VariableAgent(backend, key)
 
         for (key, var) in self.model._variables.items():
             # add the rule to extend new dimension before shape (for slif model)
@@ -122,6 +150,7 @@ class NeuronGroup(Assembly):
             if extend_tag is not None:
                 extend_tag = int(key[extend_tag.start() + 1:extend_tag.end() - 1])
             key = self.add_neuron_label(key)
+            self._var_dict[key] = VariableAgent(backend, key)
 
             if extend_tag is not None:
                 shape = (1, extend_tag, *self.shape)
@@ -129,38 +158,52 @@ class NeuronGroup(Assembly):
                 shape = (1, *self.shape)  # (batch_size, neuron_shape)
             backend.add_variable(key, shape, value=var)
             self._var_names.append(key)
+            self._var_dict[key] = VariableAgent(backend, key)
 
         for (key, var) in self.model._constant_variables.items():
             key = self.add_neuron_label(key)
-            # if isinstance(var, np.ndarray):
-            #     if var.size > 1:
-            #         var_shape = var.shape
-            #         shape = (1, *var_shape)  # (1, neuron_shape)
-            #     else:
-            #         shape = ()
-            # elif isinstance(var, list):
-            #     if len(var) > 1:
-            #         var_len = len(var)
-            #         shape = (1, var_len)  # (1, neuron_shape)
-            #     else:
-            #         shape = ()
-            # else:
-            #     shape = ()
-            shape = ()
-            backend.add_variable(key, shape, value=var, is_constant=True)
+
+            if isinstance(var, np.ndarray):
+                if var.size > 1:
+                    shape = var.shape
+                else:
+                    shape = ()
+            elif isinstance(var, torch.Tensor):
+                shape = var.shape
+            elif hasattr(var, '__iter__'):
+                var = np.array(var)
+                if var.size > 1:
+                    shape = var.shape
+                else:
+                    shape = ()
+            else:
+                shape = ()
+
+            backend.add_variable(key, shape, value=var, is_constant=False)
             self._var_names.append(key)
+            self._var_dict[key] = VariableAgent(backend, key)
 
         op_count = 0
         for op in self.model._operations:
             addcode_op = []
-            op_name = str(op_count) + ':' + op[1]
+            if isinstance(op[1], str):
+                op_name = str(op_count) + ':' + op[1]
+                for ind, name in enumerate(op):
+                    if ind != 1:
+                        addcode_op.append(self.add_neuron_label(op[ind]))
+                    else:
+                        addcode_op.append(op[ind])
+                backend.add_operation(addcode_op)
+            else:
+                op_name = str(op_count) + ':' + 'custom_function'
+                for ind, name in enumerate(op):
+                    if ind != 1:
+                        addcode_op.append(self.add_neuron_label(op[ind]))
+                    else:
+                        addcode_op.append(op[ind])
+                backend.register_standalone(addcode_op[2], addcode_op[1], addcode_op[0])
             op_count += 1
-            for ind, name in enumerate(op):
-                if ind != 1:
-                    addcode_op.append(self.add_neuron_label(op[ind]))
-                else:
-                    addcode_op.append(op[ind])
-            backend.add_operation(addcode_op)
+
             self._operations[op_name] = addcode_op
 
         if self.model_name == "slif" or self.model_name == 'selif':
@@ -175,6 +218,85 @@ class NeuronGroup(Assembly):
             backend.register_standalone(self.add_neuron_label('S'), self.model.return_S, [])
 
 
+    @staticmethod
+    def custom_model(input_vars, output_vars, new_vars_dict, equation_type=('iterative','euler_iterative','exp_euler_iterative','ode'), backend='torch', custom_function_name='custom', base_model=None, add_threshold=True):
+        '''
+        Examples:
+            @NeuronGroup.custom_model(input_vars=['M', 'S', 'WgtSum'], output_vars=['V', 'M', 'S'],
+            new_vars_dict={'V':0, 'M':0, 'S':0, 'WgtSum':0}, equation_type='exp_euler_iterative')
+            def func(M, S, WgtSum):
+                M = (WgtSum-M)/tau
+                S = (WgtSum-S)/tau
+                V = M - S
+                return V, M, S
+
+            NeuronGroup(...., neuron_model=func)
+        '''
+        assert backend == 'torch'
+        if base_model is None:
+            model = NeuronModel()
+        elif isinstance(base_model, NeuronModel):
+            model = base_model
+        else:
+            raise ValueError("base model is given wrong type")
+        model.name = custom_function_name
+        if equation_type == 'iterative' or equation_type == 'ode':
+            for key, value in new_vars_dict.items():
+                if '[constant]' in key:
+                    model._constant_variables[key.replace('[constant]','')] = value
+                else:
+                    model._variables[key] = value
+        elif equation_type == 'euler_iterative':
+            for key, value in new_vars_dict.items():
+                if '[constant]' in key:
+                    model._constant_variables[key.replace('[constant]','')] = value
+                elif 'tau' in key.lower():
+                    model._membrane_variables[key] = value
+                else:
+                    model._variables[key] = value
+        elif equation_type == 'exp_euler_iterative':
+            for key, value in new_vars_dict.items():
+                if '[constant]' in key:
+                    model._constant_variables[key.replace('[constant]','')] = value
+                elif 'tau' in key.lower():
+                    model._tau_constant_variables[key] = value
+                else:
+                    model._variables[key] = value
+        new_vars_dict = dict()
+        new_vars_dict.update(model._variables)
+        new_vars_dict.update(model._tau_constant_variables)
+        new_vars_dict.update(model._membrane_variables)
+        new_vars_dict.update(model._constant_variables)
+        for var in input_vars:
+            if isinstance(var, VariableAgent):
+                continue
+            elif var not in new_vars_dict:
+                if '[updated]' in var:
+                    if var.replace('[updated]', '') in new_vars_dict:
+                        continue
+                else:
+                    raise ValueError("The variable %s is not in model variable dict and not a Variable of other modules"%va)
+        for var in output_vars:
+            if isinstance(var, VariableAgent):
+                continue
+            elif var not in new_vars_dict:
+                if '[updated]' in var:
+                    if var.replace('[updated]', '') in new_vars_dict:
+                        continue
+                else:
+                    raise ValueError("The variable %s is not in model variable dict and not a Variable of other modules"%var)
+
+        def model_function(func):
+            op_code = [input_vars, func, output_vars]
+            model._operations.append(op_code)
+            if add_threshold == True:
+                model._operations.append(('O', 'threshold', 'V[updated]', 'Vth'))
+            return model
+        return model_function
+
+
+
+
 class NeuronModel(ABC):
     '''
     op -> (return_name, operation_name, input_name1, input_name2...)
@@ -185,6 +307,7 @@ class NeuronModel(ABC):
 
     def __init__(self, **kwargs):
         super(NeuronModel, self).__init__()
+        self.name = 'none'
         self._operations = []
         self._variables = dict()
         self._tau_constant_variables = dict()
@@ -215,6 +338,7 @@ class NeuronModel(ABC):
             raise ValueError(('Given model of type %s does not seem to be a valid NeuronModel.' % str(type(model))))
 
         NeuronModel.neuron_models[name] = model
+        model.name = name
 
     @staticmethod
     def apply_model(model_name):
@@ -280,10 +404,8 @@ class CLIFModel(NeuronModel):
         self._tau_constant_variables['tauQ'] = self.neuron_parameters['tau_q']
 
         self._operations.append(('I', 'var_mult', 'V0', 'WgtSum[updated]'))
-
         self._operations.append(('M', 'var_linear', 'tauP', 'M', 'I[updated]'))
         self._operations.append(('S', 'var_linear', 'tauQ', 'S', 'I[updated]'))
-
         self._operations.append(('PSP', 'minus', 'M[updated]', 'S[updated]'))
         self._operations.append(('V', 'minus', 'PSP', 'E'))
         self._operations.append(('O', 'threshold', 'V[updated]', 'Vth'))
@@ -738,6 +860,93 @@ class SLIFModel(NeuronModel):
 NeuronModel.register("slif", SLIFModel)
 
 
+class SELIFDebugModel(NeuronModel):
+
+    def __init__(self,
+                 tau_m=20.0, tau_p=20.0,tau_q=8.0,v_th=1.0,
+                 outlayer=False
+                 ):
+        super(SELIFDebugModel, self).__init__()
+        from spaic.Learning.TRUE_Learner import TRUE_SpikeProp
+        # initial value for state variables
+        self._variables['[2]O'] = 0.0
+        self._variables['V'] = 0.0
+        self._variables['dV'] = 0.0
+        self._variables['S'] = 0.0
+        self._variables['WgtSum'] = 0.0
+        self._variables['cumV'] = 0.0
+        self.tau_m = tau_m
+        self.tau_e = tau_p
+        self.tau_s = tau_q
+        self.v_th = v_th
+        self.v_reset = 5.0 * v_th
+        self.outlayer = outlayer
+
+        self.beta = tau_m / tau_q
+        self.V0 = (1 / (self.beta - 1)) * (self.beta ** (self.beta / (self.beta - 1)))
+
+
+        self.update_op_code = ('[2]O', self.update, 'WgtSum[updated]')  # 'WgtSum[updated]'
+        self.return_op_code = (None, self.return_V, [])
+        self.initial_op_code = (None, self.initial, [])
+
+    def attach_learner(self, learner):
+        self.learner = learner
+
+    def build(self, shape, backend):
+        self.dt = backend.dt
+        self.M_initial = torch.zeros(shape, device=backend.device)
+        self.S_initial = torch.zeros(shape, device=backend.device)
+        self.V_initial = torch.zeros(shape, device=backend.device)
+        self.beta_m = np.exp(-backend.dt / self.tau_m)
+        self.beta_s = np.exp(-backend.dt / self.tau_s)
+        self.beta_e = np.exp(-backend.dt / self.tau_e)
+        self.initial()
+        self.rec_E = []
+
+    def initial(self):
+        self.M = self.M_initial
+        self.S = self.S_initial
+        self.V = self.V_initial
+        self.cumV = self.V_initial
+        self.O = None
+        self.rec_E = []
+
+    def update(self, WgtSum):
+
+        I = self.V0 * WgtSum
+
+        if I.dim() == self.M.dim() + 1:
+            Ii = I[:, 0, ...]
+            I0 = I[:, 1, ...]
+            self.M = self.beta_e * self.M + (Ii - I0 / self.tau_e)
+            self.S = self.beta_s * self.S + (Ii - I0 / self.tau_s)
+        else:
+            self.M = self.beta_e * self.M + I
+            self.S = self.beta_s * self.S + I
+
+        if self.O is not None:
+            Oi = self.O[:, 0, ...] #+ 0.9*self.O[:, 0, ...].detach()  # *self.O[:, 0, ...].gt(0.0)
+            Ot = self.O[:, 1, ...] #+ 0.9*self.O[:, 1, ...].detach()
+        else:
+            Oi = 0.0
+            Ot = 0.0
+
+
+        # expv = torch.clamp_max(torch.exp(2.5 * self.V)-1, 12)
+        expv = 2.0*torch.pow(torch.clamp(self.V,-10,self.v_th), 2.0)
+        self.dV = (expv - self.V + (self.M - self.S)) / self.tau_m
+        self.V = self.V + self.dV * self.dt - self.v_reset*(Oi-Ot/self.tau_m)
+
+
+
+        self.O = self.learner.threshold(self.V, self.dV, self.v_th)
+
+        return self.O
+
+    def return_V(self):
+        return self.V
+
 class LIFModel(NeuronModel):
     """
     LIF model:
@@ -762,7 +971,7 @@ class LIFModel(NeuronModel):
 
         self._tau_constant_variables['tauM'] = self.neuron_parameters['tau_m']
 
-        self._operations.append(('Vtemp', 'var_linear', 'tauM', 'V', 'WgtSum[updated]'))
+        self._operations.append(('Vtemp', 'var_linear', 'tauM', 'V', 'WgtSum[updated]'))#
         self._operations.append(('O', 'threshold', 'Vtemp', 'Vth'))
         self._operations.append(('Resetting', 'var_mult', 'Vtemp', 'O[updated]'))
         self._operations.append(('V', 'minus', 'Vtemp', 'Resetting'))
@@ -1619,5 +1828,26 @@ class MeanFieldModel(NeuronModel):
 
 
 NeuronModel.register("meanfield", MeanFieldModel)
+
+
+class SimpleRateModel(NeuronModel):
+    """
+    Rate model  "
+
+    U = U + dt/tau * (sigmoid(Iext + WgtSum) - U)
+    (WgtSum = weight*O_pre)
+    """
+    def __init__(self, **kwargs):
+        super(MeanFieldModel, self).__init__()
+        self._membrane_variables['tau'] = kwargs.get('tau', 1.0)
+
+        self._variables['Iext'] = 0.0
+        self._variables['WgtSum'] = 0.0
+        self._variables['U'] = 0.0
+
+        self._operations.append(('Isum', 'add', 'WgtSum', 'Iext'))
+        self._operations.append(('F', 'sigmoid', 'Isum'))
+        self._operations.append(('dU', 'minus', 'F', 'U'))
+        self._operations.append(('U', 'var_linear', 'tau', 'dU', 'U'))
 
 

@@ -53,6 +53,7 @@ class Conv2d_RSTDP(Learner):
         with torch.no_grad():
             assert reward.ndim <= 1, 'The reward for conv2d_rstdp should be a global reward'
             weight.add_(self.learning_rate * reward * eligibility)
+            return weight
 
     def build(self, backend):
         super(Conv2d_RSTDP, self).build(backend)
@@ -163,7 +164,7 @@ class Conv2d_RSTDP(Learner):
             backend.add_operation(['eligibility_sum', 'reduce_sum', 'eligibility_temp', sum_dim_name])
             backend.add_operation([eligibility_name, 'view', 'eligibility_sum', view_name])
 
-            backend.register_standalone(None, self.weight_update, [weight_name, eligibility_name, reward_name])
+            backend.add_operation([weight_name, self.weight_update, weight_name, eligibility_name, reward_name])
 
 Learner.register('conv2d_rstdp', Conv2d_RSTDP)
 

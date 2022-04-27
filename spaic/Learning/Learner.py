@@ -60,7 +60,7 @@ class Learner(BaseModule, ABC):
                         'CyclicLR': torch.optim.lr_scheduler.CyclicLR,
                         'CosineAnnealingWarmRestarts': torch.optim.lr_scheduler.CosineAnnealingWarmRestarts}
 
-    def __init__(self, trainable=None, algorithm=('STCA', 'STBP', 'RSTDP', '...'), **kwargs):
+    def __init__(self, trainable=None, pathway=None, algorithm=('STCA', 'STBP', 'RSTDP', '...'), **kwargs):
 
         super(Learner, self).__init__()
 
@@ -75,8 +75,18 @@ class Learner(BaseModule, ABC):
         self.trainable_groups = OrderedDict()
         self.trainable_connections = OrderedDict()
         self.trainable_nodes = OrderedDict()
-        self.trainable_modules = list()
+        self.trainable_modules = OrderedDict()
         self.init_trainable = trainable
+
+        self.pathway_groups = OrderedDict()
+        self.pathway_connections = OrderedDict()
+        self.pathway_nodes = OrderedDict()
+        self.pathway_modules = OrderedDict()
+        self.init_pathway = pathway
+
+        self._operations = []
+        self._var_dict = dict()
+
 
     def add_trainable(self, trainable: list):
         '''
@@ -101,12 +111,43 @@ class Learner(BaseModule, ABC):
             elif isinstance(target, Node):
                 self.trainable_nodes[target.id] = target
             elif isinstance(target, Module):
-                self.trainable_modules.append(target)
+                self.trainable_modules[target.id] = target
             elif isinstance(target, Assembly):
                 for sub_t in target.get_groups():
                     trainable.append(sub_t)
                 for sub_t in target.get_connections():
                     trainable.append(sub_t)
+
+    def add_pathway(self, pathway: list):
+        '''
+            Add target object (Assembly, Connection, or list of them) to the pathway container
+            Args:
+                pathway(list) : The pathway target waiting for added.
+        '''
+        from ..Network.Assembly import Assembly
+        from ..Network.Connection import Connection
+        from ..Neuron.Neuron import NeuronGroup
+        from ..Neuron.Module import Module
+        from ..Neuron.Node import Node
+
+        if not isinstance(pathway, list):
+            pathway = [pathway]
+
+        for target in pathway:
+            if isinstance(target, NeuronGroup):
+                self.pathway_groups[target.id] = target
+            elif isinstance(target, Connection):
+                self.pathway_connections[target.id] = target
+            elif isinstance(target, Node):
+                self.pathway_nodes[target.id] = target
+            elif isinstance(target, Module):
+                self.pathway_modules[target.id] = target
+            elif isinstance(target, Assembly):
+                for sub_t in target.get_groups():
+                    pathway.append(sub_t)
+                for sub_t in target.get_connections():
+                    pathway.append(sub_t)
+
 
     def build(self, backend):
         '''
@@ -158,11 +199,9 @@ class Learner(BaseModule, ABC):
         if self.lr_schedule_name not in Learner.lr_schedule_dict.keys():
             raise ValueError("No lr_schedule %s in lr_schedule list")
 
-    def build_optimizer(self):
-
+    def get_param(self):
         param = list()
         var_name = list()
-
         for key, conn in self.trainable_connections.items():
             for name in conn._var_names:
                 var_name.append(name)
@@ -176,12 +215,15 @@ class Learner(BaseModule, ABC):
         for key, value in self._backend._parameters_dict.items():
             if key in var_name:
                 param.append(value)
-        for mod in self.trainable_modules:
+        for mod in self.trainable_modules.values():
             param.extend(mod.parameters)
 
-        for mod in self.trainable_modules:
-            param.extend(mod.parameters)
+        return param
 
+
+    def build_optimizer(self):
+
+        param = self.get_param()
         self.optim = Learner.optim_dict[self.optim_name](param, self.optim_lr, **self.optim_para)
 
     def build_lr_shedule(self):
@@ -211,6 +253,14 @@ class Learner(BaseModule, ABC):
                 ('Given algorithm of type %s does not seem to be a valid algorithm.' % str(type(algorithm))))
 
         Learner.learning_algorithms[name] = algorithm
+
+    @staticmethod
+    def connection_function(learner, input_vars=dict(), output_vars=dict(), new_vars_dict=dict(), execute_condition=['initial','iterative','end'], target=['trainable', 'pathway']):
+        pass
+
+    @staticmethod
+    def Assamble_function(learner, input_vars=dict(), output_vars=dict(), new_vars_dict=dict(), execute_condition=['initial','iterative','end'], target=['trainable', 'pathway']):
+        pass
 
 
 class SpikeProp(Learner):

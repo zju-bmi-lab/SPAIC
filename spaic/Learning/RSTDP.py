@@ -53,6 +53,7 @@ class RSTDP(Learner):
                 reward = reward.transpose(1, 0)
                 reward = reward.repeat(1, eligibility.shape[1])
             weight.add_(self.learning_rate * reward * eligibility)
+            return weight
 
     def build(self, backend):
         super(RSTDP, self).build(backend)
@@ -140,7 +141,7 @@ class RSTDP(Learner):
             else:
                 backend.add_operation(['post_pre', 'mat_mult', 'p_minus_permute', pre_name])
             backend.add_operation([eligibility_name, 'add', 'pre_post', 'post_pre'])
-            backend.register_standalone(None, self.weight_update, [weight_name, eligibility_name, reward_name])
+            backend.add_operation([weight_name, self.weight_update, weight_name, eligibility_name, reward_name])
 Learner.register('rstdp', RSTDP)
 
 
@@ -195,6 +196,7 @@ class RSTDPET(Learner):
                 reward = reward.transpose(1, 0)
                 reward = reward.repeat(1, eligibility_trace.shape[1])
             weight.add_(self.learning_rate * self.dt * reward * eligibility_trace)
+            # return weight
 
     def build(self, backend):
         super(RSTDPET, self).build(backend)
@@ -283,6 +285,6 @@ class RSTDPET(Learner):
             backend.add_operation(['eligibility_trace_temp', 'var_mult', 'tau_e', eligibility_name + '[updated]'])
             backend.add_operation([eligibility_trace_name, 'var_linear', 'tau_e_trace', eligibility_trace_name, 'eligibility_trace_temp'])
 
-            backend.register_standalone(None, self.weight_update, [weight_name, eligibility_trace_name, reward_name])
+            backend.add_operation([None, self.weight_update, weight_name, eligibility_trace_name, reward_name])
 
 Learner.register('rstdpet', RSTDPET)

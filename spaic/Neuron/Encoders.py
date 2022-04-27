@@ -25,7 +25,7 @@ class NullEncoder(Encoder):
         # assert (source >= 0).all(), "Inputs must be non-negative"
         # Note: the shape of encoded date should be (batch, time_step, shape)
         if source.__class__.__name__ == 'ndarray':
-            source = torch.tensor(source, device=device)
+            source = torch.tensor(source, device=device, dtype=torch.float32)
         return source.transpose(1, 0)
 
 Encoder.register('null', NullEncoder)
@@ -43,7 +43,7 @@ class SigleSpikeToBinary(Encoder):
     def torch_coding(self, source, device):
         assert (source >= 0).all(), "Inputs must be non-negative"
         if source.__class__.__name__ == 'ndarray':
-            source = torch.tensor(source, device=device)
+            source = torch.tensor(source, device=device, dtype=torch.float32)
         shape = list(source.shape)
         spk_shape = [self.time_step] + shape
 
@@ -72,6 +72,8 @@ class MultipleSpikeToBinary(Encoder):
 
     def torch_coding(self, source, device):
         # 直接使用for循环
+        if source.__class__.__name__ == 'ndarray':
+            source = torch.tensor(source, device=device, dtype=torch.float32)
         all_spikes = []
         if '[2]' in self.coding_var_name:
             for i in range(source.shape[0]):
@@ -191,7 +193,7 @@ class Latency(Encoder):
         assert (source >= 0).all(), "Inputs must be non-negative"
 
         if source.__class__.__name__ == 'ndarray':
-            source = torch.tensor(source, device=device)
+            source = torch.tensor(source, device=device, dtype=torch.float32)
         shape = list(source.shape)
         spk_shape = [self.time_step] + shape
         max_scale = self.time_step - 1.0
@@ -232,7 +234,7 @@ class Relative_Latency(Encoder):
     def torch_coding(self, source, device):
         import torch.nn.functional as F
         if source.__class__.__name__ == 'ndarray':
-            source = torch.tensor(source, device=device)
+            source = torch.tensor(source, device=device, dtype=torch.float32)
 
         self.max_scale = self.time_step - 1.0
         shape = list(source.shape)

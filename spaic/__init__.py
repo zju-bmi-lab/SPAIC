@@ -8,13 +8,14 @@ Created on 2020/8/11
 @description: 
 """
 # print('__file__={0:<35} | __name__={1:<20} | __package__={2:<20}'.format(__file__,__name__,str(__package__)))
-from .Network import Network, Connection, Assembly
+from .Network import Network, Connection, Assembly, Projection
 from .Neuron import NeuronGroup
 
 from .Neuron import Node, Encoders, Decoders, Generators, Rewards, Actions
 from .Neuron.Node import Encoder, Decoder, Generator, Reward, Action
 from .Neuron.Module import Module
 from .Network.BaseModule import BaseModule
+from .Network.ConnectPolicy import ExcludedTypePolicy, IndexConnectPolicy, IncludedTypePolicy
 from .Backend.Backend import Backend
 from .Backend.Torch_Backend import Torch_Backend
 # from .Backend.Tensorflow_Backend import Tensorflow_Backend
@@ -28,6 +29,7 @@ from .IO.Dataset import Dataset, CustomDataset, MNIST, FashionMNIST, OctMNIST, P
 from .IO.Dataloader import Dataloader
 from .IO.Pipeline import RLPipeline, ReplayMemory
 from .IO.Environment import GymEnvironment
+
 
 
 

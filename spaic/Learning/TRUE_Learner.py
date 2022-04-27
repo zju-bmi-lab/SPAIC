@@ -43,7 +43,7 @@ class TRUE_SpikeProp(Learner):
         else:
             neurons = []
         for n in neurons:
-            if isinstance(n, spaic.NeuronGroup) and (n.model_name == 'slif' or n.model_name == 'selif'):
+            if isinstance(n, spaic.NeuronGroup) and (n.model_name=='slif' or n.model_name=='selif'):
                 n.model.attach_learner(self)
 
 

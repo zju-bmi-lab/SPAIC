@@ -55,7 +55,7 @@ class Rate_Modulate(Learner):
                 output_name = post_group.id + ':' + '{' + post_var_name + '}'
                 method = Modulation_method(weight, m_r, alpha, output_name)
                 self.modulations.append(method)
-                backend.register_standalone(None, method.record_rate, [output_name])
+                backend.add_operation([None, method.record_rate, [output_name]])
                 backend.register_initial(None, method.modulate_step, [])
             ind += 1
 
