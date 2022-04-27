@@ -24,7 +24,7 @@ class Node(Assembly):
         super(Node, self).__init__()
 
         self._dt = dt
-        self._time = kwargs('time', None)
+        self._time = kwargs.get('time', None)
         self.coding_var_name = coding_var_name
         position = kwargs.get('position', None)
         if position == None:
