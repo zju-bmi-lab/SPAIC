@@ -11,7 +11,7 @@ Created on 2020/8/5
 执行过程：网络定义->网络生成->网络仿真与学习
 """
 from spaic.Network.Assembly import Assembly
-from spaic.Network.Connection import Connection
+# from spaic.Network.Topology import Connection
 from collections import OrderedDict
 from warnings import warn
 import spaic
@@ -85,9 +85,13 @@ class Network(Assembly):
             self._backend.runtime = 1.0
 
         all_groups = self.get_groups()
-        all_connections = self.get_connections()
         for asb in all_groups:
             asb.set_id()
+
+        self.build_projections(self._backend)
+
+        all_connections = self.get_connections()
+
 
         for con in all_connections:
             con.set_id()
@@ -97,23 +101,25 @@ class Network(Assembly):
             con.post_assembly.register_connection(con, False)
 
 
-        if strategy == 1:
-            # 采取单纯的从头递归地build，一旦出现环路会陷入死循环，可以避开固有延迟的问题
-            self.forward_build(all_groups, all_connections)
-        elif strategy == 2:
-            # 采取策略性构建，但是目前存在两个问题：
-            #   1. 网络中存在Assembly块时会出现bug，尚未修复
-            #   2. Connection所使用的input_spike为上一步的，需要添加[updated]，目前暂不使用所以未添加
-            #   该构建方式可以较大程度上避开固有延迟的问题
-            self.strategy_build(self.get_groups(False))
-        else:
-            # 原本的构建方式，首先构建连接，每个连接都是用上一轮神经元的输出脉冲，从而存在固有延迟的问题
-            # 但是可以避开环路的问题。
-            for connection in all_connections:
-                connection.build(self._backend)
+        # if strategy == 1:
+        #     # 采取单纯的从头递归地build，一旦出现环路会陷入死循环，可以避开固有延迟的问题
+        #     self.forward_build(all_groups, all_connections)
+        # elif strategy == 2:
+        #     # 采取策略性构建，但是目前存在两个问题：
+        #     #   1. 网络中存在Assembly块时会出现bug，尚未修复
+        #     #   2. Connection所使用的input_spike为上一步的，需要添加[updated]，目前暂不使用所以未添加
+        #     #   该构建方式可以较大程度上避开固有延迟的问题
+        #     self.strategy_build(self.get_groups(False))
+        # else:
+        #     # 原本的构建方式，首先构建连接，每个连接都是用上一轮神经元的输出脉冲，从而存在固有延迟的问题
+        #     # 但是可以避开环路的问题。
+        #
 
-            for group in all_groups:
-                group.build(self._backend)
+        for connection in all_connections:
+            connection.build(self._backend)
+
+        for group in all_groups:
+            group.build(self._backend)
         #
         # self.strategy_build(all_groups)
 
@@ -123,13 +129,17 @@ class Network(Assembly):
         for learner in self._learners.values():
             learner.build(self._backend)
 
+
+
         self._backend.build_graph()
+        # self._backend.build()
         self._backend.builded = True
 
-        for group in all_groups:
-            if hasattr(group, 'index'):
-                group.index = 0
-        # self._backend.build()
+
+        # for group in all_groups:
+        #     if hasattr(group, 'index'):
+        #         group.index = 0
+
         pass
 
     def forward_build(self, all_groups=None, all_connections=None):
@@ -276,7 +286,7 @@ class Network(Assembly):
     def init_run(self):
         self._backend.initial_step()
 
-    def save_state(self, direct=None, mode=True, hdf5=False):
+    def save_state(self, direct=None, save=True, hdf5=False):
         """
         Save weights in memory or on hard disk.
 
@@ -289,7 +299,7 @@ class Network(Assembly):
 
         """
         state = self._backend._parameters_dict
-        if not mode:
+        if not save:
             return state
         path = '/NetData/' + direct + '/parameters/'
         import os
@@ -317,7 +327,7 @@ class Network(Assembly):
         os.chdir(origin_path)
         return dir
 
-    def state_from_dict(self, state=None, direct=None, device='cpu'):
+    def state_from_dict(self, state=False, direct=None, device='cpu'):
         """
         Reload states from memory or disk.
 
@@ -330,10 +340,21 @@ class Network(Assembly):
             state: Connections' weight of the network.
 
         """
+        if not self._backend:
+            self.set_backend('torch', device=device)
+        if self._backend.builded is False:
+            self.build()
+        if self._backend.device != device:
+            import warnings
+            warnings.warn('Backend device setting is '+self._backend.device+'. Backend device selection is priority.')
+            device = self._backend.device
         if state:
             import torch
             if isinstance(state, dict) or isinstance(state, torch.Tensor):
-                self._backend._parameters_dict = state
+                for key, para in state.items():
+                    backend_key = self._backend.check_key(key, self._backend._parameters_dict)
+                    if key:
+                        self._backend._parameters_dict[backend_key] = para.to(device)
                 return
             else:
                 raise ValueError("Given state has wrong type")
@@ -343,17 +364,27 @@ class Network(Assembly):
             import torch
             origin_path = os.getcwd()
             os.chdir(os.getcwd()+path)
-            if self._backend.builded is False:
-                self.build()
+
             if '_parameters_dict.pt' in os.listdir('./'):
-                self._backend._parameters_dict = torch.load('./_parameters_dict.pt')
+                data = torch.load('./_parameters_dict.pt')
+                for key, para in data.items():
+                    backend_key = self._backend.check_key(key, self._backend._parameters_dict)
+                    if backend_key:
+                        self._backend._parameters_dict[backend_key] = para.to(device)
+
+                # self._backend._parameters_dict = torch.load('./_parameters_dict.pt')
             else:
                 for file in os.listdir('./'):
                     if file.endswith('.hdf5'):
                         import h5py
                         with h5py.File(direct, 'r') as f:
-                            for i, item in enumerate(self._backend._parameters_dict):
-                                self._backend._parameters_dict[item] = torch.tensor(f[item].value, device=device)
+                            for key, para in f.items():
+                                backend_key = self._backend.check_key(key, self._backend._parameters_dict)
+                                if key:
+                                    self._backend._parameters_dict[backend_key] = para.to(device)
+
+                            # for i, item in enumerate(self._backend._parameters_dict):
+                            #     self._backend._parameters_dict[item] = torch.tensor(f[item].value, device=device)
             os.chdir(origin_path)
             return
         raise ValueError("Didn't give state")

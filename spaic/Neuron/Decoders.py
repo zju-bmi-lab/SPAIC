@@ -16,8 +16,8 @@ import numpy as np
 
 class Spike_Counts(Decoder):
 
-    def __init__(self, shape=None, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'), coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
-        super(Spike_Counts, self).__init__(shape, num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
+    def __init__(self, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'), coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
+        super(Spike_Counts, self).__init__(num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
         self.pop_size = kwargs.get('pop_size', 1)
 
     def numpy_coding(self, record, target, device):
@@ -56,8 +56,8 @@ class Final_Step_Voltage(Decoder):
     Get label that has the highest voltage.
     """
 
-    def __init__(self, shape=None, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'), coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
-        super(Final_Step_Voltage, self).__init__(shape, num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
+    def __init__(self, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'), coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
+        super(Final_Step_Voltage, self).__init__(num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
 
     def torch_coding(self, record, target, device):
         # the shape of record is (time_step, batch_size, n_neurons)
@@ -70,8 +70,8 @@ Decoder.register('final_step_voltage', Final_Step_Voltage)
 class First_Spike(Decoder):
 
 
-    def __init__(self, shape=None, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'), coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
-        super(First_Spike, self).__init__(shape, num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
+    def __init__(self, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'), coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
+        super(First_Spike, self).__init__(num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
 
     # def numpy_decoding(self, record):
     #     # the shape of record is (time_step, batch_size, n_neurons)
@@ -103,8 +103,8 @@ Decoder.register('first_spike', First_Spike)
 class TimeSpike_Counts(Decoder):
 
 
-    def __init__(self, shape=None, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'), coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
-        super(TimeSpike_Counts, self).__init__(shape, num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
+    def __init__(self, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'), coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
+        super(TimeSpike_Counts, self).__init__(num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
 
     def numpy_coding(self, record, target, device):
         # the shape of record is (batch_size, n_neurons)
@@ -132,8 +132,8 @@ Decoder.register('time_spike_counts',TimeSpike_Counts)
 
 class V_Trajectory(Decoder):
 
-    def __init__(self, shape=None, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'), coding_var_name='V', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
-        super(V_Trajectory, self).__init__(shape, num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
+    def __init__(self, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'), coding_var_name='V', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
+        super(V_Trajectory, self).__init__(num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
 
     def torch_coding(self, record, target, device):
         # the shape of record is (batch_size, n_neurons)
@@ -146,8 +146,8 @@ Decoder.register('v_t', V_Trajectory)
 class Time_Softmax(Decoder):
 
 
-    def __init__(self, shape=None, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'), coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
-        super(Time_Softmax, self).__init__(shape, num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
+    def __init__(self, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'), coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
+        super(Time_Softmax, self).__init__(num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
 
     def numpy_coding(self, record, target, device):
         pass
@@ -240,8 +240,8 @@ Decoder.register('time_softmax', Time_Softmax)
 
 class Voltage_Sum(Decoder):
 
-    def __init__(self, shape=None, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'), coding_var_name='V', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
-        super(Voltage_Sum, self).__init__(shape, num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
+    def __init__(self, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'), coding_var_name='V', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
+        super(Voltage_Sum, self).__init__(num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
 
     def numpy_coding(self, record, target, device):
         # the shape of record is (time_step, batch_size, n_neurons)
@@ -266,5 +266,5 @@ class Voltage_Sum(Decoder):
 Decoder.register('voltage_sum', Voltage_Sum)
 
 class Spike_Conv(Decoder):
-    def __init__(self, shape=None, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'), coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), decay=0.9, ocillate=-0.01, **kwargs):
-        super(Spike_Conv, self).__init__(shape, num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
+    def __init__(self, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'), coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), decay=0.9, ocillate=-0.01, **kwargs):
+        super(Spike_Conv, self).__init__(num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)

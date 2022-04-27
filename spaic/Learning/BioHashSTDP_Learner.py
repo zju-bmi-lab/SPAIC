@@ -47,9 +47,8 @@ class BioHash(Learner):
             backend.add_variable(post_trace_name, backend._variables[post_name].shape, value=0.0)
             backend.add_variable(rank_name, shape=rank_value.shape, value=rank_value)
 
-            backend.register_standalone(post_trace_name, self.update_STDP, [post_name, pre_trace_name, post_trace_name, weight_name, rank_name])
-            backend.register_standalone(pre_trace_name, self.update_pre_trace, [pre_name, pre_trace_name])
-            a = 1
+            backend.add_operation([post_trace_name, self.update_STDP, [post_name, pre_trace_name, post_trace_name, weight_name, rank_name]])
+            backend.add_operation([pre_trace_name, self.update_pre_trace, pre_name, pre_trace_name])
 
 
 

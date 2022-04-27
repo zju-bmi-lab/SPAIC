@@ -103,6 +103,8 @@ class TorchDelayQueue(DelayQueue):
         self.count += 1
         self.count = self.count % self.max_len
 
+        return input
+
 
     def select(self, delay: torch.Tensor):
         # Only for one-dim neurongroup for now

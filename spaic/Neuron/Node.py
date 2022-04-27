@@ -233,6 +233,9 @@ class Encoder(Node):
 
         Encoder._coding_subclasses[name] = coding_class
 
+    def init_state(self):
+        self.index = 0
+
     # initial operation: encoding input features into spike patterns
     def get_input(self):
         self.index = 0
@@ -250,6 +253,7 @@ class Encoder(Node):
             self.new_input = False
 
         self.index += 1
+
         return self.all_spikes[self.index-1]
 
     def build(self, backend):
@@ -273,7 +277,7 @@ class Encoder(Node):
         key = self.id + ':' + '{'+self.coding_var_name+'}'
         self._var_names.append(key)
         backend.add_variable(key, self.shape, value=0)
-        # backend.register_initial(None, self.get_input, [])
+        backend.register_initial(None, self.init_state, [])
         backend.register_standalone(key, self.next_stage, [])
 
 
@@ -291,12 +295,12 @@ class Decoder(Node):
         5. 'final_step_voltage': Final_Step_Voltage
     '''
     _coding_subclasses = dict()
-    def __init__(self, shape=None, num=None, dec_target=None,  dt=None, coding_method=('poisson', 'spike_counts', '...'),
+    def __init__(self, num=None, dec_target=None,  dt=None, coding_method=('poisson', 'spike_counts', '...'),
                  coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
-        super(Decoder, self).__init__(shape, num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
+        super(Decoder, self).__init__(None, num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
         assert num == dec_target.num, ('The num of Decoder is not consistent with neuron_number of NeuronGroup')
 
-    def __new__(cls, shape=None, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'),
+    def __new__(cls, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'),
                 coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
         coding_method = coding_method.lower()
         if cls is not Decoder:
@@ -503,6 +507,9 @@ class Generator(Node):
 
         Generator._coding_subclasses[name] = coding_class
 
+    def init_state(self):
+        self.index = 0
+
     # initial operation: encoding input features into spike patterns
     def get_input(self):
         self.index = 0
@@ -541,8 +548,9 @@ class Generator(Node):
         else:
             key = self.dec_target.id + ':' + '{'+self.coding_var_name+'}'
         self._var_names.append(key)
-        # backend.register_initial(None, self.get_input, [])
+        backend.register_initial(None, self.init_state, [])
         backend.register_standalone(key, self.next_stage, [])
+
 
 # ======================================================================================================================
 # Actions

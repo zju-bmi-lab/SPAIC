@@ -10,10 +10,51 @@ Created on 2020/9/14
 from .Backend import Backend, backends
 import torch
 import numpy as np
-from torch import jit
+# from torch import fx
 #from torch.nn import Module, Parameter
 import torch.nn.functional as fn
 from typing import Tuple, Dict, Callable
+
+class Torch_Engine(torch.nn.Module):
+    def __init__(self, graph_operations):
+        super(Torch_Engine, self).__init__()
+        self._graph_operations = graph_operations
+
+    def forward(self, variables: Dict[str,torch.Tensor]):
+        temp_dict = dict()
+        update_dict = dict()
+        reduce_dict = dict()
+
+        for op in self._graph_operations:
+            # for inputs
+            inputs = []
+            for var in op[2]:
+                if var[0] == 'variables_dict':
+                    inputs.append(variables[var[1]])
+                elif var[0] == 'temp_dict':
+                    inputs.append(temp_dict[var[1]])
+                elif var[0] == 'update_dict':
+                    inputs.append(update_dict[var[1]])
+                elif var[0] == 'reduce_dict':
+                    inputs.append(reduce_dict[var[1]])
+            # compute the operation
+            result = op[1](*inputs)
+            if len(op[0]) == 1: result = [result]
+            # assign the result variables
+            for ind, var in enumerate(op[0]):
+                if var[0] == 'temp_dict':
+                    temp_dict[var[1]] = result[ind]
+                elif var[0] == 'update_dict':
+                    update_dict[var[1]] = result[ind]
+                elif var[0] == 'reduce_dict':
+                    if var[1] in reduce_dict:
+                        reduce_dict[var[1]].append(result[ind])
+                    else:
+                        reduce_dict[var[1]] = [result[ind]]
+
+        return update_dict
+
+
 
 class Torch_Backend(Backend):
     backend_name = 'pytorch'
@@ -27,15 +68,21 @@ class Torch_Backend(Backend):
         pass
 
     def build(self):
+        from torch import fx
         # self._graph_var_dicts = {'variables_dict': self._variables, 'temp_dict': dict(), 'update_dict': dict(),
         #                          'reduce_dict': dict()}
         # self._graph_var_dicts['temp_dict']['example_temp_dict_pytorch_datatype'] = torch.empty(1)
         # self._graph_var_dicts['update_dict']['example_temp_dict_pytorch_datatype'] = torch.empty(1)
         # self._graph_var_dicts['reduce_dict']['example_temp_dict_pytorch_datatype'] = torch.empty(1)
         #
-        # #self.update_step = jit.trace(self.update_step)
-        # self.graph_update_step = jit.trace(self.graph_update_step,[])
-        pass
+        #self.update_step = jit.trace(self.update_step)
+        self.engine = Torch_Engine(self._graph_operations)
+        self.engine = fx.symbolic_trace(self.engine)
+
+        # self.graph_update_step = torch.jit.script(self.engine)
+        self.graph_update_step = self.engine
+        # print(self.engine.code)
+
 
 
     # def graph_update_step(self):
@@ -52,7 +99,7 @@ class Torch_Backend(Backend):
     #
     #     return tuple(self._graph_var_dicts['variables_dict'].values())
 
-    def add_backend_variable(self, name, shape, value=None, grad=False, is_sparse=False, init=None):
+    def add_backend_variable(self, name, shape, value=None, grad=False, is_sparse=False, init=None, init_param=None):
         '''
         Parameters
         ----------
@@ -63,7 +110,9 @@ class Torch_Backend(Backend):
         Returns
         -------
         '''
-        # TODO: 现在先尝试一下在backend简单建立一个跑一下，以后再改
+
+        if init_param is None:
+            init_param = dict()
         if value is not None:
             if hasattr(value, "__len__"):
                 if value.shape != shape:
@@ -83,7 +132,7 @@ class Torch_Backend(Backend):
                     if init is not None:
                         # self._variables[sparse_value] = self.init_param(True, init)
                         data = torch.empty(shape, dtype=torch.float32, device=self.device, requires_grad=True)
-                        self._variables[sparse_value] = self.param_init_operate[init](data)
+                        self._variables[sparse_value] = self.param_init_operate[init](data, **init_param)
                     else:
                         self._variables[sparse_value] = torch.tensor(v, dtype=torch.float32, requires_grad=True, device=self.device)
                     self._parameters_dict[sparse_value] = self._variables[sparse_value]
@@ -98,8 +147,7 @@ class Torch_Backend(Backend):
                 else:
                     # add a non sparse matrices with all dimensions greater than 2
                     if init is not None:
-                        # self._variables[name] = self.init_param(grad, init)
-                        data = torch.tensor(value, dtype=torch.float32, device=self.device, requires_grad=grad)
+                        data = torch.empty(shape, dtype=torch.float32, device=self.device, requires_grad=grad)
                         init = init.lower()
                         if init in self.param_init_operate.keys():
                             self._variables[name] = self.param_init_operate[init](data)
@@ -109,7 +157,9 @@ class Torch_Backend(Backend):
                         if isinstance(value, torch.Tensor):
                             self._variables[name] = value.clone().detach()
                         else:
-                            self._variables[name] = torch.tensor(value, dtype=torch.float32, device=self.device, requires_grad=grad)
+                            self._variables[name] = torch.tensor(value, dtype=torch.float32, device=self.device,
+                                                                   requires_grad=grad)
+
             elif len(shape) == 0:
                 # add constant
                 self._variables[name] = torch.tensor(value, dtype=torch.float32, device=self.device, requires_grad=grad)
@@ -206,8 +256,7 @@ class Torch_Backend(Backend):
 
     def conv_max_pool2d(self, x, kernel, max_kernel, stride, padding, dilation, groups):
 
-        return fn.conv2d(fn.max_pool2d(x, int(max_kernel[0])), kernel, stride=int(stride), padding=int(padding),
-                         dilation=int(dilation), groups=int(groups))
+        return fn.conv2d(fn.max_pool2d(x, int(max_kernel[0])), kernel, stride=int(stride), padding=int(padding), dilation=int(dilation), groups=int(groups))
 
     def reshape_mat_mult(self, A, X):
 
@@ -242,6 +291,9 @@ class Torch_Backend(Backend):
     def relu(self, x):
         return torch.relu(x)
 
+    def sigmoid(self, x):
+        return torch.sigmoid(x)
+
     def mat_mult_weight(self, A, X):
         '''
         Parameters
@@ -251,7 +303,23 @@ class Torch_Backend(Backend):
         Returns
         -------
         '''
-        X = X.permute(1, 0)
+        try:
+            X = X.permute(1, 0)
+            return torch.matmul(A, X)
+        except:
+            a = 1
+
+
+    def mat_mult_pre(self, A, X):
+        '''
+        Parameters
+        ----------
+        A--->preGroup:input
+        X--->postGroup:weight
+        Returns
+        -------
+        '''
+        A = A.permute(1, 0)
         return torch.matmul(A, X)
 
     def mat_mult(self, A, X):
@@ -468,6 +536,10 @@ class Torch_Backend(Backend):
 
 
 backends[Torch_Backend.backend_name] = Torch_Backend
+
+
+
+
 
 # test = Torch_Backend()
 # th = test.basic_operate['threshold']

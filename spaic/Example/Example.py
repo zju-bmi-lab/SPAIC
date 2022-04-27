@@ -42,7 +42,7 @@ class TestNet(spaic.Network):
         self.output = spaic.Decoder(num=10, dec_target=self.layer1, coding_method='spike_counts')
 
         # Connection
-        self.connection1 = spaic.Connection(self.input, self.layer1, link_type='full')
+        self.connection1 = spaic.Connection(self.input, self.layer1, link_type='full_connection')
         # Learner
         self.learner = spaic.Learner(trainable=self, algorithm='STCA')
         self.learner.set_optimizer('Adam', 0.001)
@@ -53,6 +53,10 @@ class TestNet(spaic.Network):
         backend = spaic.Torch_Backend(device)
         backend.dt = 0.1
         self.set_backend(backend)
+
+        self.mon_V = spaic.StateMonitor(self.layer1, 'V')
+        self.mon_I = spaic.StateMonitor(self.input, 'O')
+        self.spk_l1 = spaic.SpikeMonitor(self.layer1, 'O')
 
 Net = TestNet()
 

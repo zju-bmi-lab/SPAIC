@@ -23,6 +23,7 @@ class BaseModule():
         self.id = None
         self.name = None
         self.hided = False
+        self._supers = []
         pass
 
     @abstractmethod
@@ -52,6 +53,28 @@ class BaseModule():
 
         return self.name
 
+    def set_id(self):
+        if len(self._supers) == 0:
+            self.id = self.name + self.__class__._class_label
+        else:
+            super_ids = []
+            for super in self._supers:
+                if super.id is not None:
+                    super_ids.append(super.id)
+                else:
+                    super_ids.append(super.set_id())
+
+            self.id = self.name + self.__class__._class_label
+            if len(super_ids) == 1:
+                self.id = super_ids[0] + '_' + self.id
+            else:
+                pre_id = '/'
+                for prefix in super_ids:
+                    pre_id += prefix + ','
+                pre_id += '/'
+                self.id = pre_id + '_' + self.id
+        return self.id
+
     def set_build_level(self, level):
 
         if self.build_level < 0:
@@ -60,17 +83,32 @@ class BaseModule():
             self.build_level = level
 
 
-class NetModule(BaseModule):
-    '''
-    Base class for snn network modules: assemblies, connection
-    '''
+class VariableAgent(object):
+    def __init__(self, backend, var_name):
+        super(VariableAgent, self).__init__()
+        assert isinstance(backend, spaic.Backend)
+        self._backend = backend
+        self._var_name = var_name
 
-    def __init__(self):
-        super(NetModule, self).__init__()
+    @property
+    def var_name(self):
+        return self._var_name
 
-        self.trainable_parameter_names = OrderedDict()
+    @property
+    def value(self):
+        return self._backend.get_varialble(self._var_name)
 
-    def add_trainable_names(self, name):
-        pass
+# class NetModule(BaseModule):
+#     '''
+#     Base class for snn network modules: assemblies, connection
+#     '''
+#
+#     def __init__(self):
+#         super(NetModule, self).__init__()
+#
+#         self.trainable_parameter_names = OrderedDict()
+#
+#     def add_trainable_names(self, name):
+#         pass
 
 

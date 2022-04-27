@@ -20,12 +20,20 @@ class Poisson_Generator(Generator):
         HZ: cycles/s
     """
     def __init__(self, shape=None, num=None, dec_target=None,  dt=None, coding_method=('poisson', 'spike_counts', '...'),
-                 coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
+                 coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), rate=None, **kwargs):
 
         super(Poisson_Generator, self).__init__(shape, num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
         self.num = num
         # the unit of dt is 0.1ms, for each time step, the rate has to be multiplied by 1e-4
         self.unit_conversion = kwargs.get('unit_conversion', 0.1)
+        self.weight = kwargs.get('weight', 1.0)
+        if rate is not None:
+            if hasattr(rate, '__iter__'):
+                self.source = rate
+            else:
+                self.source = np.array([rate])
+            self.new_input = True
+
         self.batch = kwargs.get('batch', 1)
 
     def torch_coding(self, source, device):
@@ -43,7 +51,7 @@ class Poisson_Generator(Generator):
 
         # shape = [self.batch, self.num]
         spk_shape = [self.time_step] + list(self.shape)
-        spikes = torch.rand(spk_shape, device=device).le(source*self.unit_conversion).float()
+        spikes = self.weight*torch.rand(spk_shape, device=device).le(source*self.unit_conversion).float()
         return spikes
 
 Generator.register('poisson_generator', Poisson_Generator)

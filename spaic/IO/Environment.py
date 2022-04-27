@@ -11,7 +11,7 @@ Created on 2020/8/12
 """
 from abc import ABC, abstractmethod
 from spaic.IO.utils import RGBtoGray, GraytoBinary, reshape
-import gym
+# import gym
 import numpy as np
 
 '''
@@ -96,6 +96,7 @@ class GymEnvironment(BaseEnvironment):
             clip_rewards (bool): Whether or not to use ``np.sign`` of rewards.
             binary (bool): Whether to convert the image to binary
         """
+        import gym
         self.name = name
         self.environmet = gym.make(name)
         self.action_space = self.environmet.action_space

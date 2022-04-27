@@ -35,7 +35,7 @@ sim_name = sim_name.lower()
 # 创建训练数据集
 
 root = './spaic/Datasets/MNIST'
-train_set = dataset(root, is_train=True)
+train_set = dataset(root, is_train=False)
 test_set =dataset(root, is_train=False)
 
 run_time = 256 * backend.dt
@@ -44,7 +44,7 @@ label_num = 100
 bat_size = 1
 
 # 创建DataLoader迭代器
-train_loader = spaic.Dataloader(train_set, batch_size=bat_size, shuffle=True, drop_last=False)
+train_loader = spaic.Dataloader(train_set, batch_size=bat_size, shuffle=False, drop_last=False)
 test_loader = spaic.Dataloader(test_set, batch_size=bat_size, shuffle=False)
 
 
@@ -69,20 +69,24 @@ class TestNet(spaic.Network):
         self.connection1 = spaic.Connection(self.input, self.layer1, link_type='full',
                                               weight=(np.random.rand(label_num, 784) * 0.3))
         self.connection2 = spaic.Connection(self.layer1, self.layer2, link_type='full',
-                                              weight=(np.diag(np.ones(label_num))) * 23)
+                                              weight=(np.diag(np.ones(label_num))) * 22.5)
         self.connection3 = spaic.Connection(self.layer2, self.layer1, link_type='full', weight=(np.ones(
             (label_num, label_num)) - (np.diag(np.ones(label_num)))) * (-120))
 
 
         # Learner
-        self._learner = Learner(algorithm='full_online_stdp', trainable=self.connection1)
+        # self._learner = STCA(0.5, self)
+        self._learner = Learner(algorithm='nearest_online_stdp', trainable=self.connection1, run_time=run_time)
+
+        # self._learner = Learner(algorithm='nearest_online_stdp_inial', trainable=self.connection1, run_time=run_time)
+        # self._learner = Learner(algorithm='nearest_online_STDP', trainable=self.connection1, run_time=run_time)
 
         # Minitor
         # self.mon_V1 = spaic.StateMonitor(self.layer1, 'V')
         # self.mon_th_theta = spaic.StateMonitor(self.layer1, 'Vth_theta')
         # self.mon_O1 = spaic.StateMonitor(self.layer1, 'O')
         # self.mon_O2 = spaic.StateMonitor(self.layer2, 'O')
-        self.mon_weight = spaic.StateMonitor(self.connection1, 'weight', nbatch=False)
+        self.mon_weight = spaic.StateMonitor(self.connection1, 'weight', nbatch=-1)
         # self.mon_I1 = spaic.StateMonitor(self.input, 'O')
         # self.mon_weight2 = spaic.StateMonitor(self.connection2, 'weight')
 
@@ -103,15 +107,15 @@ spike_output = [[]] * 10
 # spike_output_test = [[]] * 10
 im = None
 # with torch.autograd.set_detect_anomaly(True):
-for epoch in range(10):
+for epoch in range(1):
     # 训练阶段
     pbar = tqdm(total=len(train_loader))
     train_loss = 0
     train_acc = 0
 
     for i, item in enumerate(train_loader):
-        if i > 10000:
-            break
+        # if i > 100:
+        #     break
         # 前向传播
         data, label = item
         Net.input(data)
@@ -128,15 +132,32 @@ for epoch in range(10):
         if sim_name == 'pytorch':
             label = torch.tensor(label, device=device, dtype=torch.long)
 
-        im = Net.mon_weight.plot_weight(time_id=-1, linewidths=0, linecolor='white', reshape=True, n_sqrt=10, side=28, im=im, wmax=1)
+        # assign_label = []
+        # if i % 500 == 0 and i > 0:
+        #     a = []
+        #     for i in range(len(spike_output)):
+        #         a.append(sum(spike_output[i]) / len(spike_output[i]))
+        #     assign_label = torch.argmax(torch.cat((a), 0), 0)
 
+        # im = Net.mon_weight.plot_weight(time_id=-1, linewidths=0, linecolor='white', reshape=True, n_sqrt=10, side=28, im=im)
 
+        # out1 = np.mean(np.sum(Net.layer1_O.values[0,...], axis=-1))
+
+        # pbar.set_description_str("[loss:%f, acc:%f]Batch progress: " % (batch_loss.item(), acc))
         pbar.update()
 
     a = [sum(spike_output[i]) / len(spike_output[i]) for i in range(len(spike_output))]
-
+    # for i in range(len(spike_output)):
+    #     a.append(sum(spike_output[i]) / len(spike_output[i]))
+        # train_label.append([torch.argmax(a[i])])
     assign_label = torch.argmax(torch.cat((a), 0), 0)
+    # Net.save_state('dict')
+    # im = Net.mon_weight.plot_weight(time_id=-1, linewidths=0, linecolor='white', reshape=True, n_sqrt=10, side=28,im=im)
+    # network_dir = network_save(Net, 'TestNet', 'json')
+    # Net.mon_weight.plot_heatmap(time_id=-1, linewidths=0, linecolor='white', reshape=True, new_shape=(280, 28))
 
+    # for epoch in range(5):
+    #     train()
 
     torch.save(Net.get_testparams(), 'tained_weight.pt')
     # data = torch.load('tained_weight.pt')
@@ -186,6 +207,16 @@ for epoch in range(10):
             num_correct = (predict_label == label).sum().item()
             acc = num_correct / data.shape[0]
             eval_acc += acc
+
+            # batch_loss = F.cross_entropy(output, label)
+            # eval_loss += batch_loss.item()
+            #
+            # _, pred = output.max(1)
+            # num_correct = (pred == label).sum().item()
+            # acc = num_correct / data.shape[0]
+            # eval_acc += acc
+
+            # pbarTest.set_description_str("[loss:%f]Batch progress: " % batch_loss.item())
             pbarTest.update()
 
 
@@ -193,6 +224,15 @@ for epoch in range(10):
         print(predict_label)
         print(label)
         a = eval_acc / len(test_loader)
+        print(a)
+        # for t in range(assign_label.shape[0]):
+        #     if predict_label[t] == label[t]:
+        #         eval_acc += 1
+        #     else:
+        #         pass
+
+        # eval_losses.append(eval_loss / len(test_loader))
+        # eval_acces.append(eval_acc / len(test_loader))
     pbarTest.close()
     print('epoch:{},Test Acc:{:.4f}'
           .format(epoch, eval_acc / len(test_loader)))

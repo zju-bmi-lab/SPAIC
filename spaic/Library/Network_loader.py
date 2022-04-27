@@ -12,17 +12,18 @@ Created on 2020/8/17
 
 import yaml
 import json
-from ..Network import Network, Connection
+from ..Network import Network, Connection, Assembly
 from ..Neuron.Neuron import NeuronGroup
 from ..Neuron.Node import Node, Encoder, Decoder
 from ..Learning.Learner import Learner
-from ..Monitor.Monitor import StateMonitor
+from ..Monitor.Monitor import StateMonitor, SpikeMonitor
 from ..Backend.Torch_Backend import Torch_Backend
+import spaic
 
 import torch
 
 
-def network_load(filename=None, device='cuda:0', data=None):
+def network_load(filename=None, device='cuda:0', load_weight=True):
     '''
         The main function for getting the target filename and reloading the
             network.
@@ -74,7 +75,7 @@ def network_load(filename=None, device='cuda:0', data=None):
             raise ValueError("file %s doesn't exist, please check the "
                              "filename" % filename)
 
-    net = ReloadedNetwork(net_data=data, device=device)
+    net = ReloadedNetwork(net_data=data, device=device, load_weight=load_weight)
 
     os.chdir(origin_path)
     return net
@@ -101,8 +102,8 @@ class ReloadedNetwork(Network):
             load_net(self, data: dict) : The function for load the whole
                 network, main function of this class.
             load_layer(self, layer: dict) : The function for load layer.
-            load_connections(self, con: dict) : The function for load
-                connections.
+            load_connection(self, con: dict) : The function for load
+                connection.
             load_node(self, node: dict) : The function for load node like input
                 or output.
             load_backend(self, path: str): The function for load backend.
@@ -112,7 +113,7 @@ class ReloadedNetwork(Network):
                 'STCA', 0.5)
 
     '''
-    def __init__(self, net_data: dict, backend=None, device='cpu', sub_net=False):
+    def __init__(self, net_data: dict, backend=None, device='cpu', load_weight=True):
         super(ReloadedNetwork, self).__init__()
 
         self.device = device
@@ -123,12 +124,13 @@ class ReloadedNetwork(Network):
 
         self.load_net(net_data)
 
-        if not sub_net:
-            self.set_backend(backend)
-            # self._learner = Learner(algorithm='STCA', lr=0.5, trainable=self)
-            self.build()
-
+        self.set_backend(backend)
+        # self._learner = Learner(algorithm='STCA', lr=0.5, trainable=self)
+        self.build()
+        if load_weight:
             self.load_backend(device)
+
+        del self._backend_info
 
     def load_net(self, data: dict):
         '''
@@ -142,6 +144,9 @@ class ReloadedNetwork(Network):
         data = data[list(data)[0]]
         for g in data:
             if list(g)[0] == 'monitor':
+                monitors = g.get('monitor')
+                for monitor in monitors:
+                    self.load_monitor(monitor)
                 continue
             if list(g)[0] == 'backend':
                 self._backend_info = g[list(g)[0]]
@@ -155,7 +160,11 @@ class ReloadedNetwork(Network):
                 elif para.get('_class_label') == '<con>':
                     con_name = para.get('name')
                     self.add_connection(name=con_name,
-                                        connection=self.load_connections(para))
+                                        connection=self.load_connection(net=self, con=para))
+                elif para.get('_class_label') == '<prj>':
+                    prj_name = para.get('name')
+                    self.add_projection(name=prj_name,
+                                        projection=self.load_projection(prj=para))
                 elif para.get('_class_label') == '<nod>':
                     nod_name = para.get('name')
                     self.add_assembly(name=nod_name,
@@ -168,8 +177,22 @@ class ReloadedNetwork(Network):
 
                     break
             else:
-                self.add_assembly(name=list(g)[0], assembly=ReloadedNetwork(
-                                                    net_data=g, sub_net=True))
+                self.add_assembly(name=list(g)[0], assembly=self.load_assembly(list(g)[0], para))
+
+    def load_assembly(self, name, assembly: list):
+        target = Assembly(name=name)
+        for g in assembly:
+            para = g[list(g)[0]]
+            if para.get('_class_label') == '<neg>':
+                lay_name = para.get('name')
+                target.add_assembly(name=lay_name,
+                                  assembly=self.load_layer(para))
+            elif para.get('_class_label') == '<con>':
+                con_name = para.get('name')
+                target.add_connection(name=con_name,
+                                    connection=self.load_connection(target, para))
+        return target
+
 
     def load_layer(self, layer: dict):
         '''
@@ -193,7 +216,8 @@ class ReloadedNetwork(Network):
             **layer.get('parameters')
         )
 
-    def load_connections(self, con: dict):
+    @staticmethod
+    def load_connection(net, con: dict):
         '''
             The function for load connections,
 
@@ -205,16 +229,16 @@ class ReloadedNetwork(Network):
 
         '''
         # con.pop('_class_label')
-        if con['pre_assembly'] in self._groups.keys() and \
-                con['post_assembly'] in self._groups.keys():
-            con['pre_assembly']  = self._groups[con['pre_assembly']]
-            con['post_assembly'] = self._groups[con['post_assembly']]
+        if con['pre_assembly'] in net._groups.keys() and \
+                con['post_assembly'] in net._groups.keys():
+            con['pre_assembly']  = net._groups[con['pre_assembly']]
+            con['post_assembly'] = net._groups[con['post_assembly']]
         else:
             print("Trans_error")
-            print(self._groups.keys())
+            print(net._groups.keys())
 
         # con.pop('weight_path')
-        return Connection(
+        return spaic.Connection(
             pre_assembly    = con.get('pre_assembly'),
             post_assembly   = con.get('post_assembly'),
             name            = con.get('name'),
@@ -225,6 +249,35 @@ class ReloadedNetwork(Network):
             pre_var_name    = con.get('pre_var_name', 'O'),
             post_var_name   = con.get('post_var_name', 'WgtSum'),
             **con.get('parameters')
+        )
+
+    def load_projection(self, prj: dict):
+        '''
+            The function for load projection,
+
+            Args:
+                prj(dict): Data contains the parameters of projection.
+
+            Return:
+                Projection with needed parameters.
+
+        '''
+        if prj['pre_assembly'] in self._groups.keys() and \
+                prj['post_assembly'] in self._groups.keys():
+            prj['pre_assembly']  = self._groups[prj['pre_assembly']]
+            prj['post_assembly'] = self._groups[prj['post_assembly']]
+        else:
+            print("Trans_error")
+            print(self._groups.keys())
+
+        # con.pop('weight_path')
+        return spaic.Projection(
+            pre    = prj.get('pre_assembly'),
+            post   = prj.get('post_assembly'),
+            name            = prj.get('name'),
+            link_type       = prj.get('link_type', 'full'),
+            policies        = prj.get('_policies', []),
+            ConnectionParameters = prj.get('ConnectionParameters'),
         )
 
     def load_node(self, node: dict):
@@ -241,7 +294,6 @@ class ReloadedNetwork(Network):
 
         if node.get('dec_target'):  # output
             return Decoder(
-                shape         = node.get('shape', None),
                 num           = node.get('num'),
                 dec_target    = self._groups.get(node.get('dec_target', None), None),
                 # coding_time   = node.get('_time', 200.0),
@@ -284,8 +336,8 @@ class ReloadedNetwork(Network):
         path = self._backend_info['_parameters_dict']
         data = torch.load(path)
         for key, value in data.items():
-            print(key, 'value:', value)
-            self._backend.__dict__[key] = value
+            # print(key, 'value:', value)
+            self._backend._parameters_dict[key] = value
         # #
         # for key, value in self._backend.__dict__['_parameters_dict'].items():
         #     self._backend.__dict__['_variables'][key] = value  # 这些变量的 requires_grad应该都是True
@@ -314,18 +366,16 @@ class ReloadedNetwork(Network):
                 elif trains in self._connections:
                     trainable_list.append(self._connections[trains])
             learner.pop('trainable')
-
-            if 'algorithm' in learner.get('parameters').keys():
+            if learner.get('parameters'):
                 builded_learner = Learner(
-                    # algorithm = learner.get('algorithm'),
                     trainable = trainable_list,
+                    algorithm = learner.get('algorithm'),
                     **learner.get('parameters')
                     )
             else:
                 builded_learner = Learner(
-                    algorithm = learner.get('algorithm'),
-                    trainable=trainable_list,
-                    **learner.get('parameters')
+                    trainable = trainable_list,
+                    algorithm = learner.get('algorithm')
                 )
         if learner.get('optim_name', None):
             builded_learner.set_optimizer(optim_name=learner.get('optim_name'),
@@ -336,3 +386,22 @@ class ReloadedNetwork(Network):
                                          **learner.get('lr_schedule_para'))
 
         return builded_learner
+
+    def load_monitor(self, monitor):
+        for name, mon in monitor.items():
+            if mon['monitor_type'] == 'StateMonitor':
+                self.add_monitor(name=name,
+                                 monitor=StateMonitor(target=None,
+                                              var_name=mon['var_name'],
+                                              dt=mon['dt'],
+                                              get_grad=mon['get_grad'],
+                                              nbatch=mon['nbatch']))
+            elif mon['monitor_type'] == 'SpikeMonitor':
+                self.add_monitor(name=name,
+                                 monitor=SpikeMonitor(target=None,
+                                              var_name=mon['var_name'],
+                                              dt=mon['dt'],
+                                              get_grad=mon['get_grad'],
+                                              nbatch=mon['nbatch']))
+            else:
+                raise ValueError('Wrong monitor type, only support StateMonitor and SpikeMonitor')

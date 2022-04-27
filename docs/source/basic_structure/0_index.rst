@@ -16,12 +16,14 @@
 
 
  SPAIC中最重要的基类是Assembly，一个个的Assembly节点最终组成了一个网络。在Assembly中，\
- 包含了Network、NeuronGroup以及Node这三个部分，Net类即为整个网络，NeuronGroup类则包含了各层\
+ 包含了Network、NeuronGroup以及Node这三个部分，Network类即为整个网络，NeuronGroup类则包含了各层\
  的神经元，Node为输入输出的节点。
 
-Assembly(神经集合)
+Assembly (神经集合)
 --------------------------
-是神经网络结构拓扑的抽象类，代表任意网络结构，其它网络模块都是Assembly类的子类。Assembly对象具有名为 :code:`_groups` ,\ :code:`_connections` 两个dict属性，保存神经集合内部的神经集群以及连接等。同时具有名为 :code:`_supers` , :code:`_input_connections` , :code:`_output_connections` 的list属性，分别代表包含此神经集合的上层神经集合以及与此神经集合进行的连接。作为网络建模的主要接口，包含如下主要建模函数：
+是神经网络结构的抽象类，代表任意网络结构，其它网络模块都是Assembly类的子类。Assembly对象具有名为 :code:`_groups` ,\
+:code:`_connections` 两个dict属性，保存神经集合内部的神经集群以及连接等。同时具有名为 :code:`_supers` , :code:`_input_connections` , \
+:code:`_output_connections` 的list属性，分别代表包含此神经集合的上层神经集合以及与此神经集合进行的连接。作为网络建模的主要接口，包含如下主要建模函数：
 
     - add_assembly(name, assembly): 向神经集合中加入新的集合成员
     - del_assembly(assembly=None, name=None): 删除神经集合中已经存在的某集合成员
@@ -34,9 +36,7 @@ Assembly(神经集合)
     - assembly_hide(): 将此神经集合隐藏，不参与此次训练、仿真或展示。
     - assembly_show(): 将此神经集合从隐藏状态转换为正常状态。
 
-Connection (连接)
---------------------------
-建立各神经集合间连接的类，包含了不同类型突触连接的生成、管理的功能。
+
 
 NeuronGroup (神经元集群)
 --------------------------
@@ -59,12 +59,21 @@ Assembly子类中的最上层结构，每个构建的神经网络的所有模块
     - save_state: 保存网络权重
     - state_from_dict: 读取网络权重
 
+Projection (拓扑连接)
+-------------------------
+是神经网络结构拓扑的抽象类，代表着Assembly与Assembly之间的连接，connection是Projection的子类。在不同的Assembly之间建立Projection时，可以选定\
+需要的连接类型，并且设定 :code:`policies` ，然后Projection会根据用户设定的类型和策略，生成对应的连接。
+
+
+Connection (连接)
+--------------------------
+建立各神经集合间连接的类，包含了不同类型突触连接的生成、管理的功能。
 
 平台前端结构图：
 
-.. image:: ../_static/SPAIC_FRONTEND.jpg
+.. image:: ../_static/SPAIC_FRONTEND.png
     :width: 100%
 
 Backend
 ===================
-
+后端核心，负责实际构建变量以及生成计算图。
