@@ -61,7 +61,10 @@ class Node(Assembly):
             else:
                 self.shape = (1, self.num)
         else:
-            self.shape = tuple([1] + list(shape))
+            if coding_method == 'mstb' or coding_method == 'sstb':
+                self.shape = (1, self.num)
+            else:
+                self.shape = tuple([1] + list(shape))
 
         if node_type == ('excitatory', 'inhibitory', 'pyramidal', '...'):
             self.type = None

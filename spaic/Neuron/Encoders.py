@@ -72,8 +72,6 @@ class MultipleSpikeToBinary(Encoder):
 
     def torch_coding(self, source, device):
         # 直接使用for循环
-        if source.__class__.__name__ == 'ndarray':
-            source = torch.tensor(source, device=device, dtype=torch.float32)
         all_spikes = []
         if '[2]' in self.coding_var_name:
             for i in range(source.shape[0]):

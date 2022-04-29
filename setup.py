@@ -18,7 +18,7 @@ setup(
                                 'numpy',
                                 'tqdm',
                                 'scipy',
-                                'tables',
+                                'h5py',
                            ],
         python_requires='>=3.6'
 )

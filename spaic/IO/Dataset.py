@@ -1221,12 +1221,17 @@ class SHD(Dataset):
 
     def _to_numpy_format(self):
         # trainset
-        import tables
+        # import tables
+        import h5py
         if self._is_train:
-            train_fileh = tables.open_file(os.path.join(self.root, SHD.files['train_dataset']), mode='r')
-            neuron_ids = train_fileh.root.spikes.units
-            spike_times = train_fileh.root.spikes.times
-            labels = np.array(train_fileh.root.labels)
+            # train_fileh = tables.open_file(os.path.join(self.root, SHD.files['train_dataset']), mode='r')
+            train_fileh = h5py.File(os.path.join(self.root, SHD.files['train_dataset']), 'r')
+            neuron_ids = train_fileh['spikes']['units'][:]
+            spike_times = train_fileh['spikes']['times'][:]
+            labels = train_fileh['labels'][:]
+            # neuron_ids = train_fileh.root.spikes.units
+            # spike_times = train_fileh.root.spikes.times
+            # labels = np.array(train_fileh.root.labels)
 
             self.data['train_spiking'] = spike_times
             self.data['train_ids'] = neuron_ids
@@ -1234,10 +1239,14 @@ class SHD(Dataset):
 
         else:
             # testset
-            test_fileh = tables.open_file(os.path.join(self.root, SHD.files['test_dataset']), mode='r')
-            neuron_ids = test_fileh.root.spikes.units
-            spike_times = test_fileh.root.spikes.times
-            labels = np.array(test_fileh.root.labels)
+            # test_fileh = tables.open_file(os.path.join(self.root, SHD.files['test_dataset']), mode='r')
+            test_fileh = h5py.File(os.path.join(self.root, SHD.files['test_dataset']), 'r')
+            neuron_ids = test_fileh['spikes']['units'][:]
+            spike_times = test_fileh['spikes']['times'][:]
+            labels = test_fileh['labels'][:]
+            # neuron_ids = test_fileh.root.spikes.units
+            # spike_times = test_fileh.root.spikes.times
+            # labels = np.array(test_fileh.root.labels)
 
             self.data['test_spiking'] = spike_times
             self.data['test_ids'] = neuron_ids
@@ -1329,23 +1338,33 @@ class SSC(Dataset):
         self._is_train = is_train
 
     def _to_numpy_format(self):
-        import tables
+        # import tables
+        import h5py
+
         # trainset
         if self._is_train:
-            train_fileh = tables.open_file(os.path.join(self.root, SSC.files['train_dataset']), mode='r')
-            neuron_ids = train_fileh.root.spikes.units
-            spike_times = train_fileh.root.spikes.times
-            labels = np.array(train_fileh.root.labels)
+            # train_fileh = tables.open_file(os.path.join(self.root, SSC.files['train_dataset']), mode='r')
+            train_fileh = h5py.File(os.path.join(self.root, SSC.files['train_dataset']), 'r')
+            neuron_ids = train_fileh['spikes']['units'][:]
+            spike_times = train_fileh['spikes']['times'][:]
+            labels = train_fileh['labels'][:]
+            # neuron_ids = train_fileh.root.spikes.units
+            # spike_times = train_fileh.root.spikes.times
+            # labels = np.array(train_fileh.root.labels)
 
             self.data['train_spiking'] = spike_times
             self.data['train_ids'] = neuron_ids
             self.data['train_labels'] = labels
 
         else:
-            test_fileh = tables.open_file(os.path.join(self.root, SSC.files['test_dataset']), mode='r')
-            neuron_ids = test_fileh.root.spikes.units
-            spike_times = test_fileh.root.spikes.times
-            labels = np.array(test_fileh.root.labels)
+            # test_fileh = tables.open_file(os.path.join(self.root, SSC.files['test_dataset']), mode='r')
+            test_fileh = h5py.File(os.path.join(self.root, SSC.files['test_dataset']), 'r')
+            neuron_ids = test_fileh['spikes']['units'][:]
+            spike_times = test_fileh['spikes']['times'][:]
+            labels = test_fileh['labels'][:]
+            # neuron_ids = test_fileh.root.spikes.units
+            # spike_times = test_fileh.root.spikes.times
+            # labels = np.array(test_fileh.root.labels)
 
             self.data['test_spiking'] = spike_times
             self.data['test_ids'] = neuron_ids
@@ -1421,13 +1440,16 @@ class DVS128Gesture(Dataset):
         self._is_train = is_train
 
     def _to_numpy_format(self):
-        import tables
+        # import tables
+        import h5py
         # trainset
         if self._is_train:
-            train_file = tables.open_file(os.path.join(self.root, DVS128Gesture.files['train_dataset']), mode='r')
+            # train_file = tables.open_file(os.path.join(self.root, DVS128Gesture.files['train_dataset']), mode='r')
+            train_file = h5py.File(os.path.join(self.root, DVS128Gesture.files['train_dataset']), 'r')
 
         else:
-            test_file = tables.open_file(os.path.join(self.root, DVS128Gesture.files['test_dataset']), mode='r')
+            # test_file = tables.open_file(os.path.join(self.root, DVS128Gesture.files['test_dataset']), mode='r')
+            test_file = h5py.File(os.path.join(self.root, DVS128Gesture.files['test_dataset']), 'r')
 
         print(">> Dataset loaded")
 
