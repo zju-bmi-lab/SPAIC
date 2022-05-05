@@ -81,8 +81,8 @@ class Node(Assembly):
         if self.dec_target is not None:
             # The size of predict, reward and action is equal to batch_size
             self.predict = np.zeros((1,))
-            self.reward = np.zeros((1,))
-            self.action = np.zeros((1,))
+            # self.reward = np.zeros((1,))
+            # self.action = np.zeros((1,))
 
         # Parameters of initial operation
         self.index = 0
@@ -287,7 +287,9 @@ class Encoder(Node):
         else:
             spikes = self.numpy_coding(self.source, self.device)
         self.all_spikes = spikes
-
+        
+        if self.is_encoded:
+            self.shape = self.shape[1:]
         # self.shape = spikes[0].shape
 
         key = self.id + ':' + '{'+self.coding_var_name+'}'
@@ -474,7 +476,8 @@ class Reward(Node):
         output_name = self.dec_target.id + ':' + '{'+self.coding_var_name+'}'
         backend.register_initial(None, self.init_state, [])
         reward_name = 'Output_Reward'
-        backend.add_variable(reward_name, (1, ), value=self.reward)
+        # backend.add_variable(reward_name, (1, ), value=self.reward)
+        backend.add_variable(reward_name, (1,), value=0)
         backend.register_standalone(reward_name, self.get_reward, [output_name])
 
 
