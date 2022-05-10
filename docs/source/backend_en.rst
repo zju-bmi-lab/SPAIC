@@ -19,8 +19,8 @@ add_variable
 ------------------
 When using :code:`add_variable` , the parameters that must be added are  :code:`name` 与 :code:`shape` , \
 and the optional parameters are :code:`value`, :code:`is_parameter`, :code:`is_sparse`, :code:`init`, \
- :code:`min` and :code:`max` 。
+ :code:`min` and :code:`max`.
 
-:code:`name` 决定了该变量在后端存储时的 :code:`key`，而 :code:`shape` 决定了维度, code:`value` 代表了这个变量的值，\
-:code:`init` 决定了该变量在每一次初始化之后的值
-:code:`is_parameter` 这个参数决定了该变量是否是可训练的参数，若为 :code:`true` ，则可以添加
+:code:`name` decodes the :code:`key` when save on the backend，and :code:`shape` decides the shape, :code:`value` represent the value，\
+:code:`init` decides the value that everytime the variable initialized, :code:`is_parameter` decides whether this variable is trainable or not, \
+if the value of :code:`is_parameter` is :code:`true`, means it can be added.

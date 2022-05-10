@@ -16,11 +16,11 @@
 - collate_fn (callable, optional)： 将一个list的sample组成一个mini-batch的函数
 - drop_last (bool, optional)： 如果设置为True，对于最后一个batch，如果样本数小于batch_size就会被扔掉，比如batch_size设置为64，而数据集只有100个样本，那么训练的时候后面的36个就会被扔掉。如果为False（默认），那么会继续正常执行，只是最后的batch_size会小一点。
 
-以导入MNIST数据集时为例：
+以导入MNIST数据集为例：
 
 .. code-block:: python
 
-    root = 'F:\Datasets\MNIST' # 数据集的地址
+    root = './Datasets/MNIST' # 数据集的地址
     train_set = dataset(root, is_train=True)   # 训练集
     test_set = dataset(root, is_train=False)   # 测试集
     bat_size = 20
