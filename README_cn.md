@@ -14,7 +14,7 @@ SPAIC平台的教程文档： https://spaic.readthedocs.io/en/latest/index.html
 
 ​	平台主要通过Assembly, Connection, NeuronGroup, Node, Network等五类结构模块构建网络，其具体功能叙述如下，建模结构关系如下图所示。
 
-<img src="C:\Users\HONGCHAOFEI\AppData\Roaming\Typora\typora-user-images\image-20201222150209225.png" alt="image-20201222150209225" style="zoom: 67%;" />
+<img src="./docs/source/_static/front-end network components.png" style="zoom: 67%;" />
 
 
 
