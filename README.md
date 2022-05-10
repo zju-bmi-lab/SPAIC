@@ -16,7 +16,7 @@ Tutorial documentation for the SPAIC:  https://spaic.readthedocs.io/en/latest/in
 
 ​	The platform mainly builds the network through five types of structural modules such as Assembly, Connection, NeuronGroup, Node, and Network. The specific functions are described as follows, and the modeling structure relationship is shown in the following figure.
 
-<img src="./doc/source/front-end network components.png" style="zoom: 67%;" />
+<img src="./docs/source/front-end network components.png" style="zoom: 67%;" />
 
 
 
