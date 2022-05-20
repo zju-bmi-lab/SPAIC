@@ -20,10 +20,10 @@ from .Backend.Backend import Backend
 from .Backend.Torch_Backend import Torch_Backend
 # from .Backend.Tensorflow_Backend import Tensorflow_Backend
 from .Monitor.Monitor import StateMonitor, SpikeMonitor
-from .Learning.Rate_Modulation import Rate_Modulate
+#from .Learning.Rate_Modulation import Rate_Modulate
 from .Learning.STCA_Learner import STCA
-from .Learning.TRUE_Learner import TRUE_SpikeProp
-from .Learning.BioHashSTDP_Learner import BioHash
+#from .Learning.TRUE_Learner import TRUE_SpikeProp
+#from .Learning.BioHashSTDP_Learner import BioHash
 from .Learning.Learner import Learner
 from .IO.Dataset import Dataset, CustomDataset, MNIST, FashionMNIST, OctMNIST, PathMNIST, MNISTVoices, cifar10, SHD, SSC
 from .IO.Dataloader import Dataloader
