@@ -724,9 +724,9 @@ class Connection(Projection):
             if self.flatten:
                 for ind, name in enumerate(op):
                     if ind != 1:
-                        if op[ind] == self.pre_var_name+'[input]':
+                        if self.pre_var_name+'[input]' in op[ind]:
                             view_dim = [-1, self.pre_num]
-                            input_name = self.add_conn_label(op[ind])
+                            input_name = self.add_conn_label(self.pre_var_name+'[input]')
                             view_dim_name = input_name + '_view_dim'
                             self.variable_to_backend(view_dim_name, shape=None, value=view_dim, is_constant=True)
                             backend.add_operation([input_name+'_temp', 'view', input_name, view_dim_name])
