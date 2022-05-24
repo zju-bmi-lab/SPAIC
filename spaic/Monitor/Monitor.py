@@ -14,6 +14,10 @@ from ..Network.Connection import Connection
 from ..Backend.Backend import Backend
 import numpy as np
 import torch
+import matplotlib.pyplot as plt
+from matplotlib.axes import Axes
+from matplotlib.image import AxesImage
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
 class Monitor(BaseModule):
@@ -429,4 +433,65 @@ class StateMonitor(Monitor):
             return np.stack(self._times, axis=-1)
 
 
+    def plot_weight(self, **kwargs):
+        neuron_id = kwargs.get('neuron_id')
+        time_id = kwargs.get('time_id')
+        batch_id = kwargs.get('batch_id')
+        new_shape = kwargs.get('new_shape')
+        reshape = kwargs.get('reshape')
+        axes = kwargs.get('Axes', None)
+        ims = kwargs.get('AxesImage', None)
+        n_sqrt = kwargs.get('n_sqrt', None)
+        side = kwargs.get('side', None)
+        figsize = kwargs.get('figsize', (5, 5))
+        cmap = kwargs.get('camp', 'hot_r')
+        wmin = kwargs.get('wmin', 0)
+        wmax = kwargs.get('wmax', 128)
+        im = kwargs.get('im', None)
+
+        if batch_id == None:
+            value = self.values[:, :, time_id]
+            # value = self.simulator._variables[
+            #     'autoname1<net>_connection1<con>:autoname1<net>_layer1<neg><-autoname1<net>_input<nod>:{weight}']
+            # value = value.cpu().detach().numpy()
+
+            if reshape:
+
+                value = value.reshape(n_sqrt, n_sqrt, side, side)
+
+                value = value.transpose(0, 2, 1, 3)
+                value = value.reshape(n_sqrt*side, n_sqrt*side)
+                square_weights = value
+
+            else:
+                square_weights = value
+
+        else:
+            value = self.nbatch_values[batch_id, :, time_id, :]
+            if reshape:
+                value = value.reshape(n_sqrt, n_sqrt, side, side)
+
+                value = value.transpose(0, 2, 1, 3)
+                value = value.reshape(n_sqrt * side, n_sqrt * side)
+                square_weights = value
+            else:
+                square_weights = value
+        if not im:
+            fig, ax = plt.subplots(figsize=figsize)
+
+            im = ax.imshow(square_weights, cmap=cmap, vmin=wmin, vmax=wmax)
+            div = make_axes_locatable(ax)
+            cax = div.append_axes("right", size="5%", pad=0.05)
+
+            ax.set_xticks(())
+            ax.set_yticks(())
+            ax.set_aspect("auto")
+
+            plt.colorbar(im, cax=cax)
+            fig.tight_layout()
+        else:
+            im.set_data(square_weights)
+
+        plt.pause(0.1)
+        return im
 

@@ -24,6 +24,8 @@ class BaseModule():
         self.name = None
         self.hided = False
         self._supers = []
+        self._var_names = []
+        self._var_dict = dict()
         pass
 
     @abstractmethod
@@ -81,6 +83,28 @@ class BaseModule():
             self.build_level = level
         elif self.build_level > level:
             self.build_level = level
+
+    def variable_to_backend(self, name, shape, value=None, grad=False, is_sparse=False, init=None, init_param=None,
+                            min=None, max=None, is_constant=False):
+        self._var_names.append(name)
+        self._var_dict[name] = self._backend.add_variable(name, shape, value, grad, is_sparse, init, init_param, min, max, is_constant)
+        return self._var_dict[name]
+
+
+    def get_value(self, name):
+        name = '{'+name+'}'
+        full_name = None
+        for key in self._var_names:
+            if name in key:
+                if full_name is not None:
+                    raise ValueError("multiple variable with same name in this module")
+                else:
+                    full_name = key
+        if full_name is None:
+            raise  ValueError("No such variable name in this module")
+        else:
+            return self._var_dict[full_name].value
+
 
 
 class VariableAgent(object):

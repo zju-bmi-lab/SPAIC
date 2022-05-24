@@ -64,7 +64,7 @@ class NeuronGroup(Assembly):
             self.model_class = None
             self.model_name = 'custom_model'
         else:
-            raise ValueError(" only support set neuron model with string or NeuronModel class constructed by @custom_model()")
+            raise ValueError("only support set neuron model with string or NeuronModel class constructed by @custom_model()")
         self._var_names = list()
         self._var_dict = dict()
         self._operations = OrderedDict()
@@ -93,9 +93,9 @@ class NeuronGroup(Assembly):
     def add_neuron_label(self, key: str):
         if isinstance(key, str):
             if '[updated]' in key:
-                return self.id + ':' +'{'+key.replace('[updated]',"")+'}' + '[updated]'
+                return self.id + ':' +'{'+key.replace('[updated]', "")+'}' + '[updated]'
             else:
-                return self.id + ':' +'{'+key+'}'
+                return self.id + ':' + '{'+key+'}'
         elif isinstance(key, list) or isinstance(key, tuple):
             keys = []
             for k in key:
@@ -128,21 +128,24 @@ class NeuronGroup(Assembly):
 
 
         dt = backend.dt
-        for (key, tau_var) in self.model._tau_constant_variables.items():
+        for (key, tau_var) in self.model._tau_variables.items():
             key = self.add_neuron_label(key)
             tau_var = np.exp(-dt / tau_var)
-            shape = ()
-            backend.add_variable(key, shape, value=tau_var)
-            self._var_names.append(key)
-            self._var_dict[key] = VariableAgent(backend, key)
+            # shape = ()
+            if tau_var.size > 1:
+                shape = tau_var.shape
+                assert tau_var.size == self.num, "The number of tau should equal the number of neurons."
+            else:
+                shape = ()
+
+            self.variable_to_backend(key, shape, value=tau_var)
 
         for (key, membrane_tau_var) in self.model._membrane_variables.items():
             key = self.add_neuron_label(key)
             membrane_tau_var = dt / membrane_tau_var
             shape = (1, *self.shape)  # (1, neuron_num)
-            backend.add_variable(key, shape, value=membrane_tau_var)
-            self._var_names.append(key)
-            self._var_dict[key] = VariableAgent(backend, key)
+            self.variable_to_backend(key, shape, value=membrane_tau_var)
+
 
         for (key, var) in self.model._variables.items():
             # add the rule to extend new dimension before shape (for slif model)
@@ -150,22 +153,20 @@ class NeuronGroup(Assembly):
             if extend_tag is not None:
                 extend_tag = int(key[extend_tag.start() + 1:extend_tag.end() - 1])
             key = self.add_neuron_label(key)
-            self._var_dict[key] = VariableAgent(backend, key)
 
             if extend_tag is not None:
                 shape = (1, extend_tag, *self.shape)
             else:
                 shape = (1, *self.shape)  # (batch_size, neuron_shape)
-            backend.add_variable(key, shape, value=var)
-            self._var_names.append(key)
-            self._var_dict[key] = VariableAgent(backend, key)
+            self.variable_to_backend(key, shape, value=var)
 
-        for (key, var) in self.model._constant_variables.items():
+        for (key, var) in self.model._parameter_variables.items():
             key = self.add_neuron_label(key)
 
             if isinstance(var, np.ndarray):
                 if var.size > 1:
                     shape = var.shape
+                    assert var.size == self.num, "The number of tau should equal the number of neurons."
                 else:
                     shape = ()
             elif isinstance(var, torch.Tensor):
@@ -174,14 +175,34 @@ class NeuronGroup(Assembly):
                 var = np.array(var)
                 if var.size > 1:
                     shape = var.shape
+                    assert var.size == self.num, "The number of tau should equal the number of neurons."
                 else:
                     shape = ()
             else:
                 shape = ()
 
-            backend.add_variable(key, shape, value=var, is_constant=False)
-            self._var_names.append(key)
-            self._var_dict[key] = VariableAgent(backend, key)
+            self.variable_to_backend(key, shape, value=var)
+
+        for (key, var) in self.model._constant_variables.items():
+            key = self.add_neuron_label(key)
+
+            # if isinstance(var, np.ndarray):
+            #     if var.size > 1:
+            #         shape = var.shape
+            #     else:
+            #         shape = ()
+            # elif isinstance(var, torch.Tensor):
+            #     shape = var.shape
+            # elif hasattr(var, '__iter__'):
+            #     var = np.array(var)
+            #     if var.size > 1:
+            #         shape = var.shape
+            #     else:
+            #         shape = ()
+            # else:
+            shape = ()
+
+            self.variable_to_backend(key, shape, value=var, is_constant=True)
 
         op_count = 0
         for op in self.model._operations:
@@ -275,7 +296,7 @@ class NeuronGroup(Assembly):
                     if var.replace('[updated]', '') in new_vars_dict:
                         continue
                 else:
-                    raise ValueError("The variable %s is not in model variable dict and not a Variable of other modules"%va)
+                    raise ValueError("The variable %s is not in model variable dict and not a Variable of other modules"%var)
         for var in output_vars:
             if isinstance(var, VariableAgent):
                 continue
@@ -310,10 +331,12 @@ class NeuronModel(ABC):
         self.name = 'none'
         self._operations = []
         self._variables = dict()
-        self._tau_constant_variables = dict()
+        # self._tau_constant_variables = dict()
+        self._tau_variables = dict()
+        self._parameter_variables = dict()
         self._membrane_variables = dict()
         self._constant_variables = dict()
-        self.neuron_parameters = dict()
+        # self.neuron_parameters = dict()
 
     @staticmethod
     def register(name, model):
@@ -372,7 +395,7 @@ class CLIFModel(NeuronModel):
     """
     Current LIF 3-kernel model:
     V(t) = M(t) − S(t) − E(t)
-    I^n[t] = V0 * WgtSum^n[t-1] #sum(w * O^(n-1)[t])
+    I^n[t] = V0 * Isyn^n[t-1] #sum(w * O^(n-1)[t])
     M^n[t] = betaM * M^n[t-1] + I^n[t-1]
     S^n[t] = betaS * S^n[t-1] + I^n[t-1]
     E^n[t] = betaM * E^n[t-1] + Vth * O^n[t-1]
@@ -381,29 +404,34 @@ class CLIFModel(NeuronModel):
 
     def __init__(self, **kwargs):
         super(CLIFModel, self).__init__()
-        self.neuron_parameters['tau_p'] = kwargs.get('tau_p', 12.0)
-        self.neuron_parameters['tau_q'] = kwargs.get('tau_q', 8.0)
-        self.neuron_parameters['tau_m'] = kwargs.get('tau_m', 20.0)
-        self.neuron_parameters['v_th'] = kwargs.get('v_th', 1.0)
+        # self.neuron_parameters['tau_p'] = kwargs.get('tau_p', 12.0)
+        # self.neuron_parameters['tau_q'] = kwargs.get('tau_q', 8.0)
+        # self.neuron_parameters['tau_m'] = kwargs.get('tau_m', 20.0)
+        # self.neuron_parameters['v_th'] = kwargs.get('v_th', 1.0)
 
         self._variables['M'] = 0.0
         self._variables['S'] = 0.0
         self._variables['E'] = 0.0
+        # self._variables['I_che'] = 0.0
+        # self._variables['I_ele'] = 0.0
         self._variables['I'] = 0.0
         self._variables['O'] = 0.0
         self._variables['V'] = 0.0
-        self._variables['WgtSum'] = 0.0
-        beta = self.neuron_parameters['tau_p'] / self.neuron_parameters['tau_q']
+        self._variables['Isyn'] = 0.0
+
+        self._tau_variables['tauM'] = np.asarray(kwargs.get('tau_m', 20.0))  # self.neuron_parameters['tau_m']
+        self._tau_variables['tauP'] = np.asarray(kwargs.get('tau_p', 12.0))  # self.neuron_parameters['tau_p']
+        self._tau_variables['tauQ'] = np.asarray(kwargs.get('tau_q', 8.0))  # self.neuron_parameters['tau_q']
+
+        beta = self._tau_variables['tauP'] / self._tau_variables['tauQ']
         V0 = (1 / (beta - 1)) * (beta ** (beta / (beta - 1)))
-        self._constant_variables['V0'] = V0
+        self._parameter_variables['V0'] = V0
 
-        self._constant_variables['Vth'] = self.neuron_parameters['v_th']
+        self._parameter_variables['Vth'] = np.asarray(kwargs.get('v_th', 1.0))  # self.neuron_parameters['v_th']
 
-        self._tau_constant_variables['tauM'] = self.neuron_parameters['tau_m']
-        self._tau_constant_variables['tauP'] = self.neuron_parameters['tau_p']
-        self._tau_constant_variables['tauQ'] = self.neuron_parameters['tau_q']
-
-        self._operations.append(('I', 'var_mult', 'V0', 'WgtSum[updated]'))
+        # self._operations.append(('I_che', 'var_mult', 'V0', 'WgtSum[updated]'))
+        # self._operations.append(('I', 'add', 'I_che[updated]', 'I_ele'))
+        self._operations.append(('I', 'var_mult', 'V0', 'Isyn[updated]'))
         self._operations.append(('M', 'var_linear', 'tauP', 'M', 'I[updated]'))
         self._operations.append(('S', 'var_linear', 'tauQ', 'S', 'I[updated]'))
         self._operations.append(('PSP', 'minus', 'M[updated]', 'S[updated]'))
@@ -414,33 +442,50 @@ class CLIFModel(NeuronModel):
 
 NeuronModel.register("clif", CLIFModel)
 
+
 class IFModel(NeuronModel):
     """
     IF model:
-    V(t) = V(t-1) * (1 - O(t-1)) + WgtSum[t] - ConstantDecay
+    V(t) = V(t-1) * (1 - O(t-1)) + Isyn[t] - ConstantDecay
 
     O^n[t] = spike_func(V^n[t-1])
     """
 
     def __init__(self, **kwargs):
         super(IFModel, self).__init__()
-        self.neuron_parameters['ConstantDecay'] = kwargs.get('ConstantDecay', 0.0)
-        self.neuron_parameters['v_th'] = kwargs.get('v_th', 1.0)
+        # self.neuron_parameters['ConstantDecay'] = kwargs.get('ConstantDecay', 0.0)
+        # self.neuron_parameters['v_th'] = kwargs.get('v_th', 1.0)
 
         self._variables['O'] = 0.0
         self._variables['V'] = 0.0
-        self._variables['WgtSum'] = 0.0
+        self._variables['Isyn'] = 0.0
 
-        self._constant_variables['ConstantDecay'] = self.neuron_parameters['ConstantDecay']
-        self._constant_variables['Vth'] = self.neuron_parameters['v_th']
+        self._parameter_variables['ConstantDecay'] = kwargs.get('ConstantDecay', 0.0)
+        self._parameter_variables['Vth'] = kwargs.get('v_th', 1.0)
 
-        self._operations.append(('Vtemp', 'add', 'V', 'WgtSum[updated]'))
+        self._operations.append(('Vtemp', 'add', 'V', 'Isyn'))
         self._operations.append(('Vtemp1', 'minus', 'Vtemp', 'ConstantDecay'))
         self._operations.append(('O', 'threshold', 'Vtemp1', 'Vth'))
         self._operations.append(('Resetting', 'var_mult', 'Vtemp1', 'O[updated]'))
         self._operations.append(('V', 'minus', 'Vtemp1', 'Resetting'))
 
 NeuronModel.register("if", IFModel)
+
+class NullModel(NeuronModel):
+    """
+    return 'O'
+    """
+
+    def __init__(self, **kwargs):
+        super(NullModel, self).__init__()
+        # self.neuron_parameters['ConstantDecay'] = kwargs.get('ConstantDecay', 0.0)
+        # self.neuron_parameters['v_th'] = kwargs.get('v_th', 1.0)
+
+        self._variables['O'] = 0.0
+
+NeuronModel.register("null", NullModel)
+
+
 
 import torch
 
@@ -476,9 +521,9 @@ class QLIFModel(NeuronModel):
     # WgtSum(BQ_post[t - 1]) / WgtSum)
     def __init__(self, **kwargs):
         super(QLIFModel, self).__init__()
-        self._tau_constant_variables['Beta_m'] = kwargs.get('tau_m', 20.0)
-        self._tau_constant_variables['Beta_s'] = kwargs.get('tau_s', 8.0)
-        self._constant_variables['Vth'] = kwargs.get('v_th', 1.0)
+        self._tau_variables['Beta_m'] = kwargs.get('tau_m', 20.0)
+        self._tau_variables['Beta_s'] = kwargs.get('tau_s', 8.0)
+        self._parameter_variables['Vth'] = kwargs.get('v_th', 1.0)
         self._constant_variables['One'] = 1.0
 
         self._variables['E'] = 0.0
@@ -715,7 +760,7 @@ class SLIFModel(NeuronModel):
         self._variables['V'] = 0.0
         self._variables['dV'] = 0.0
         self._variables['S'] = 0.0
-        self._variables['WgtSum'] = 0.0
+        self._variables['Isyn'] = 0.0
         self.tau_m = tau_m
         self.tau_e = tau_p
         self.tau_s = tau_q
@@ -729,7 +774,7 @@ class SLIFModel(NeuronModel):
         # self.delat_s = self.tau_s/(self.tau_m-self.tau_s)
         # self.delat_ms = self.tau_m*self.tau_s/(self.tau_m-self.tau_s)
 
-        self.update_op_code = ('[2]O', self.update, 'WgtSum[updated]')  # 'WgtSum[updated]'
+        self.update_op_code = ('[2]O', self.update, 'Isyn[updated]')  # 'WgtSum[updated]'
 
         self.return_op_code = (None, self.return_V, [])
 
@@ -791,8 +836,8 @@ class SLIFModel(NeuronModel):
         # Oi = self.O[:, 0, ...]
         # Ot = self.O[:, 1, ...]
         if self.O is not None:
-            Oi = 0.1*self.O[:, 0, ...] + 0.9*self.O[:, 0, ...]
-            Ot = 0.1*self.O[:, 1, ...] + 0.9*self.O[:, 1, ...]
+            Oi = 0.1*self.O[:, 0, ...] + 0.9*self.O[:, 0, ...].detach()
+            Ot = 0.1*self.O[:, 1, ...] + 0.9*self.O[:, 1, ...].detach()
         else:
             Oi = 0
             Ot = 0
@@ -950,7 +995,7 @@ class SELIFDebugModel(NeuronModel):
 class LIFModel(NeuronModel):
     """
     LIF model:
-    # V(t) = tuaM * V^n[t-1] + WgtSum[t]   # tauM: constant membrane time (tauM=RmCm)
+    # V(t) = tuaM * V^n[t-1] + Isyn[t]   # tauM: constant membrane time (tauM=RmCm)
     O^n[t] = spike_func(V^n[t-1])
     """
 
@@ -958,20 +1003,27 @@ class LIFModel(NeuronModel):
         super(LIFModel, self).__init__()
         # initial value for state variables
 
-        self.neuron_parameters['tau_m'] = kwargs.get('tau_m', 20.0)  # 20
-        self.neuron_parameters['v_th'] = kwargs.get('v_th', 1)
-        self.neuron_parameters['v_reset'] = kwargs.get('v_reset', 0.0)
+        # self.neuron_parameters['tau_m'] = kwargs.get('tau_m', 20.0)  # 20
+        # self.neuron_parameters['v_th'] = kwargs.get('v_th', 1)
+        # self.neuron_parameters['v_reset'] = kwargs.get('v_reset', 0.0)
 
         self._variables['V'] = 0.0
         self._variables['O'] = 0.0
-        self._variables['WgtSum'] = 0.0
+        self._variables['Isyn'] = 0.0
+        # self._variables['b'] = 0.0
+        # self._variables['I_che'] = 0.0
+        # self._variables['I_ele'] = 0.0
+        # self._variables['I'] = 0.0
 
-        self._constant_variables['Vth'] = self.neuron_parameters['v_th']
-        self._constant_variables['Vreset'] = self.neuron_parameters['v_reset']
+        self._parameter_variables['Vth'] = kwargs.get('v_th', 1)
+        self._constant_variables['Vreset'] = kwargs.get('v_reset', 0.0)
 
-        self._tau_constant_variables['tauM'] = self.neuron_parameters['tau_m']
+        self._tau_variables['tauM'] = kwargs.get('tau_m', 20.0)
 
-        self._operations.append(('Vtemp', 'var_linear', 'tauM', 'V', 'WgtSum[updated]'))#
+        # self._operations.append(('I_che', 'add', 'WgtSum[updated]', 'b'))
+        # self._operations.append(('I', 'add', 'I_che[updated]', 'I_ele'))
+
+        self._operations.append(('Vtemp', 'var_linear', 'tauM', 'V', 'Isyn[updated]'))
         self._operations.append(('O', 'threshold', 'Vtemp', 'Vth'))
         self._operations.append(('Resetting', 'var_mult', 'Vtemp', 'O[updated]'))
         self._operations.append(('V', 'minus', 'Vtemp', 'Resetting'))
@@ -981,32 +1033,32 @@ NeuronModel.register("lif", LIFModel)
 class ConstantCurrentLIFModel(NeuronModel):
     """
     ConstantCurrentLIF model:
-    V(t) = V^n[t-1] + (dt/taum) * (Ureset-V^n[t-1]+I)  # tauM: constant membrane time (tauM=RmCm)  WgtSum = I*Weight
+    V(t) = V^n[t-1] + (dt/taum) * (Ureset-V^n[t-1]+I)  # tauM: constant membrane time (tauM=RmCm)  Isyn = I*Weight
     O^n[t] = spike_func(V^n[t-1])
     """
 
     def __init__(self, **kwargs):
         super(ConstantCurrentLIFModel, self).__init__()
         # initial value for state variables
-        self.neuron_parameters['tau_m'] = kwargs.get('tau_m', 20.0)
-        self.neuron_parameters['v_th'] = kwargs.get('v_th', 1.0)
-        self.neuron_parameters['v_reset'] = kwargs.get('v_reset', 0.0)
+        # self.neuron_parameters['tau_m'] = kwargs.get('tau_m', 20.0)
+        # self.neuron_parameters['v_th'] = kwargs.get('v_th', 1.0)
+        # self.neuron_parameters['v_reset'] = kwargs.get('v_reset', 0.0)
 
         self._variables['V'] = 0.0
         self._variables['O'] = 0.0
         self._variables['I'] = 0.0
-        self._variables['WgtSum'] = 0.0
+        self._variables['Isyn'] = 0.0
         # beta = self.neuron_parameters['tau_p'] / self.neuron_parameters['tau_q']
-        V0 = 1.0  # (1 / (beta - 1)) * (beta ** (beta / (beta - 1)))
-        self._constant_variables['V0'] = V0
+        # V0 = 1.0  # (1 / (beta - 1)) * (beta ** (beta / (beta - 1)))
+        # self._constant_variables['V0'] = V0
 
-        self._constant_variables['Vth'] = self.neuron_parameters['v_th']
-        self._constant_variables['Vreset'] = self.neuron_parameters['v_reset']
+        self._parameter_variables['Vth'] = kwargs.get('v_th', 1.0)
+        self._constant_variables['Vreset'] = kwargs.get('v_reset', 0.0)
 
-        self._membrane_variables['tauM'] = self.neuron_parameters['tau_m']
+        self._membrane_variables['tauM'] = kwargs.get('tau_m', 20.0)
 
-        self._operations.append(('I', 'var_mult', 'V0', 'WgtSum'))
-        self._operations.append(('decayV', 'minus', 'I', 'V'))
+        # self._operations.append(('I', 'var_mult', 'V0', 'I_synapse'))
+        self._operations.append(('decayV', 'minus', 'Isyn', 'V'))
         self._operations.append(('Vtemp', 'var_linear', 'tauM', 'decayV', 'V'))
         self._operations.append(('O', 'threshold', 'Vtemp', 'Vth'))
         self._operations.append(('Resetting', 'var_mult', 'Vtemp', 'O'))
@@ -1020,7 +1072,7 @@ class NonSpikingLIFModel(NeuronModel):
     NonSpikingLIF model:
     # V(t) = -tuaM * V^n[t-1] + M^n[t] - S^n[t]   # tauM: constant membrane time (tauM=RmCm)
     V(t) = V^n[t-1] + (dt/taum) * (PSP-V^n[t-1])  # tauM: constant membrane time (tauM=RmCm)
-    I^n[t] = V0 * WgtSum^n[t-1]                # sum(w * O^(n-1)[t])
+    I^n[t] = V0 * Isyn^n[t-1]                # sum(w * O^(n-1)[t])
     M^n[t] = tauP * M^n[t-1] + I^n[t-1]        # tauP: decaying time constants of membrane integration
     S^n[t] = tauQ * S^n[t-1] + I^n[t-1]        # tauQ: decaying time constants of synaptic currents
     PSP = M - S
@@ -1029,29 +1081,29 @@ class NonSpikingLIFModel(NeuronModel):
     def __init__(self, **kwargs):
         super(NonSpikingLIFModel, self).__init__()
         # initial value for state variables
-        self.neuron_parameters['tau_p'] = kwargs.get('tau_p', 4.0)
-        self.neuron_parameters['tau_q'] = kwargs.get('tau_q', 1.0)
-        self.neuron_parameters['tau_m'] = kwargs.get('tau_m', 1.0)
-        self.neuron_parameters['v_th'] = kwargs.get('v_th', 1.0)
-        self.neuron_parameters['v_reset'] = kwargs.get('v_reset', 0.0)
+        # self.neuron_parameters['tau_p'] = kwargs.get('tau_p', 4.0)
+        # self.neuron_parameters['tau_q'] = kwargs.get('tau_q', 1.0)
+        # self.neuron_parameters['tau_m'] = kwargs.get('tau_m', 1.0)
 
         self._variables['I'] = 0.0
         self._variables['M'] = 0.0
         self._variables['S'] = 0.0
         self._variables['V'] = 0.0
         self._variables['O'] = 0.0
-        self._variables['WgtSum'] = 0.0
-        beta = self.neuron_parameters['tau_p'] / self.neuron_parameters['tau_q']
+        self._variables['Isyn'] = 0.0
+
+        self._tau_variables['tauP'] = np.asarray(kwargs.get('tau_p', 4.0))
+        self._tau_variables['tauQ'] = np.asarray(kwargs.get('tau_q', 1.0))
+        beta = self._tau_variables['tauP'] / self._tau_variables['tauQ']
         V0 = (1 / (beta - 1)) * (beta ** (beta / (beta - 1)))
-        self._constant_variables['V0'] = V0
+        self._parameter_variables['V0'] = V0
 
-        self._membrane_variables['tauM'] = self.neuron_parameters['tau_m']
-        # self._tau_constant_variables['tauM'] = self.neuron_parameters['tau_m']
+        self._membrane_variables['tauM'] = kwargs.get('tau_m', 1.0)
+        # self._tau_constant_variables['tauM'] = kwargs.get('tau_m', 1.0)
 
-        self._tau_constant_variables['tauP'] = self.neuron_parameters['tau_p']
-        self._tau_constant_variables['tauQ'] = self.neuron_parameters['tau_q']
 
-        self._operations.append(('I', 'var_mult', 'V0', 'WgtSum'))
+
+        self._operations.append(('I', 'var_mult', 'V0', 'Isyn'))
         self._operations.append(('M', 'var_linear', 'tauP', 'M', 'I'))
         self._operations.append(('S', 'var_linear', 'tauQ', 'S', 'I'))
         self._operations.append(('PSP', 'minus', 'M', 'S'))
@@ -1064,7 +1116,7 @@ NeuronModel.register("nonspikinglif", NonSpikingLIFModel)
 class LIFMModel(NeuronModel):
     """
     LIF model:
-    # I_che = tauP*I + WgtSum^n[t-1] + b^n                         # sum(w * O^(n-1)[t])
+    # I_che = tauP*I + Isyn^n[t-1] + b^n                         # sum(w * O^(n-1)[t])
     # I = I_che + I_ele
     # F = tauM * exp(-O^n[t-1] / tauM)
     # V(t) = V^n[t-1] * F + I
@@ -1074,28 +1126,28 @@ class LIFMModel(NeuronModel):
     def __init__(self, **kwargs):
         super(LIFMModel, self).__init__()
         # initial value for state variables
-        self.neuron_parameters['tau_p'] = kwargs.get('tau_p', 1.0)
-        self.neuron_parameters['tau_m'] = kwargs.get('tau_m', 10.0)
-        self.neuron_parameters['v_th']  = kwargs.get('v_th', 1.0)
+        # self.neuron_parameters['tau_p'] = kwargs.get('tau_p', 1.0)
+        # self.neuron_parameters['tau_m'] = kwargs.get('tau_m', 10.0)
+        # self.neuron_parameters['v_th']  = kwargs.get('v_th', 1.0)
 
         self._variables['V'] = 0.0
         self._variables['O'] = 0.0
-        self._variables['WgtSum'] = 0.0
-        self._variables['b'] = 0.0
-        self._variables['I_che'] = 0.0
-        self._variables['I_ele'] = 0.0
+        self._variables['Isyn'] = 0.0
+        # self._variables['b'] = 0.0
+        # self._variables['I_che'] = 0.0
+        # self._variables['I_ele'] = 0.0
         self._variables['I'] = 0.0
 
-        self._constant_variables['Vth'] = self.neuron_parameters['v_th']
+        self._parameter_variables['Vth'] = kwargs.get('v_th', 1.0)
         # self._constant_variables['Vreset'] = v_reset
 
-        self._tau_constant_variables['tauM'] = self.neuron_parameters['tau_m']
-        self._tau_constant_variables['tauP'] = self.neuron_parameters['tau_p']
+        self._tau_variables['tauM'] = kwargs.get('tau_m', 10.0)
+        self._tau_variables['tauP'] = kwargs.get('tau_p', 1.0)
 
-        self._operations.append(('PSP', 'add', 'WgtSum[updated]', 'b'))
+        self._operations.append(('I', 'var_linear', 'tauP', 'I', 'Isyn[updated]'))
 
-        self._operations.append(('I_che', 'var_linear', 'tauP', 'I_che', 'PSP'))
-        self._operations.append(('I', 'add', 'I_che[updated]', 'I_ele'))
+        # self._operations.append(('I_che', 'var_linear', 'tauP', 'I_che', 'PSP'))
+        # self._operations.append(('I', 'add', 'I_che[updated]', 'I_ele'))
         self._operations.append(('Vtemp', 'var_linear', 'V', 'tauM', 'I[updated]'))
         self._operations.append(('O', 'threshold', 'Vtemp', 'Vth'))
         self._operations.append(('Vreset', 'var_mult', 'Vtemp', 'O[updated]'))
@@ -1112,19 +1164,19 @@ class IZHModel(NeuronModel):
     PSP = M^n[t] - S^n[t]
     M^n[t] = tauP * M^n[t-1] + I^n[t-1]        # tauP: decaying time constants of membrane integration
     S^n[t] = tauQ * S^n[t-1] + I^n[t-1]        # tauQ: decaying time constants of synaptic currents
-    I^n[t] = V0 * WgtSum^n[t-1]                # WgtSum = sum(w * O^(n-1)[t])
+    I^n[t] = V0 * Isyn^n[t-1]                # Isyn = sum(w * O^(n-1)[t])
     O^n[t] = spike_func(V^n[t-1])
     """
 
     def __init__(self, **kwargs):
         super(IZHModel, self).__init__()
         # initial value for state variables
-        self.neuron_parameters['tau_p'] = kwargs.get('tau_p', 4.0)
-        self.neuron_parameters['tau_q'] = kwargs.get('tau_q', 1.0)
-        self.neuron_parameters['a'] = kwargs.get('a', 0.02)
-        self.neuron_parameters['b'] = kwargs.get('b', 0.2)
-        self.neuron_parameters['Vrest'] = kwargs.get('Vrest', -65.0)
-        self.neuron_parameters['Ureset'] = kwargs.get('Ureset', 8.0)
+        # self.neuron_parameters['tau_p'] = kwargs.get('tau_p', 4.0)
+        # self.neuron_parameters['tau_q'] = kwargs.get('tau_q', 1.0)
+        # self.neuron_parameters['a'] = kwargs.get('a', 0.02)
+        # self.neuron_parameters['b'] = kwargs.get('b', 0.2)
+        # self.neuron_parameters['Vrest'] = kwargs.get('Vrest', -65.0)
+        # self.neuron_parameters['Ureset'] = kwargs.get('Ureset', 8.0)
 
         self._variables['I'] = 0.0
         self._variables['M'] = 0.0
@@ -1132,30 +1184,32 @@ class IZHModel(NeuronModel):
         self._variables['O'] = 0.0
         self._variables['V'] = -65.0  # self.neuron_parameters['c']
         self._variables['U'] = 1.0  # self.neuron_parameters['b']*self._variables['V']
-        self._variables['WgtSum'] = 0.0  # 1.8
-        beta = self.neuron_parameters['tau_p'] / self.neuron_parameters['tau_q']
-        V0 = (1 / (beta - 1)) * (beta ** (beta / (beta - 1)))
-        self._constant_variables['V0'] = V0
+        self._variables['Isyn'] = 0.0  # 1.8
 
-        self._constant_variables['a'] = self.neuron_parameters['a']
-        self._constant_variables['b'] = self.neuron_parameters['b']
-        self._constant_variables['Vth'] = 30.0
-        self._variables['Vreset'] = self.neuron_parameters['Vrest'] - self._constant_variables['Vth']  # 为了发放后将电压重置为-65
-        self._constant_variables['Ureset'] = self.neuron_parameters['Ureset']  # 8.0
+        self._tau_variables['tauP'] = np.asarray(kwargs.get('tau_p', 4.0))
+        self._tau_variables['tauQ'] = np.asarray(kwargs.get('tau_q', 1.0))
+        beta = self._tau_variables['tauP'] / self._tau_variables['tauQ']
+        V0 = (1 / (beta - 1)) * (beta ** (beta / (beta - 1)))
+        self._parameter_variables['V0'] = V0
+
+        self._constant_variables['a'] = kwargs.get('a', 0.02)
+        self._constant_variables['b'] = kwargs.get('b', 0.2)
+        self._parameter_variables['Vth'] = np.asarray(kwargs.get('v_th', 30))# 30.0
+        self._parameter_variables['Vreset'] = np.asarray(kwargs.get('Vrest', -65.0)) - self._parameter_variables['Vth']   # 为了发放后将电压重置为-65
+        self._parameter_variables['Ureset'] = kwargs.get('Ureset', 8.0)  # 8.0
         self._constant_variables['C1'] = 0.04
         self._constant_variables['C2'] = 5
         self._constant_variables['C3'] = 140
 
         self._membrane_variables['tauM'] = 1.0
 
-        self._tau_constant_variables['tauP'] = self.neuron_parameters['tau_p']
-        self._tau_constant_variables['tauQ'] = self.neuron_parameters['tau_q']
+
 
         # V = V + dt / tauM * (C1 * V * V + C2 * V + C3 - U + PSP)
         # V = V + dt / tauM * (V* (C1 * V + C2) + C3 - U + PSP)
         # U = U + dt /tauM * a. * (b. * V - U)
 
-        self._operations.append(('I', 'var_mult', 'V0', 'WgtSum'))
+        self._operations.append(('I', 'var_mult', 'V0', 'Isyn'))
         self._operations.append(('M', 'var_linear', 'tauP', 'M', 'I[updated]'))
         self._operations.append(('S', 'var_linear', 'tauQ', 'S', 'I[updated]'))
         self._operations.append(('PSP', 'minus', 'M[updated]', 'S[updated]'))
@@ -1191,7 +1245,7 @@ class aEIFModel(NeuronModel):
     EXP = delta_t * delta_t2 * exp(du_th/delta_t2)
     du = V - EL
     du_th = V - Vth
-    I^n[t] = V0 * WgtSum^n[t-1]
+    I^n[t] = V0 * Isyn^n[t-1]
 
     O^n[t] = spike_func(V^n[t-1])
     """
@@ -1199,15 +1253,15 @@ class aEIFModel(NeuronModel):
     def __init__(self, **kwargs):
         super(aEIFModel, self).__init__()
         # initial value for state variables
-        self.neuron_parameters['tau_p']   = kwargs.get('tau_p', 12.0)
-        self.neuron_parameters['tau_q']   = kwargs.get('tau_q', 4.0)
-        self.neuron_parameters['tau_w']   = kwargs.get('tau_w', 144)
-        self.neuron_parameters['tau_m']   = kwargs.get('tau_m', 1.0)
-        self.neuron_parameters['a']       = kwargs.get('a', 0.05)
-        self.neuron_parameters['b']       = kwargs.get('b', 0.0805)
-        self.neuron_parameters['delta_t'] = kwargs.get('delta_t', 30.0)
-        self.neuron_parameters['delta_t2'] = kwargs.get('delta_t2', 1.0)
-        self.neuron_parameters['EL']      = kwargs.get('EL', -70.6)
+        # self.neuron_parameters['tau_p']   = kwargs.get('tau_p', 12.0)
+        # self.neuron_parameters['tau_q']   = kwargs.get('tau_q', 4.0)
+        # self.neuron_parameters['tau_w']   = kwargs.get('tau_w', 144)
+        # self.neuron_parameters['tau_m']   = kwargs.get('tau_m', 1.0)
+        # self.neuron_parameters['a']       = kwargs.get('a', 0.05)
+        # self.neuron_parameters['b']       = kwargs.get('b', 0.0805)
+        # self.neuron_parameters['delta_t'] = kwargs.get('delta_t', 30.0)
+        # self.neuron_parameters['delta_t2'] = kwargs.get('delta_t2', 1.0)
+        # self.neuron_parameters['EL']      = kwargs.get('EL', -70.6)
 
         self._variables['I'] = 0.0
         self._variables['I_che'] = 0.0
@@ -1218,27 +1272,27 @@ class aEIFModel(NeuronModel):
         self._variables['V'] = -70.6
         # self._variables['Vt'] = -70.6
         self._variables['U'] = 0.0 # self.neuron_parameters['b'] * (-70.6)
-        self._variables['WgtSum'] = 0.0
+        self._variables['Isyn'] = 0.0
 
         self._variables['EXP'] = 0.0
 
-        beta = self.neuron_parameters['tau_p'] / self.neuron_parameters['tau_q']
+        beta = np.asarray(kwargs.get('tau_p', 12.0)) / np.asarray(kwargs.get('tau_q', 4.0))
         V0 = (1 / (beta - 1)) * (beta ** (beta / (beta - 1)))
-        self._constant_variables['V0'] = V0
+        self._parameter_variables['V0'] = V0
 
-        self._constant_variables['EL'] = self.neuron_parameters['EL']
-        self._constant_variables['a'] = self.neuron_parameters['a']
-        self._constant_variables['b'] = self.neuron_parameters['b']
-        self._constant_variables['Vth'] = -50.4
+        self._constant_variables['EL'] = kwargs.get('EL', -70.6)
+        self._constant_variables['a'] = kwargs.get('a', 0.05)
+        self._constant_variables['b'] = kwargs.get('b', 0.0805)
+        self._parameter_variables['Vth'] = kwargs.get('v_th', -50.4)
         # self._constant_variables['Ureset'] = -8.0
         # self._constant_variables['C1'] = 0.6
 
-        self._constant_variables['delta_t'] = self.neuron_parameters['delta_t'] * self.neuron_parameters['delta_t2']
-        self._constant_variables['delta_t2'] = self.neuron_parameters['delta_t2']  # *10
+        self._constant_variables['delta_t'] = kwargs.get('delta_t', 30.0) * kwargs.get('delta_t2', 1.0)
+        self._constant_variables['delta_t2'] = kwargs.get('delta_t2', 1.0)  # *10
 
-        self._membrane_variables['tauM'] = self.neuron_parameters['tau_m']
+        self._membrane_variables['tauM'] = kwargs.get('tau_m', 1.0)
 
-        self._membrane_variables['tauW'] = self.neuron_parameters['tau_w']
+        self._membrane_variables['tauW'] = kwargs.get('tau_w', 144)
 
         # V = V + dt / tauM * (EL - V + EXP - U + I ^ n[t])
         # U = U + dt / tauW * (a * (V - EL) - U)
@@ -1248,8 +1302,8 @@ class aEIFModel(NeuronModel):
         # I ^ n[t] = V0 * WgtSum ^ n[t - 1]
         #
         # O ^ n[t] = spike_func(V ^ n[t - 1])
-        self._operations.append(('I_che', 'var_mult', 'V0', 'WgtSum[updated]'))
-        self._operations.append(('I', 'add', 'I_che[updated]', 'I_ele[updated]'))
+        self._operations.append(('I', 'var_mult', 'V0', 'Isyn[updated]'))
+        # self._operations.append(('I', 'add', 'I_che[updated]', 'I_ele[updated]'))
 
         self._operations.append(('dv', 'minus', 'V', 'EL'))
         self._operations.append(('dv_th', 'minus', 'V', 'Vth'))
@@ -1299,7 +1353,7 @@ class GLIFModel(NeuronModel):
 
     After transform:
     part I:
-    I^n[t] = tau_p * I + WgtSum^n[t-1]
+    I^n[t] = tau_p * I + Isyn^n[t-1]
     I_sum = I1 + I2
     I_sum = I_sum + I^n[t]
     S^n[t] = tau_q * S^n[t-1] + I_sum
@@ -1330,23 +1384,23 @@ class GLIFModel(NeuronModel):
 
     def __init__(self, **kwargs):
         super(GLIFModel, self).__init__()
-        self.neuron_parameters['R']             = kwargs.get('R', 0.2)
-        self.neuron_parameters['C']             = kwargs.get('C', 1.0)
-        self.neuron_parameters['E_L']           = kwargs.get('E_L', 0.0)
-        self.neuron_parameters['Theta_inf']     = kwargs.get('Theta_inf', 1.0)
-        # self.neuron_parameters['delta_t']       = kwargs.get('delta_t', 0.0)
-        self.neuron_parameters['f_v']           = kwargs.get('f_v', 0.1)
-        self.neuron_parameters['delta_v']       = kwargs.get('delta_v', 0.05)
-        self.neuron_parameters['b_s']           = -kwargs.get('b_s', 0.02)
-        self.neuron_parameters['delta_Theta_s'] = kwargs.get('delta_Theta_s', 0.02)
-        self.neuron_parameters['k_1']           = -kwargs.get('k_1', 0.1)
-        self.neuron_parameters['k_2']           = -kwargs.get('k_2', 0.1)
-        self.neuron_parameters['delta_I1']      = kwargs.get('delta_I1', 1.0)
-        self.neuron_parameters['delta_I2']      = kwargs.get('delta_I2', 1.0)
-        self.neuron_parameters['a_v']           = kwargs.get('a_v', 0.05)
-        self.neuron_parameters['b_v']           = -kwargs.get('b_v', 0.1)
-        self.neuron_parameters['tau_p']         = kwargs.get('tau_p', 1.0)
-        self.neuron_parameters['tau_q']         = kwargs.get('tau_q', 1.0)
+        # self.neuron_parameters['R']             = kwargs.get('R', 0.2)
+        # self.neuron_parameters['C']             = kwargs.get('C', 1.0)
+        # self.neuron_parameters['E_L']           = kwargs.get('E_L', 0.0)
+        # self.neuron_parameters['Theta_inf']     = kwargs.get('Theta_inf', 1.0)
+        # # self.neuron_parameters['delta_t']       = kwargs.get('delta_t', 0.0)
+        # self.neuron_parameters['f_v']           = kwargs.get('f_v', 0.1)
+        # self.neuron_parameters['delta_v']       = kwargs.get('delta_v', 0.05)
+        # self.neuron_parameters['b_s']           = -kwargs.get('b_s', 0.02)
+        # self.neuron_parameters['delta_Theta_s'] = kwargs.get('delta_Theta_s', 0.02)
+        # self.neuron_parameters['k_1']           = -kwargs.get('k_1', 0.1)
+        # self.neuron_parameters['k_2']           = -kwargs.get('k_2', 0.1)
+        # self.neuron_parameters['delta_I1']      = kwargs.get('delta_I1', 1.0)
+        # self.neuron_parameters['delta_I2']      = kwargs.get('delta_I2', 1.0)
+        # self.neuron_parameters['a_v']           = kwargs.get('a_v', 0.05)
+        # self.neuron_parameters['b_v']           = -kwargs.get('b_v', 0.1)
+        # self.neuron_parameters['tau_p']         = kwargs.get('tau_p', 1.0)
+        # self.neuron_parameters['tau_q']         = kwargs.get('tau_q', 1.0)
 
         self._variables['V']       = 0.0
         self._variables['Theta_s'] = 0.1
@@ -1357,30 +1411,31 @@ class GLIFModel(NeuronModel):
         self._variables['S']       = 0.0
         self._variables['O']       = 0.0
         self._variables['v_th']    = 0.0
+        self._variables['Isyn'] = 0.0
 
-        self._constant_variables['deltaV'] = self.neuron_parameters['E_L'] - self.neuron_parameters['delta_v']
-        self._constant_variables['R'] = self.neuron_parameters['R']
-        self._constant_variables['C'] = self.neuron_parameters['C']
-        self._constant_variables['E_L'] = self.neuron_parameters['E_L']
-        self._constant_variables['Theta_inf'] = self.neuron_parameters['Theta_inf']
-        self._constant_variables['f_v'] = self.neuron_parameters['f_v']
-        self._constant_variables['delta_v'] = self.neuron_parameters['delta_v']
-        self._constant_variables['b_s'] = self.neuron_parameters['b_s']
-        self._constant_variables['delta_Theta_s'] = self.neuron_parameters['delta_Theta_s']
-        self._constant_variables['k1'] = self.neuron_parameters['k_1']
-        self._constant_variables['k2'] = self.neuron_parameters['k_2']
-        self._constant_variables['delta_I1'] = self.neuron_parameters['delta_I1']
-        self._constant_variables['delta_I2'] = self.neuron_parameters['delta_I2']
-        self._constant_variables['a_v'] = self.neuron_parameters['a_v']
-        self._constant_variables['b_v'] = self.neuron_parameters['b_v']
+        self._constant_variables['deltaV'] = kwargs.get('E_L', 0.0) - kwargs.get('delta_v', 0.05)
+        self._constant_variables['R'] = kwargs.get('R', 0.2)
+        self._constant_variables['C'] = kwargs.get('C', 1.0)
+        self._constant_variables['E_L'] = kwargs.get('E_L', 0.0)
+        self._constant_variables['Theta_inf'] = kwargs.get('Theta_inf', 1.0)
+        self._constant_variables['f_v'] = kwargs.get('f_v', 0.1)
+        self._constant_variables['delta_v'] = kwargs.get('delta_v', 0.05)
+        self._constant_variables['b_s'] = -kwargs.get('b_s', 0.02)
+        self._constant_variables['delta_Theta_s'] = kwargs.get('delta_Theta_s', 0.02)
+        self._constant_variables['k1'] = -kwargs.get('k_1', 0.1)
+        self._constant_variables['k2'] = -kwargs.get('k_2', 0.1)
+        self._constant_variables['delta_I1'] = kwargs.get('delta_I1', 1.0)
+        self._constant_variables['delta_I2'] = kwargs.get('delta_I2', 1.0)
+        self._constant_variables['a_v'] = kwargs.get('a_v', 0.05)
+        self._constant_variables['b_v'] = -kwargs.get('b_v', 0.1)
 
-        self._membrane_variables['tau_m']   = self.neuron_parameters['R'] * self.neuron_parameters['C']
-        self._tau_constant_variables['tauP']    = self.neuron_parameters['tau_p']
-        self._tau_constant_variables['tauQ']    = self.neuron_parameters['tau_q']
+        self._membrane_variables['tau_m']   = self._constant_variables['R'] * self._constant_variables['C']
+        self._tau_variables['tauP']    = kwargs.get('tau_p', 1.0)
+        self._tau_variables['tauQ']    = kwargs.get('tau_q', 1.0)
         # self._tau_constant_variables['k1']      = self.neuron_parameters['k_1']
         # self._tau_constant_variables['k2']      = self.neuron_parameters['k_2']
 
-        self._operations.append(('I', 'var_linear', 'tauP', 'I', 'WgtSum'))
+        self._operations.append(('I', 'var_linear', 'tauP', 'I', 'Isyn'))
         self._operations.append(('I_sum', 'add', 'I1', 'I2'))
         self._operations.append(('I_sum', 'add', 'I_sum', 'I[updated]'))
         self._operations.append(('S', 'var_linear', 'tauQ', 'S', 'I_sum'))
@@ -1441,66 +1496,67 @@ class HodgkinHuxleyModel(NeuronModel):
     def __init__(self, **kwargs):
         super(HodgkinHuxleyModel, self).__init__()
         # initial value for state variables
-        self.neuron_parameters['dt'] = kwargs.get('dt', 0.1)
-
-        self.neuron_parameters['g_NA'] = kwargs.get('g_NA', 120.0)
-        self.neuron_parameters['g_K'] = kwargs.get('g_K', 36.0)
-        self.neuron_parameters['g_L'] = kwargs.get('g_L', 0.3)
-
-        self.neuron_parameters['E_NA']      = kwargs.get('E_NA', 120.0)
-        self.neuron_parameters['E_K']      = kwargs.get('E_K', -12.0)
-        self.neuron_parameters['E_L']      = kwargs.get('E_L', 10.6)
-
-        # a_m = a_m1 * (-V + a_m2) / (exp((-V + a_m2) / a_m3 - 1)
-        # b_m = b_m1 * exp((-V + b_m2) / b_m3)
-        self.neuron_parameters['a_m1'] = kwargs.get('alpha_m1', 0.1)
-        self.neuron_parameters['a_m2'] = kwargs.get('alpha_m2', 25.0)
-        self.neuron_parameters['a_m3'] = kwargs.get('alpha_m3', 10.0)
-        # self.neuron_parameters['a_m4'] = kwargs.get('alpha_m4', -1)
-        self.neuron_parameters['b_m1'] = kwargs.get('beta_m1', 4.0)
-        self.neuron_parameters['b_m2'] = kwargs.get('beta_m2', 0.0)
-        self.neuron_parameters['b_m3'] = kwargs.get('beta_m3', 18.0)
-
-        # a_n = a_n1 * (-V + a_n2) / (exp((-V + a_n2) / a_n3 - 1)
-        # b_n = b_n1 * exp((-V + b_n2) / b_n3)
-        self.neuron_parameters['a_n1'] = kwargs.get('alpha_n1', 0.01)
-        self.neuron_parameters['a_n2'] = kwargs.get('alpha_n2', 10.0)
-        self.neuron_parameters['a_n3'] = kwargs.get('alpha_n3', 10.0)
-        # self.neuron_parameters['a_n4'] = kwargs.get('alpha_n4', -1)
-        self.neuron_parameters['b_n1'] = kwargs.get('beta_n1', 0.125)
-        self.neuron_parameters['b_n2'] = kwargs.get('beta_n2', 0.0)
-        self.neuron_parameters['b_n3'] = kwargs.get('beta_n3', 80.0)
-
-        # a_h = a_h1 * exp((-V + a_h2) / a_h3)
-        # b_h = b_h1 / (exp((-V + b_h2) / b_h3 + 1)
-        self.neuron_parameters['a_h1'] = kwargs.get('alpha_h1', 0.07)
-        self.neuron_parameters['a_h2'] = kwargs.get('alpha_h2', 0.0)
-        self.neuron_parameters['a_h3'] = kwargs.get('alpha_h3', 20.0)
-        self.neuron_parameters['b_h1'] = kwargs.get('beta_h1', 1.0) # 分子
-        self.neuron_parameters['b_h2'] = kwargs.get('beta_h2', 30.0)
-        self.neuron_parameters['b_h3'] = kwargs.get('beta_h3', 10.0)
-
-        self.neuron_parameters['65'] = kwargs.get('V65', 0.0)
-        self.neuron_parameters['m'] = kwargs.get('m', 0.5)
-        self.neuron_parameters['n'] = kwargs.get('n', 0.5)
-        self.neuron_parameters['h'] = kwargs.get('h', 0.06)
-        # self.neuron_parameters['b_h4'] = kwargs.get('beta_h4', 1)
-
-        self.neuron_parameters['V'] = kwargs.get('V', 0.0)
-        self.neuron_parameters['vth'] = kwargs.get('vth', 1.0)
+        # self.neuron_parameters['dt'] = kwargs.get('dt', 0.1)
+        #
+        # self.neuron_parameters['g_NA'] = kwargs.get('g_NA', 120.0)
+        # self.neuron_parameters['g_K'] = kwargs.get('g_K', 36.0)
+        # self.neuron_parameters['g_L'] = kwargs.get('g_L', 0.3)
+        #
+        # self.neuron_parameters['E_NA']      = kwargs.get('E_NA', 120.0)
+        # self.neuron_parameters['E_K']      = kwargs.get('E_K', -12.0)
+        # self.neuron_parameters['E_L']      = kwargs.get('E_L', 10.6)
+        #
+        # # a_m = a_m1 * (-V + a_m2) / (exp((-V + a_m2) / a_m3 - 1)
+        # # b_m = b_m1 * exp((-V + b_m2) / b_m3)
+        # self.neuron_parameters['a_m1'] = kwargs.get('alpha_m1', 0.1)
+        # self.neuron_parameters['a_m2'] = kwargs.get('alpha_m2', 25.0)
+        # self.neuron_parameters['a_m3'] = kwargs.get('alpha_m3', 10.0)
+        # # self.neuron_parameters['a_m4'] = kwargs.get('alpha_m4', -1)
+        # self.neuron_parameters['b_m1'] = kwargs.get('beta_m1', 4.0)
+        # self.neuron_parameters['b_m2'] = kwargs.get('beta_m2', 0.0)
+        # self.neuron_parameters['b_m3'] = kwargs.get('beta_m3', 18.0)
+        #
+        # # a_n = a_n1 * (-V + a_n2) / (exp((-V + a_n2) / a_n3 - 1)
+        # # b_n = b_n1 * exp((-V + b_n2) / b_n3)
+        # self.neuron_parameters['a_n1'] = kwargs.get('alpha_n1', 0.01)
+        # self.neuron_parameters['a_n2'] = kwargs.get('alpha_n2', 10.0)
+        # self.neuron_parameters['a_n3'] = kwargs.get('alpha_n3', 10.0)
+        # # self.neuron_parameters['a_n4'] = kwargs.get('alpha_n4', -1)
+        # self.neuron_parameters['b_n1'] = kwargs.get('beta_n1', 0.125)
+        # self.neuron_parameters['b_n2'] = kwargs.get('beta_n2', 0.0)
+        # self.neuron_parameters['b_n3'] = kwargs.get('beta_n3', 80.0)
+        #
+        # # a_h = a_h1 * exp((-V + a_h2) / a_h3)
+        # # b_h = b_h1 / (exp((-V + b_h2) / b_h3 + 1)
+        # self.neuron_parameters['a_h1'] = kwargs.get('alpha_h1', 0.07)
+        # self.neuron_parameters['a_h2'] = kwargs.get('alpha_h2', 0.0)
+        # self.neuron_parameters['a_h3'] = kwargs.get('alpha_h3', 20.0)
+        # self.neuron_parameters['b_h1'] = kwargs.get('beta_h1', 1.0) # 分子
+        # self.neuron_parameters['b_h2'] = kwargs.get('beta_h2', 30.0)
+        # self.neuron_parameters['b_h3'] = kwargs.get('beta_h3', 10.0)
+        #
+        # self.neuron_parameters['65'] = kwargs.get('V65', 0.0)
+        # self.neuron_parameters['m'] = kwargs.get('m', 0.5)
+        # self.neuron_parameters['n'] = kwargs.get('n', 0.5)
+        # self.neuron_parameters['h'] = kwargs.get('h', 0.06)
+        # # self.neuron_parameters['b_h4'] = kwargs.get('beta_h4', 1)
+        #
+        # self.neuron_parameters['V'] = kwargs.get('V', 0.0)
+        # self.neuron_parameters['vth'] = kwargs.get('v_th', 1.0)
 
         self._variables['I'] = 0.0
         self._variables['O'] = 0.0
-        self._variables['V'] = self.neuron_parameters['V']
+        self._variables['V'] = kwargs.get('V', 0.0)
 
-        self._variables['m'] = self.neuron_parameters['m']
-        self._variables['n'] = self.neuron_parameters['n']
-        self._variables['h'] = self.neuron_parameters['h']
+        self._variables['m'] = kwargs.get('m', 0.5)
+        self._variables['n'] = kwargs.get('n', 0.5)
+        self._variables['h'] = kwargs.get('h', 0.06)
+        self._variables['Isyn'] = 0.0
 
         # beta = self.neuron_parameters['tau_p'] / self.neuron_parameters['tau_q']
         # V0 = (1 / (beta - 1)) * (beta ** (beta / (beta - 1)))
-        self._constant_variables['V0'] = 1.0
-        self._constant_variables['Vth'] = self.neuron_parameters['vth']
+        # self._constant_variables['V0'] = 1.0
+        self._constant_variables['Vth'] = kwargs.get('v_th', 1.0)
         self._constant_variables['Vreset'] = 0.0
 
         self._membrane_variables['tauM'] = 1.0
@@ -1509,37 +1565,37 @@ class HodgkinHuxleyModel(NeuronModel):
         self._membrane_variables['tauV'] = 1.0
 
         self._constant_variables['1'] = 1.0
-        self._constant_variables['65'] = self.neuron_parameters['65']
-        self._constant_variables['dt'] = self.neuron_parameters['dt']
+        self._constant_variables['65'] = kwargs.get('V65', 0.0)
+        self._constant_variables['dt'] = kwargs.get('dt', 0.1)
 
-        self._constant_variables['g_NA'] = self.neuron_parameters['g_NA']
-        self._constant_variables['g_K'] = self.neuron_parameters['g_K']
-        self._constant_variables['g_L'] = self.neuron_parameters['g_L']
+        self._constant_variables['g_NA'] = kwargs.get('g_NA', 120.0)
+        self._constant_variables['g_K'] = kwargs.get('g_K', 36.0)
+        self._constant_variables['g_L'] = kwargs.get('g_L', 0.3)
 
-        self._constant_variables['E_NA'] = self.neuron_parameters['E_NA']
-        self._constant_variables['E_K'] = self.neuron_parameters['E_K']
-        self._constant_variables['E_L'] = self.neuron_parameters['E_L']
+        self._constant_variables['E_NA'] = kwargs.get('E_NA', 120.0)
+        self._constant_variables['E_K'] = kwargs.get('E_K', -12.0)
+        self._constant_variables['E_L'] = kwargs.get('E_L', 10.6)
 
-        self._constant_variables['a_m1'] = self.neuron_parameters['a_m1']
-        self._constant_variables['a_m2'] = self.neuron_parameters['a_m2']
-        self._constant_variables['a_m3'] = self.neuron_parameters['a_m3']
-        self._constant_variables['b_m1'] = self.neuron_parameters['b_m1']
-        self._constant_variables['b_m2'] = self.neuron_parameters['b_m2']
-        self._constant_variables['b_m3'] = self.neuron_parameters['b_m3']
+        self._constant_variables['a_m1'] = kwargs.get('alpha_m1', 0.1)
+        self._constant_variables['a_m2'] = kwargs.get('alpha_m2', 25.0)
+        self._constant_variables['a_m3'] = kwargs.get('alpha_m3', 10.0)
+        self._constant_variables['b_m1'] = kwargs.get('beta_m1', 4.0)
+        self._constant_variables['b_m2'] = kwargs.get('beta_m2', 0.0)
+        self._constant_variables['b_m3'] = kwargs.get('beta_m3', 18.0)
 
-        self._constant_variables['a_n1'] = self.neuron_parameters['a_n1']
-        self._constant_variables['a_n2'] = self.neuron_parameters['a_n2']
-        self._constant_variables['a_n3'] = self.neuron_parameters['a_n3']
-        self._constant_variables['b_n1'] = self.neuron_parameters['b_n1']
-        self._constant_variables['b_n2'] = self.neuron_parameters['b_n2']
-        self._constant_variables['b_n3'] = self.neuron_parameters['b_n3']
+        self._constant_variables['a_n1'] = kwargs.get('alpha_n1', 0.01)
+        self._constant_variables['a_n2'] = kwargs.get('alpha_n2', 10.0)
+        self._constant_variables['a_n3'] = kwargs.get('alpha_n3', 10.0)
+        self._constant_variables['b_n1'] = kwargs.get('beta_n1', 0.125)
+        self._constant_variables['b_n2'] = kwargs.get('beta_n2', 0.0)
+        self._constant_variables['b_n3'] = kwargs.get('beta_n3', 80.0)
 
-        self._constant_variables['a_h1'] = self.neuron_parameters['a_h1']
-        self._constant_variables['a_h2'] = self.neuron_parameters['a_h2']
-        self._constant_variables['a_h3'] = self.neuron_parameters['a_h3']
-        self._constant_variables['b_h1'] = self.neuron_parameters['b_h1']
-        self._constant_variables['b_h2'] = self.neuron_parameters['b_h2']
-        self._constant_variables['b_h3'] = self.neuron_parameters['b_h3']
+        self._constant_variables['a_h1'] = kwargs.get('alpha_h1', 0.07)
+        self._constant_variables['a_h2'] = kwargs.get('alpha_h2', 0.0)
+        self._constant_variables['a_h3'] = kwargs.get('alpha_h3', 20.0)
+        self._constant_variables['b_h1'] = kwargs.get('beta_h1', 1.0)
+        self._constant_variables['b_h2'] = kwargs.get('beta_h2', 30.0)
+        self._constant_variables['b_h3'] = kwargs.get('beta_h3', 10.0)
 
         self._operations.append(('V65', 'add', 'V', '65'))
 
@@ -1641,8 +1697,8 @@ class HodgkinHuxleyModel(NeuronModel):
         self._operations.append(('Ik', 'var_mult', 'tauV', 'Ik2'))
 
         # I
-        self._operations.append(('I', 'var_mult', 'V0', 'WgtSum'))
-        self._operations.append(('Vtemp', 'minus', 'I[updated]', 'Ik'))
+        # self._operations.append(('I', 'var_mult', 'V0', 'I_synapse'))
+        self._operations.append(('Vtemp', 'minus', 'Isyn[updated]', 'Ik'))
         self._operations.append(('V', 'add', 'V', 'Vtemp'))
 
         # O
@@ -1657,7 +1713,7 @@ class LIFSTDPEXModel(NeuronModel):
     """
     LIF model:
     V(t) = decay_v * (v - v_rest) + v_rest + I^n[t]
-    I^n[t] = V0 * WgtSum^n[t]  #V0 = 1
+    I^n[t] = V0 * Isyn^n[t]  #V0 = 1
     theta(t) = decay_th * theta[t-1]
     if v >= (vth + theta) then s_out = 1; else s_out = 0;
     Reset:
@@ -1668,34 +1724,34 @@ class LIFSTDPEXModel(NeuronModel):
     def __init__(self, **kwargs):
         super(LIFSTDPEXModel, self).__init__()
         # initial value for state variables
-        self.neuron_parameters['decay_v'] = kwargs.get('decay_v', np.exp(-1/100))
-        self.neuron_parameters['decay_th'] = kwargs.get('decay_th', np.exp(-1/1e7))
-        self.neuron_parameters['th_inc'] = kwargs.get('th_inc', 0.05)
-        self.neuron_parameters['v_th'] = kwargs.get('v_th', -52.0)
-        self.neuron_parameters['v_rest'] = kwargs.get('v_rest', -65.0)
-        self.neuron_parameters['v_reset'] = kwargs.get('v_reset', -60.0)
+        # self.neuron_parameters['decay_v'] = kwargs.get('decay_v', np.exp(-1/100))
+        # self.neuron_parameters['decay_th'] = kwargs.get('decay_th', np.exp(-1/1e7))
+        # self.neuron_parameters['th_inc'] = kwargs.get('th_inc', 0.05)
+        # self.neuron_parameters['v_th'] = kwargs.get('v_th', -52.0)
+        # self.neuron_parameters['v_rest'] = kwargs.get('v_rest', -65.0)
+        # self.neuron_parameters['v_reset'] = kwargs.get('v_reset', -60.0)
 
         self._variables['I'] = 0.0
         self._variables['V'] = -65.0
         self._variables['O'] = 0.0
-        self._variables['WgtSum'] = 0.0
+        self._variables['Isyn'] = 0.0
         self._variables['theta[stay]'] = 0.0
         self._variables['Vth_theta'] = 0.0
 
-        self._constant_variables['V0'] = 1
+        # self._constant_variables['V0'] = 1
 
-        self._constant_variables['Vth'] = self.neuron_parameters['v_th']
-        self._constant_variables['Vreset'] = self.neuron_parameters['v_reset']
-        self._constant_variables['Vrest'] = self.neuron_parameters['v_rest']
-        self._constant_variables['th_inc'] = self.neuron_parameters['th_inc']
-        self._constant_variables['decay_th'] = self.neuron_parameters['decay_th']
-        self._constant_variables['decay_v'] = self.neuron_parameters['decay_v']
+        self._parameter_variables['Vth'] = kwargs.get('v_th', -52.0)
+        self._constant_variables['Vreset'] = kwargs.get('v_reset', -60.0)
+        self._constant_variables['Vrest'] = kwargs.get('v_rest', -65.0)
+        self._constant_variables['th_inc'] = kwargs.get('th_inc', 0.05)
+        self._constant_variables['decay_th'] = kwargs.get('decay_th', np.exp(-1/1e7))
+        self._constant_variables['decay_v'] = kwargs.get('decay_v', np.exp(-1/100))
 
 
-        self._operations.append(('I', 'var_mult', 'V0', 'WgtSum[updated]'))
+        # self._operations.append(('I', 'var_mult', 'V0', 'I_synapse[updated]'))
         self._operations.append(('PSP1', 'minus', 'V', 'Vrest'))
         self._operations.append(('PSP2', 'var_linear', 'decay_v', 'PSP1', 'Vrest'))
-        self._operations.append(('Vtemp', 'add', 'PSP2', 'I[updated]'))
+        self._operations.append(('Vtemp', 'add', 'PSP2', 'Isyn[updated]'))
         self._operations.append(('theta_temp', 'var_mult', 'decay_th', 'theta[stay]'))
         self._operations.append(('Vth_theta', 'add', 'Vth', 'theta_temp'))
         self._operations.append(('O', 'threshold', 'Vtemp', 'Vth_theta'))
@@ -1704,7 +1760,7 @@ class LIFSTDPEXModel(NeuronModel):
         self._operations.append(('Resetting3', 'minus', 'Vtemp', 'Resetting2'))
         self._operations.append(('V', 'add', 'Resetting1', 'Resetting3'))
         self._operations.append(('Resetting_theta', 'var_mult', 'O[updated]', 'th_inc'))
-        self._operations.append(('theta_stay', 'add', 'theta_temp', 'Resetting_theta'))
+        self._operations.append(('theta[stay]', 'add', 'theta_temp', 'Resetting_theta'))
 
 
 NeuronModel.register("lifstdp_ex", LIFSTDPEXModel)
@@ -1713,7 +1769,7 @@ class LIFSTDPIHModel(NeuronModel):
     """
     LIF model:
     V(t) = decay_v * (v - v_rest) + v_rest + I^n[t]
-    I^n[t] = V0 * WgtSum^n[t]  #V0 = 1
+    I^n[t] = V0 * Isyn^n[t]  #V0 = 1
 
     Reset:
     V(t) = s_out * v_reset + (1 - s_out) * v;
@@ -1723,28 +1779,28 @@ class LIFSTDPIHModel(NeuronModel):
     def __init__(self, **kwargs):
         super(LIFSTDPIHModel, self).__init__()
         # initial value for state variables
-        self.neuron_parameters['decay_v'] = kwargs.get('decay_v', np.exp(-1/10))
-        self.neuron_parameters['v_th'] = kwargs.get('v_th', -40.0)
-        self.neuron_parameters['v_rest'] = kwargs.get('v_rest', -60.0)
-        self.neuron_parameters['v_reset'] = kwargs.get('v_reset', -45.0)
+        # self.neuron_parameters['decay_v'] = kwargs.get('decay_v', np.exp(-1/10))
+        # self.neuron_parameters['v_th'] = kwargs.get('v_th', -40.0)
+        # self.neuron_parameters['v_rest'] = kwargs.get('v_rest', -60.0)
+        # self.neuron_parameters['v_reset'] = kwargs.get('v_reset', -45.0)
 
         self._variables['I'] = 0.0
         self._variables['V'] = -60.0
         self._variables['O'] = 0.0
-        self._variables['WgtSum'] = 0.0
+        self._variables['Isyn'] = 0.0
 
-        self._constant_variables['V0'] = 1
+        # self._constant_variables['V0'] = 1
 
-        self._constant_variables['Vth'] = self.neuron_parameters['v_th']
-        self._constant_variables['Vreset'] = self.neuron_parameters['v_reset']
-        self._constant_variables['Vrest'] = self.neuron_parameters['v_rest']
-        self._constant_variables['decay_v'] = self.neuron_parameters['decay_v']
+        self._parameter_variables['Vth'] = kwargs.get('v_th', -40.0)
+        self._constant_variables['Vreset'] = kwargs.get('v_reset', -45.0)
+        self._constant_variables['Vrest'] = kwargs.get('v_rest', -60.0)
+        self._constant_variables['decay_v'] = kwargs.get('decay_v', np.exp(-1/10))
 
 
-        self._operations.append(('I', 'var_mult', 'V0', 'WgtSum[updated]'))
+        # self._operations.append(('I', 'var_mult', 'V0', 'I_synapse[updated]'))
         self._operations.append(('PSP1', 'minus', 'V', 'Vrest'))
         self._operations.append(('PSP2', 'var_linear', 'decay_v', 'PSP1', 'Vrest'))
-        self._operations.append(('Vtemp', 'add', 'PSP2', 'I[updated]'))
+        self._operations.append(('Vtemp', 'add', 'PSP2', 'Isyn[updated]'))
         self._operations.append(('O', 'threshold', 'Vtemp', 'Vth'))
         self._operations.append(('Resetting1', 'var_mult', 'Vreset', 'O[updated]'))
         self._operations.append(('Resetting2', 'var_mult', 'Vtemp', 'O[updated]'))

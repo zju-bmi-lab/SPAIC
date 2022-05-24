@@ -117,13 +117,13 @@ class CC_Generator(Generator):
         if source.__class__.__name__ == 'ndarray':
             source = torch.tensor(source, dtype=torch.float, device=device)
 
-        if source.ndim == 0:
-            batch = 1
-        else:
-            batch = source.shape[0]
-
-        shape = [batch, self.num]
-        spk_shape = [self.time_step] + list(shape)
+        # if source.ndim == 0:
+        #     batch = 1
+        # else:
+        #     batch = source.shape[0]
+        #
+        # shape = [batch, self.num]
+        spk_shape = [self.time_step] + list(self.shape)
         spikes = source * torch.ones(spk_shape, device=device)
         return spikes
 

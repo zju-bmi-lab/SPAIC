@@ -99,6 +99,7 @@ class Torch_Backend(Backend):
     #
     #     return tuple(self._graph_var_dicts['variables_dict'].values())
 
+    #  As of now, autograd support floating point Tensor types ( half, float, double and bfloat16) and complex Tensor types (cfloat, cdouble).
     def add_backend_variable(self, name, shape, value=None, grad=False, is_sparse=False, init=None, init_param=None):
         '''
         Parameters
@@ -115,7 +116,7 @@ class Torch_Backend(Backend):
             init_param = dict()
         if value is not None:
             if hasattr(value, "__len__"):
-                if value.shape != shape:
+                if tuple(value.shape) != tuple(shape):
                     raise ValueError("Value is not scalar and the shape of Value is not equal to shape")
                 # add a sparse matrices with all dimensions greater than 2
                 if is_sparse:
@@ -303,11 +304,8 @@ class Torch_Backend(Backend):
         Returns
         -------
         '''
-        try:
-            X = X.permute(1, 0)
-            return torch.matmul(A, X)
-        except:
-            a = 1
+        X = X.permute(1, 0)
+        return torch.matmul(A, X)
 
 
     def mat_mult_pre(self, A, X):
@@ -373,12 +371,9 @@ class Torch_Backend(Backend):
         return A * X
 
     def mult_sum_weight(self, A, X):
-        try:
-            X = X.permute(1, 0)
-            A = A.permute(0, 2, 1)
-            return torch.sum(torch.matmul(A, X), dim=-2)
-        except:
-            pass
+        X = X.permute(1, 0)
+        A = A.permute(0, 2, 1)
+        return torch.sum(torch.matmul(A, X), dim=-2)
 
     def mat_linear(self, A, X, b):
         return torch.matmul(A, X) + b
@@ -386,6 +381,9 @@ class Torch_Backend(Backend):
     def var_linear(self, A, X, b):
 
         return A*X+b
+
+    def unsqueeze(self, X, dim):
+        return torch.unsqueeze(X, dim)
 
     def to_numpy(self, data: torch.Tensor):
         return data.detach().cpu().numpy()

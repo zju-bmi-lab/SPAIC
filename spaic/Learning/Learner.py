@@ -83,9 +83,7 @@ class Learner(BaseModule, ABC):
         self.pathway_nodes = OrderedDict()
         self.pathway_modules = OrderedDict()
         self.init_pathway = pathway
-
         self._operations = []
-        self._var_dict = dict()
 
 
     def add_trainable(self, trainable: list):
@@ -220,6 +218,9 @@ class Learner(BaseModule, ABC):
 
         return param
 
+    def get_varname(self, key):
+        name = self.name + ':{' + key + '}'
+        return name
 
     def build_optimizer(self):
 
