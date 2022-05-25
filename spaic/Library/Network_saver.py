@@ -22,7 +22,8 @@ from ..Monitor.Monitor import Monitor
 import time
 
 
-def network_save(Net: Assembly, filename=None, trans_format='json', combine=False, save=True, save_weight=True):
+def network_save(Net: Assembly, filename=None, path=None,
+                 trans_format='json', combine=False, save=True, save_weight=True):
     '''
         Save network to files.
 
@@ -52,36 +53,45 @@ def network_save(Net: Assembly, filename=None, trans_format='json', combine=Fals
         else:
             filename = "autoname" + str(time.time())
 
-    path = './NetData/' + filename
+    origin_path = os.getcwd()
+    if path:
+        filedir = path + '/' + filename
+    else:
+        path = './'
+        filedir = path + filename
 
     if save:
-        if 'NetData' not in os.listdir(os.getcwd()):
-            os.mkdir('NetData')
-        if filename not in os.listdir(os.getcwd() + '/NetData'):
-            os.mkdir(path)
+        os.chdir(path)
+        if filename not in os.listdir():
+            os.mkdir(filename)
+        os.chdir(filedir)
 
     result_dict = trans_net(Net=Net, path=path, combine=combine, save=save, save_weight=save_weight)
 
-    if trans_format == "yaml":
-        import yaml
-        result = yaml.dump(result_dict, indent=4)
-        ends = '.yml'
-    elif trans_format == 'json':
-        import json
-        result = json.dumps(result_dict, indent=4)
-        ends = '.json'
-    else:
-        raise ValueError("Wrong data format. Only support yaml/json format.")
-
     if save:
-        with open(path+'/'+filename+ends, 'w+') as f:
+        if trans_format == "yaml":
+            import yaml
+            result = yaml.dump(result_dict, indent=4)
+            ends = '.yml'
+        elif trans_format == 'json':
+            import json
+            result = json.dumps(result_dict, indent=4)
+            ends = '.json'
+        else:
+            raise ValueError("Wrong data format. Only support yaml/json format.")
+
+        with open('./'+filename+ends, 'w+') as f:
             f.write(result)
+        os.chdir(origin_path)
         print("Save Complete.")
         return filename
+    else:
+        os.chdir(origin_path)
+        print("Complete.")
+        return result_dict
 
-    print("Complete.")
 
-    return filename, result_dict
+
 
 
 def trans_net(Net: Assembly, path: str, combine: bool, save: bool, save_weight: bool):
@@ -104,9 +114,10 @@ def trans_net(Net: Assembly, path: str, combine: bool, save: bool, save_weight: 
     result_dict[net_name] = []
 
     for g in Net._groups.values():
-        if g._class_label == '<asb>' or g._class_label == '<net>':  # translate other nets
+        if g._class_label == '<asb>':  # translate other assemblies
             sub_net_name = g.name
-            result_dict[net_name].append(trans_net(g, path+'/'+str(sub_net_name), combine, save, save_weight=False))
+            result_dict[net_name].append(trans_net(g, path+'/'+str(sub_net_name),
+                                                   combine, save, save_weight=False))
         elif g._class_label == '<neg>':  # translate layers
             result_dict[net_name].append(trans_layer(g))
         elif g._class_label == '<nod>':  # translate nodes
@@ -120,7 +131,7 @@ def trans_net(Net: Assembly, path: str, combine: bool, save: bool, save_weight: 
         result_dict[net_name].append(trans_projection(p))
 
     for c in Net._connections.values():  # translate connections
-        result_dict[net_name].append(trans_connection(c, combine))
+        result_dict[net_name].append(trans_connection(c, combine, save_weight))
 
     if '_monitors' in dir(Net):
         mon_dict = {'monitor': []}
@@ -136,7 +147,7 @@ def trans_net(Net: Assembly, path: str, combine: bool, save: bool, save_weight: 
     if (not combine) and save_weight:
         if Net._backend:
             result_dict[net_name].append(
-                {'backend': trans_backend(Net._backend, path, save)}
+                {'backend': trans_backend(Net._backend, save)}
             )
         else:
             import warnings
@@ -159,27 +170,38 @@ def trans_node(node: Node):
 
     '''
 
-    needed = ['shape', 'num', 'dec_target', '_time', '_dt', 'coding_method',
-              'coding_var_name', 'node_type', 'name', ]
+    needed = ['id', 'shape', 'num', '_time', '_dt', 'coding_method',
+              'coding_var_name', 'type', 'name', 'coding_param']
 
     result_dict = dict()
     para_dict = dict()
 
     for key, para in node.__dict__.items():
         if key in needed:
-            para_dict[key] = para
+            para_dict[key] = check_var_type(para)
 
     para_dict['shape'] = list(para_dict['shape'][1:])
+    if node.is_encoded:
+        para_dict['shape'] = para_dict['shape'][1:]
 
-    if para_dict['dec_target']:
-        para_dict['dec_target'] = para_dict['dec_target'].name
+    if 'dt' in dir(node):
+        para_dict['dt'] = node.dt
+    if 'time' in dir(node):
+        para_dict['time'] = node.time
 
-    import torch
-    # if isinstance(para_dict['shape'], torch.Size):
-    #     if list(para_dict['shape']) == [1]:
-    #         para_dict['shape'] = (1,)
-    #     else:
-    #         para_dict['shape'] = tuple(list(para_dict['shape']))
+    if node.__dict__['dec_target']:
+        para_dict['dec_target'] = node.__dict__['dec_target'].name
+
+    if 'action' in node.__dict__.keys():
+        para_dict['kind'] = 'Action'
+    elif 'reward' in node.__dict__.keys():
+        para_dict['kind'] = 'Reward'
+    elif 'predict' in node.__dict__.keys():
+        para_dict['kind'] = 'Decoder'
+    elif 'gen_first' in node.__dict__.keys():
+        para_dict['kind'] = 'Generator'
+    else:
+        para_dict['kind'] = 'Encoder'
 
     para_dict['_class_label'] = '<nod>'
     result_dict[node.name] = para_dict
@@ -203,7 +225,7 @@ def trans_layer(layer: NeuronGroup):
     para_dict = dict()
 
 
-    unneeded = ['id', 'hided', '_backend', '_connections', '_supers', '_input_connections',
+    unneeded = ['hided', '_backend', '_connections', '_supers', '_input_connections',
                 '_output_connections', '_var_names', 'model_class', '_operations', 'model',
                 '_groups']
     needed = ['model_name', 'id', 'name', 'num', 'position', 'shape', 'type', 'parameters']
@@ -212,13 +234,13 @@ def trans_layer(layer: NeuronGroup):
 
     for key, para in layer.__dict__.items():
         if key in needed:
-            para_dict[key] = para
+            para_dict[key] = check_var_type(para)
 
     if para_dict['position'] != ('x, y, z' or 'x, y'):
         para_dict.pop('position')
     para_dict['_class_label'] = '<neg>'
 
-    para_dict['neuron_parameters'] = layer.model.neuron_parameters
+    para_dict['parameters'] = layer.parameters
 
     result_dict[layer.name] = para_dict
     return result_dict
@@ -240,21 +262,38 @@ def trans_projection(projection: Projection):
     result_dict = dict()
     para_dict = dict()
     name_needed = ['pre_assembly', 'post_assembly']
-    needed = ['name', '_policies', 'link_type', 'ConnectionParameters']
+    needed = ['name', 'link_type', 'ConnectionParameters']
 
     for key, para in projection.__dict__.items():
         if key in name_needed:
             para_dict[key] = para.name
         elif key in needed:
-            para_dict[key] = para
+            para_dict[key] = check_var_type(para)
 
     para_dict['_class_label'] = '<prj>'
+    para_dict['_policies'] = []
+    for ply in projection._policies:
+        if ply.name == 'Index_policy':
+            para_dict['_policies'].append(
+                {'name': ply.name,
+                 'pre_indexs': ply.pre_indexs,
+                 'post_indexs': ply.post_indexs,
+                 'level': ply.level}
+            )
+        else:
+            para_dict['_policies'].append(
+                {'name': ply.name,
+                 'pre_types': list(ply.pre_types) if ply.pre_types else ply.pre_types,
+                 'post_types': list(ply.post_types) if ply.post_types else ply.post_types,
+                 'level': ply.level}
+            )
+
     result_dict[projection.name] = para_dict
 
     return result_dict
 
 
-def trans_connection(connection: Connection, combine: bool):
+def trans_connection(connection: Connection, combine: bool, save_weight: bool):
     '''
         Transform the structure of the connection for saving and extract the
             parameters.
@@ -273,28 +312,21 @@ def trans_connection(connection: Connection, combine: bool):
 
     name_needed = ['pre_assembly', 'post_assembly']
     needed = ['name', 'link_type', 'max_delay', 'sparse_with_mask',
-              'pre_var_name', 'post_var_name', 'parameters']
-    unneeded = ['id', 'hided', 'pre_groups', 'post_groups', 'pre_assemblies', 'post_assemblies',
-                'unit_connections', '_var_names', '_supers', '_policies', '_backend']
+              'pre_var_name', 'post_var_name', 'parameters', 'id', ]
+    unneeded = ['hided', 'pre_groups', 'post_groups', 'pre_assemblies', 'post_assemblies',
+                'unit_connections', '_var_names', '_supers', '_backend']
     # **link_parameters
 
     for key, para in connection.__dict__.items():
         if key in name_needed:
-            para_dict[key] = para.name
+            para_dict[key] = para.id
         elif key in needed:
-            para_dict[key] = para
+            if key == 'parameters':
+                if 'weight' in para.keys():
+                    del para['weight']
+            para_dict[key] = check_var_type(para)
     if combine:     # 是否需要在文件中存储weight
-        para_dict['weight'] = dict()
-        t = 0
-        for conn in connection.unit_connections:
-            # preg = conn.pre_assembly
-            # posg = conn.post_assembly
-            # weight_name = connection.get_weight_name(preg, posg)
-            weight_name = conn[3][0]
-            weight = connection._backend._variables[weight_name].detach().cpu().numpy().tolist()
-
-            para_dict['weight'][weight_name] = weight
-            t += 1
+        para_dict['weight'] = check_var_type(connection.weight)
 
     para_dict['_class_label'] = '<con>'
     result_dict[connection.name] = para_dict
@@ -302,7 +334,7 @@ def trans_connection(connection: Connection, combine: bool):
     return result_dict
 
 
-def trans_backend(backend: Backend, path: str, save: bool):
+def trans_backend(backend: Backend, save: bool):
     '''
     Transform the data of backend for saving.
 
@@ -319,7 +351,7 @@ def trans_backend(backend: Backend, path: str, save: bool):
 
     # key_parameters_dict = ['_variables', '_parameters_dict', '_InitVariables_dict']
     key_parameters_dict = ['_parameters_dict']
-    key_parameters_list = ['dt', 'time', 'n_time_step']
+    key_parameters_list = ['dt', 'runtime', 'time', 'n_time_step']
 
 
     if backend._variables is None:
@@ -327,9 +359,11 @@ def trans_backend(backend: Backend, path: str, save: bool):
         warnings.warn('Backend end don\'t have variables. Have not built Backend. Weight not exists.')
         return
     else:
-        if 'parameters' not in os.listdir(os.getcwd() + path[1:]):
-            os.mkdir(os.getcwd() + path[1:]+'/parameters')
-    sim_path = path + '/parameters'
+        if 'parameters' not in os.listdir():
+            os.mkdir('parameters')
+    ori_path = os.getcwd()
+    sim_path = ori_path + '/parameters'
+    os.chdir(sim_path)
 
     import torch
 
@@ -341,28 +375,14 @@ def trans_backend(backend: Backend, path: str, save: bool):
             torch.save(data, save_path)
             result_dict[key] = './parameters/' + key + '.pt'
         else:
-            raise ValueError("Wrong save choosen, since parameters can be get from network"
-                             "unneeded to use network_save function.")
+            result_dict = backend._parameter_dict
+            # raise ValueError("Wrong save choosen, since parameters can be get from network"
+            #                  "unneeded to use network_save function.")
 
     for key in key_parameters_list:
         result_dict[key] = backend.__dict__[key]
 
-
-    # for key in key_parameters_dict:
-    #     if key not in os.listdir(sim_path):
-    #         os.mkdir(os.getcwd()+path[1:]+'/backend/'+key)
-    #     result_dict[key] = dict()
-    #     num = 0
-    #     for k in backend.__dict__[key].keys():
-    #         result_dict[key][k] = './backend/' + key + '/' + \
-    #                                            str(num) + '.pt'
-    #         num += 1
-    #         data = backend.__dict__[key][k]
-    #         if save:
-    #             torch.save(data, path+result_dict[key][k][1:])
-    # torch.save(backend._variables, path+'total.pt')
-    # result = {'backend': result_dict}
-
+    os.chdir(ori_path)
     return result_dict
 
 
@@ -385,15 +405,16 @@ def trans_learner(learner, learn_name):
     for key in needed:
         if key in learner.__dict__.keys():
             para = learner.__dict__.get(key)
-            para_dict[key] = para if type(para) != torch.Tensor \
-                    else para.detach().cpu().numpy().tolist()
+            para_dict[key] = check_var_type(para)
+                # if type(para) != torch.Tensor \
+                #     else para.detach().cpu().numpy().tolist()
 
     for train_name in trainables:
         for key, train in learner.__dict__[train_name].items():
-            para_dict['trainable'].append(train.name)
+            para_dict['trainable'].append(check_var_type(train.name))
 
-    para_dict['algorithm'] = para_dict['name']
-    para_dict['name'] = learn_name
+    para_dict['algorithm'] = check_var_type(para_dict['name'])
+    para_dict['name'] = check_var_type(learn_name)
     if 'algorithm' in para_dict['parameters'].keys():
         del para_dict['parameters']['algorithm']
 
@@ -407,10 +428,56 @@ def trans_monitor(monitor: Monitor):
     result_dict = dict()
     for i in needed:
         result_dict[i] = mon.__dict__[i]
-    result_dict['target'] = mon.target.name if mon.target else None
+    result_dict['target'] = mon.target.id
     result_dict['monitor_type'] = 'StateMonitor' if type(monitor[1]) == StateMonitor else 'SpikeMonitor'
 
     return {name: result_dict}
+
+
+def check_var_type(var):
+    import torch
+    import numpy as np
+    import json
+    try:
+        json.dumps(var)
+        return var
+    except:
+        if isinstance(var, torch.Tensor):
+            return var.detach().cpu().numpy().tolist()
+        if isinstance(var, dict):
+            for key, value in var.items():
+                var[key] = check_var_type(value)
+            return var
+        try:
+            var_list = var.tolist()
+            return var_list
+        except:
+            raise TypeError('Please check type of parameters, we only support tensor or python build-in types.')
+        # if len(var) >= 2:
+        #     res_list = var.tolist()
+        #     return [check_var_type(i) for i in res_list]
+        # else:
+        #     return check_var_type(var.tolist()[0])
+    # if isinstance(var, torch.Tensor) or isinstance(var, np.ndarray):
+    #     if len(var) >= 2:
+    #         return var.tolist()
+    #     else:
+    #         return var.tolist()[0]
+    # # elif isinstance(var, np.ndarray):
+    # #     if len(var) >= 2:
+    # #         return var.tolist()
+    # #     else:
+    # #         return var.tolist()[0]
+    # elif isinstance(var, set):
+    #     return list(var)
+    # elif isinstance(var, list):  # 如果出现list中还有别的类型，考虑去后端解决
+    #     return var
+    # elif isinstance(var, dict):
+    #     for key, value in var.items():
+    #         var[key] = check_var_type(value)
+    #     return var
+    # else:
+    #     return var
 
 
 
