@@ -8,8 +8,9 @@ Created on 2020/8/5
 @description:
 """
 import spaic
+
 from collections import OrderedDict
-from ..Network.BaseModule import BaseModule
+from ..Network.BaseModule import BaseModule, VariableAgent
 from abc import ABC, abstractmethod
 from torch import nn
 from typing import List
@@ -86,25 +87,45 @@ class Assembly(BaseModule):
         init_count = spaic.global_assembly_init_count
 
         self.set_name(name)
-        self._backend:spaic.Backend = None
-        self._groups: OrderedDict[str,Assembly] = OrderedDict()
-        self._connections: OrderedDict[str,spaic.Connection] = OrderedDict()
-        self._projections : OrderedDict[str,spaic.Projection] = OrderedDict()
+        self._backend: spaic.Backend = None
+        self._groups: OrderedDict[str, Assembly] = OrderedDict()
+        self._connections: OrderedDict[str, spaic.Connection] = OrderedDict()
+        self._projections: OrderedDict[str, spaic.Projection] = OrderedDict()
         self._supers = list()
         self._input_connections = list()
         self._output_connections = list()
         self.num = 0
         self.position = None
-        self._var_names = []
-        self._var_dict = dict()
+        # _var_names 和 _var_dict移动到了BaseModule 作为网络各模块的通用属性
+        # self._var_names = []
+        # self._var_dict = dict()
         self.context_enterpoint = 0
         self.type = []
-
-
 
     # front-end functions
     def add_type(self, type):
         self.type.append(type)
+
+    def get_labeled_name(self, key: str):
+        if isinstance(key, str):
+            if '[updated]' in key:
+                return self.id + ':' +'{'+key.replace('[updated]',"")+'}' + '[updated]'
+            else:
+                return self.id + ':' +'{'+key+'}'
+        elif isinstance(key, VariableAgent):
+            return key.var_name
+        elif isinstance(key, list) or isinstance(key, tuple):
+            keys = []
+            for k in key:
+                if isinstance(k, str):
+                    if '[updated]' in k:
+                        mk = self.id + ':' + '{' + k.replace('[updated]', "") + '}' + '[updated]'
+                    else:
+                        mk = self.id + ':' + '{' + k + '}'
+                    keys.append(mk)
+                elif isinstance(k, VariableAgent):
+                    keys.append(k.var_name)
+            return keys
 
     def add_assembly(self, name, assembly):
         """
@@ -192,7 +213,6 @@ class Assembly(BaseModule):
                 if self._connections[ckey].assembly_linked(assembly):
                     del self._connections[ckey]
 
-
     def add_connection(self, name, connection):
         """
         Add the connection between two member assemblies of this assembly.
@@ -211,8 +231,8 @@ class Assembly(BaseModule):
 
         """
         if self._backend: self._backend.builded = False
-        assert connection.pre_assembly in self._groups.values(), 'pre_assembly %s is not in the group'%connection.pre_assembly.name
-        assert connection.post_assembly in self._groups.values(), 'post_assembly %s is not in the group'%connection.post_assembly.name
+        assert connection.pre_assembly in self.get_groups(), 'pre_assembly %s is not in the group'%connection.pre_assembly.name
+        assert connection.post_assembly in self.get_groups(), 'post_assembly %s is not in the group'%connection.post_assembly.name
         if name in self._connections:
             if connection is self._connections[name]:
                 raise ValueError(" connection is already in the assembly's connection list")
@@ -261,11 +281,6 @@ class Assembly(BaseModule):
             del self._connections[name]
             del self.__dict__[name]
 
-    def add_monitor(self, name, monitor):
-        assert monitor not in self._monitors.values(), "monitor %s is already added" % (name)
-        assert name not in self._monitors.keys(), "monitor with name: %s have the same name with an already exists monitor" % (name)
-        self.__setattr__(name, monitor)
-
     def add_projection(self, name, projection):
         """
         Add the projection between two member assemblies of this assembly.
@@ -294,7 +309,6 @@ class Assembly(BaseModule):
         else:
             self.__setattr__(name, projection)
 
-
     def copy_assembly(self, name, assembly):
         """
         Copy an existed assembly structure into this assembly.
@@ -318,7 +332,6 @@ class Assembly(BaseModule):
         if self._backend: self._backend.builded = False
         rv = assembly.structure_copy(name)
         self.__setattr__(name, rv)
-
 
     def replace_assembly(self, old_assembly, new_assembly):
         """
@@ -352,8 +365,6 @@ class Assembly(BaseModule):
         for con in self._connections.values():
             if con.assembly_linked(old_assembly):
                 con.replace_assembly(old_assembly, new_assembly)
-
-
 
     def merge_assembly(self, assembly):
         """
@@ -399,7 +410,6 @@ class Assembly(BaseModule):
                             break
             else:
                 self._connections[key] = value
-
 
     def select_assembly(self, assemblies, name=None, with_connection=True):
         """
@@ -447,8 +457,6 @@ class Assembly(BaseModule):
 
         return new_asb
 
-
-
     def assembly_hide(self):
         """
         Prohibit this assembly from building and display, but keep this assembly for later use.
@@ -469,8 +477,6 @@ class Assembly(BaseModule):
         for key, value in self._connections.items():
             value.hided = True
 
-
-
     def assembly_show(self):
         """
         Make the hided assembly to normal assembly.
@@ -489,8 +495,6 @@ class Assembly(BaseModule):
             value.assembly_show()
         for key, value in self._connections.items():
             value.hided = False
-
-
 
     def get_groups(self, recursive=True):
         """
@@ -512,7 +516,6 @@ class Assembly(BaseModule):
         else:
             return [self]
 
-
     def get_leveled_groups(self):
         """
         Get list of all sup groups in leveled order, such as [ [self], [subgroups], [subgroup of subgroups], ...]
@@ -532,8 +535,6 @@ class Assembly(BaseModule):
                     else:
                         leveled_groups.append(groups)
         return leveled_groups
-
-
 
     def get_assemblies(self, recursive=True):
         """
@@ -609,7 +610,6 @@ class Assembly(BaseModule):
         else:
             return item in self._connections.values()
 
-
     def get_connections(self, recursive=True):
         """
             Get the Connections in this assembly
@@ -629,7 +629,6 @@ class Assembly(BaseModule):
             for proj in self._projections.values():
                 connections.extend(proj.get_connections(recursive=True))
             return connections
-
 
     def get_var_names(self):
         """
@@ -679,22 +678,16 @@ class Assembly(BaseModule):
         # for con in self.get_connections():
         #     con.set_id()
 
-        if strategy == 1:
-            pass
-        elif strategy == 2:
-            self.strategy_build(self.get_groups(False))
-        else:
-            for key, value in self._connections.items():
-                value.build(backend)
-            for key, value in self._groups.items():
-                value.build(backend)
+        for key, value in self._connections.items():
+            value.build(backend)
+        for key, value in self._groups.items():
+            value.build(backend)
 
     def build_projections(self, backend):
         for proj in self._projections.values():
             proj.build(backend)
         for group in self._groups.values():
             group.build_projections(backend)
-
 
     def set_id(self):
         """
@@ -725,8 +718,6 @@ class Assembly(BaseModule):
                 self.id = pre_id + '_' + self.id
         return self.id
 
-
-
     def register_connection(self, connection_obj, presynaptic):
         '''
         Register input or output connection of this assembly
@@ -752,7 +743,6 @@ class Assembly(BaseModule):
         else:
             if connection_obj not in self._input_connections:
                 self._input_connections.append(connection_obj)
-
 
     def structure_copy(self, name=None):
         """
@@ -814,7 +804,6 @@ class Assembly(BaseModule):
             # record the variable number before enter the context
             self.context_enterpoint = main_vars.__len__() -1
 
-
     def __exit__(self, exc_type, exc_val, exc_tb):
         import __main__
         main_vars = vars(__main__)
@@ -833,11 +822,9 @@ class Assembly(BaseModule):
         # keys = list(globals().keys())
         # print(keys)
 
-
     def __setattr__(self, name, value):
         from ..Network.Topology import Connection
         from ..Network.Topology import Projection
-        from ..Monitor.Monitor import Monitor
         super(Assembly, self).__setattr__(name, value)
         if (self.__class__ is spaic.NeuronGroup) or (issubclass(self.__class__, spaic.Node)):
             # If class is NeuronGroup or the subclass of Node, do not add other object to it.
@@ -860,10 +847,6 @@ class Assembly(BaseModule):
             self._projections[name] = value
             value.set_name(name)
             value.add_super(self)
-        elif isinstance(value, Monitor):
-            self._monitors[name] = value
-            # value.
-            pass
 
     def __delattr__(self, name):
         super(Assembly, self).__delattr__(name)
@@ -875,9 +858,6 @@ class Assembly(BaseModule):
             if self._backend: self._backend.builded = False
             self._connections[name].del_super(self)
             del self._connections[name]
-
-
-
 
     def __repr__(self):
 

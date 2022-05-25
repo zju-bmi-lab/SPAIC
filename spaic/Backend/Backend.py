@@ -111,6 +111,7 @@ class Backend(BaseModule, ABC):
         self.basic_operate['permute'] = self.permute
         self.basic_operate['view'] = self.view
         self.basic_operate['equal'] = self.equal
+        self.basic_operate['unsqueeze'] = self.unsqueeze
 
         self.basic_operate['reduce_sum'] = self.reduce_sum
         self.basic_operate['conv_2d'] = self.conv_2d
@@ -173,6 +174,10 @@ class Backend(BaseModule, ABC):
         fetch_operations = []
         push_operations = []
         graph_operations = []
+        # self._graph_operations = list()
+        # self._push_operations = list()
+        # self._fetch_operations = list()
+
         for op in self._operations:
             if len(op[0]) == 0 and len(op[2]) == 0:
                 # functions with no input and output will not push into the computation graph
@@ -198,6 +203,7 @@ class Backend(BaseModule, ABC):
                 outputs.append(op[1]())
             else:
                 outputs = op[1]()
+            # return variable is a list
             for ind, var_name in enumerate(op[0]):
                 if var_name in self._variables:
                     # when the same ret_var_name occurs more than once, op[0] is added to the reduce_dict of _graph_var_dicts
@@ -205,7 +211,7 @@ class Backend(BaseModule, ABC):
                         reduce_dict[var_name] = [update_dict[var_name], outputs[ind]]
                         label_outputs.append(('reduce_dict', var_name))
                         # # add op[0] into graph: reduce_dict
-                        self._graph_var_dicts['reduce_dict'][op[0]] = []
+                        # self._graph_var_dicts['reduce_dict'][op[0]] = []
                         # revise the first reduce operation
                         for gop in self._push_operations:
                             tmp_label_outputs = gop[0]
@@ -256,15 +262,15 @@ class Backend(BaseModule, ABC):
                     if var_name in update_dict:
                         inputs.append(update_dict[var_name])
                         label_inputs.append(('update_dict', var_name))
-                    # elif var_name in reduce_dict:
-                    #     # if the reduce_dict[var_name] is frozen: do reduce_sum operation before this op, and put the value to update_dict
-                    #     value = self.reduce_sum(self.stack(reduce_dict[var_name]))
-                    #     inputs.append(value)
-                    #     label_inputs.append(('update_dict', var_name))
-                    #     temp_reduce_sum_ops.append((var_name, len(reduce_dict[var_name])))
-                    #     # add the reduce_sum operation into the graph
-                    #     self._graph_operations.append(
-                    #         [[('update_dict', var_name)], self.reduce_sum_update, [('reduce_dict', var_name)]])
+                    elif var_name in reduce_dict:
+                        # if the reduce_dict[var_name] is frozen: do reduce_sum operation before this op, and put the value to update_dict
+                        value = self.reduce_sum(self.stack(reduce_dict[var_name]))
+                        inputs.append(value)
+                        label_inputs.append(('update_dict', var_name))
+                        temp_reduce_sum_ops.append((var_name, len(reduce_dict[var_name])))
+                        # add the reduce_sum operation into the graph
+                        self._graph_operations.append(
+                            [[('update_dict', var_name)], self.reduce_sum_update, [('reduce_dict', var_name)]])
                     elif var_name in self._variables:
                         inputs.append(self._variables[var_name])
                         label_inputs.append(('variables_dict', var_name))
@@ -328,7 +334,9 @@ class Backend(BaseModule, ABC):
                         label_outputs.append(('temp_dict', var_name))
 
             # add the operation to built graph
+
             self._graph_operations.append([label_outputs, op[1], label_inputs])
+
 
         for reduce_op in temp_reduce_sum_ops:
             reduce_len = len(reduce_dict[reduce_op[0]])
@@ -447,7 +455,6 @@ class Backend(BaseModule, ABC):
             for ind, var in enumerate(op[0]):
                 if var[0] == 'update_dict':
                     update_dict[var[1]] = result[ind]
-
                 elif var[1] in reduce_dict:
                     reduce_dict[var[1]].append(result[ind])
                 else:
@@ -535,6 +542,18 @@ class Backend(BaseModule, ABC):
             #             shape.append(self._batch_size)
             #     self._variables[key] = torch.zeros(shape, dtype=torch.float32, device=self.device)
 
+    def clear_step(self):
+        '''
+
+        Returns:
+
+        '''
+
+        self._operations = list()
+        self._graph_operations = list()
+        self._push_operations = list()
+        self._fetch_operations = list()
+
     def initial_continue_step(self):
         '''
         Initialize network for continuous run.
@@ -572,10 +591,6 @@ class Backend(BaseModule, ABC):
     def update_time_steps(self):
         while (self.runtime > self.time - self.last_time):
             self.update_step()
-
-
-
-
 
     def r_update_step(self):
         '''
@@ -680,6 +695,7 @@ class Backend(BaseModule, ABC):
     def reduce_sum_update(self, value):
         reduced = self.reduce_sum(self.stack(value))
         return reduced
+
     def get_varialble(self, name):
         if name in self._variables:
             return self._variables[name]
@@ -727,6 +743,18 @@ class Backend(BaseModule, ABC):
         var_agent = VariableAgent(self, name)
         return var_agent
 
+    def has_variable(self, name):
+        if name in self._variables:
+            return True
+        elif name in self._InitVariables_dict:
+            return True
+        elif name in self._parameters_dict:
+            return True
+        elif name in self._SparseVariables_dict:
+            return True
+        else:
+            return False
+
     def add_delay(self, var_name, max_delay):
         max_len = int(max_delay / self.dt)
         if var_name in self._delay_dict:
@@ -737,6 +765,7 @@ class Backend(BaseModule, ABC):
             self.register_initial(None, self._delay_dict[var_name].initial, [var_name, ])
             self.register_standalone(var_name, self._delay_dict[var_name].push, [var_name, ])
         return self._delay_dict[var_name]
+
 
     @abstractmethod
     def add_backend_variable(self, name, shape, value=None, grad=False, is_sparse=False, init=None, init_param=None):
@@ -931,6 +960,17 @@ class Backend(BaseModule, ABC):
         '''
         y = x
         return y
+
+    @abstractmethod
+    def unsqueeze(self, x, dim):
+        '''
+        Parameters
+        ----------
+        x---> input
+        dim---> the dim of unsqueeze operation
+        Returns
+        -------
+        '''
 
     @abstractmethod
     def reduce_sum(self, x, *dim):

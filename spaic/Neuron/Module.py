@@ -17,7 +17,7 @@ from ..Network.Assembly import Assembly
 class Module(Assembly):
     _class_label = '<mod>'
 
-    def __init__(self, module=None, name=None, input_targets=[], input_var_names=['O'], output_tragets=None, output_var_names=['WgtSum'], module_backend='pytorch'):
+    def __init__(self, module=None, name=None, input_targets=[], input_var_names=['O'], output_tragets=None, output_var_names=['Isyn'], module_backend='pytorch'):
         super(Module, self).__init__(name)
         self.module = module
         if isinstance(input_targets, list):
@@ -42,19 +42,25 @@ class Module(Assembly):
     def standalone_run(self, *args):
         return self.module(*args)
 
-    def init_variable(self, var_names=[], var_shapes=[], var_value_dict=[]):
-        if hasattr(var_names, '__iter__'):
+    def init_variable(self, var_names=None, var_shapes=None, var_value_dict=None):
+        if var_names is None:
+            self._var_names = []
+        elif hasattr(var_names, '__iter__'):
             self._var_names = var_names
         else:
             self._var_names = [var_names]
 
-        if isinstance(var_shapes, list):
+        if var_shapes is None:
+            self.var_shapes = []
+        elif isinstance(var_shapes, list):
             self._var_shapes = var_shapes
         else:
             self._var_shapes = [var_shapes for _ in range(len(self._var_names))]
         self._var_values = []
 
-        if hasattr(var_value_dict, '__iter__'):
+        if var_value_dict is None:
+            var_value_dict = []
+        elif hasattr(var_value_dict, '__iter__'):
             var_value_dict = var_value_dict
         else:
             var_value_dict = [var_value_dict]
@@ -73,7 +79,7 @@ class Module(Assembly):
         for ii in range(var_len):
             key = self.id + ":" + "{" + self._var_names[ii] + "}"
             shape = (1, *self._var_shapes[ii])
-            backend.add_variable(key, shape, self._var_values[ii])
+            self.variable_to_backend(key, shape, self._var_values[ii])
 
         # add standalone operation
         output_var_name = self.output_traget[0].id + ":" + "{" + self.output_var_names[0] + "}"

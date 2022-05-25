@@ -91,7 +91,7 @@ class nearest_online_STDP(Learner):
                     shape = ()
             else:
                 shape = ()
-            backend.add_variable(key, shape, value=var)
+            self.variable_to_backend(key, shape, value=var)
 
         for conn in self.trainable_connections.values():
             preg = conn.pre_assembly
@@ -100,15 +100,15 @@ class nearest_online_STDP(Learner):
             # post_name = conn.get_target_output_name(postg)
             # weight_name = conn.get_weight_name(preg, postg)
             pre_name = conn.get_input_name(preg, postg)
-            post_name = conn.get_post_name(postg, conn.post_var_name)
+            post_name = conn.get_group_name(postg, 'O')
             weight_name = conn.get_link_name(preg, postg, 'weight')
 
             input_trace_name = pre_name + '_{input_trace}'
             output_trace_name = post_name + '_{output_trace}'
             dw_name = weight_name + '_{dw}'
-            backend.add_variable(input_trace_name, backend._variables[pre_name].shape, value=0.0)
-            backend.add_variable(output_trace_name, backend._variables[post_name].shape, value=0.0)
-            backend.add_variable(dw_name, backend._variables[weight_name].shape, value=0.0)
+            self.variable_to_backend(input_trace_name, backend._variables[pre_name].shape, value=0.0)
+            self.variable_to_backend(output_trace_name, backend._variables[post_name].shape, value=0.0)
+            self.variable_to_backend(dw_name, backend._variables[weight_name].shape, value=0.0)
             # input_trace_s = (self.input_trace * self.trace_decay)
             # input_trace_s = input + (1 - input) * input_trace_s
             # self.input_trace = input_trace_s
@@ -171,9 +171,9 @@ class full_online_STDP(Learner):
         self.prefered_backend = ['pytorch']
         self.firing_func = None
         self._constant_variables = dict()
-        self._constant_variables['Apost'] = kwargs.get('Apost', 0.1)
-        self._constant_variables['Apre'] = kwargs.get('Apre', 0.08)
-        self._constant_variables['trace_decay'] = kwargs.get('trace_decay', 0.9967)
+        self._constant_variables['Apost'] = kwargs.get('Apost', 0.01)
+        self._constant_variables['Apre'] = kwargs.get('Apre', 1e-4)
+        self._constant_variables['trace_decay'] = kwargs.get('trace_decay', np.exp(-1 / 20))
         self.lr = kwargs.get('lr', 0.01)
         self.name = 'full_online_STDP'
         self.w_norm = 78.4
@@ -223,21 +223,21 @@ class full_online_STDP(Learner):
                     shape = ()
             else:
                 shape = ()
-            backend.add_variable(key, shape, value=var)
+            self.variable_to_backend(key, shape, value=var)
 
         for conn in self.trainable_connections.values():
             preg = conn.pre_assembly
             postg = conn.post_assembly
             pre_name = conn.get_input_name(preg, postg)
-            post_name = conn.get_post_name(postg, conn.post_var_name)
+            post_name = conn.get_group_name(postg, 'O')
             weight_name = conn.get_link_name(preg, postg, 'weight')
 
             input_trace_name = pre_name + '_{input_trace}'
             output_trace_name = post_name + '_{output_trace}'
             dw_name = weight_name + '_{dw}'
-            backend.add_variable(input_trace_name, backend._variables[pre_name].shape, value=0.0)
-            backend.add_variable(output_trace_name, backend._variables[post_name].shape, value=0.0)
-            # backend.add_variable(dw_name, backend._variables[weight_name].shape, value=0.0)
+            self.variable_to_backend(input_trace_name, backend._variables[pre_name].shape, value=0.0)
+            self.variable_to_backend(output_trace_name, backend._variables[post_name].shape, value=0.0)
+            self.variable_to_backend(dw_name, backend._variables[weight_name].shape, value=0.0)
 
             # input_trace_s = (self.input_trace * self.trace_decay) + input
             # self.input_trace = input_trace_s

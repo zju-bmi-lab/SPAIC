@@ -72,6 +72,8 @@ class MultipleSpikeToBinary(Encoder):
 
     def torch_coding(self, source, device):
         # 直接使用for循环
+        if source.__class__.__name__ == 'ndarray':
+            source = torch.tensor(source, device=device, dtype=torch.float32)
         all_spikes = []
         if '[2]' in self.coding_var_name:
             for i in range(source.shape[0]):
@@ -217,8 +219,8 @@ class Relative_Latency(Encoder):
         # self.time_step = int(self.time/self.dt)
 
         self.amp = kwargs.get('amp', 1.0)  # nn.Parameter(amp)
-        self.bias =  kwargs.get('bias', 0)
-        scale =  kwargs.get('scale',0.9999999)
+        self.bias = kwargs.get('bias', 0)
+        scale = kwargs.get('scale', 0.9999999)
         if scale < 1.0 and scale > 0.0:
             self.scale = scale
         else:

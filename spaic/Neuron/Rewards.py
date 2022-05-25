@@ -48,6 +48,8 @@ class DA_Reward(Reward):
         self.reward_signal = kwargs.get('reward_signal', 1)
         self.punish_signal = kwargs.get('punish_signal', 0)
 
+
+
     def torch_coding(self, record, target, device):
         # the shape of record is (time_step, batch_size, n_neurons)
         spike_rate = record.sum(0)
@@ -114,3 +116,44 @@ class Environment_Reward(Reward):
         return reward
 
 Reward.register('environment_reward', Environment_Reward)
+
+
+class Classifiy_Reward(Reward):
+
+    def __init__(self, shape=None, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'),
+                 coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
+        super(Classifiy_Reward, self).__init__(shape, num, dec_target, dt, coding_method, coding_var_name, node_type,
+                                                 **kwargs)
+        self.beta = 0.99
+        self.out= 0
+        # self.pos_reward = 0
+        # self.neg_reward = 0
+        self.rewards = []
+
+    def init_state(self):
+        super(Classifiy_Reward, self).init_state()
+        self.out = 0
+        # self.pos_reward = 0
+        # self.neg_reward = 0
+        self.rewards = []
+
+    def torch_coding(self, record, target, device):
+        # the shape of record is (time_step, batch_size, n_neurons)
+        target_index = torch.tensor(target, device=device).view(-1,1)
+        output = torch.mean(record, 0)
+        mask = torch.zeros_like(output)
+        mask.scatter_(1, target_index, 1)
+        self.out = self.beta*self.out + output
+        output = (self.out - torch.mean(self.out ).detach()) / (torch.std(self.out).detach() + 0.1)
+        softmax = torch.softmax(output+1.0e-8, 1)
+
+        # self.pos_reward = self.beta*self.pos_reward + mask*output
+        # self.neg_reward = self.beta*self.neg_reward + (1-mask)*output
+
+        reward = (1-softmax)*mask - softmax*(1-mask)
+        # print(torch.mean(reward))
+        # self.rewards.append(reward)
+        return reward
+
+
+Reward.register('classify_reward', Classifiy_Reward)

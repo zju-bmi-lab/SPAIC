@@ -254,6 +254,7 @@ class IncludedTypePolicy(ConnectPolicy):
 
     def __init__(self, pre_types=None, post_types=None, level=-1):
         super(IncludedTypePolicy, self).__init__(level=level)
+        self.name = 'Included_policy'
         if isinstance(pre_types, list):
             self.pre_types = pre_types
         elif pre_types is not None:
@@ -294,6 +295,7 @@ class ExcludedTypePolicy(ConnectPolicy):
 
     def __init__(self, pre_types=None, post_types=None, level=-1):
         super(ExcludedTypePolicy, self).__init__(level=level)
+        self.name = 'Excluded_policy'
         if isinstance(pre_types, list):
             self.pre_types = pre_types
         elif pre_types is not None:
@@ -335,7 +337,7 @@ class IndexConnectPolicy(ConnectPolicy):
 
     def __init__(self, pre_indexs=None, post_indexs=None, level=-1):
         super(IndexConnectPolicy, self).__init__(level=level)
-
+        self.name = 'Index_policy'
         if type(pre_indexs) is list:
             self.pre_indexs = pre_indexs
         else:

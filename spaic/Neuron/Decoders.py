@@ -171,7 +171,7 @@ class Time_Softmax(Decoder):
         time_array = self.dt*torch.arange(0, tlen, device=device, dtype=torch.float)
         spike_t = spike_i.detach()*time_array.view(-1, 1, 1) - spike_t# + (1-spike_i.detach())*1000.0
         max_t, ind = torch.max(spike_t.permute(0, 2, 1).reshape(-1, old_shape[1]).detach(), dim=0)
-        mshape = [1,-1] + [1]*(spike_t.dim()-2)
+        mshape = [1, -1] + [1]*(spike_t.dim()-2)
         spike_t = 0.1*(max_t.view(mshape) + (spike_i - spike_i.detach()) - spike_t)*spike_i.detach()
         # spike_t.register_hook(grad_regulate_hook)
         # spike_t[:,0] = 7

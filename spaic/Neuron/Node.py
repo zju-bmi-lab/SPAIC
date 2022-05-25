@@ -47,13 +47,15 @@ class Node(Assembly):
             self.is_encoded = kwargs.get('is_encoded', False)
 
         # 单神经元多脉冲的语音数据集的shape包含脉冲时间以及发放神经元标签，所以不能通过np.prod(shape)获取num，最好还是外部输入num
-        assert num is not None or shape is not None, "One of the shape and num must not be None"
+        assert num is not None or shape is not None, "One of the shape and number must not be None"
         if num is None:
             if coding_method == 'mstb' or coding_method == 'sstb':
                 raise ValueError('Please set the number of node')
             self.num = np.prod(shape)
         else:
             self.num = num
+
+        self.num = int(self.num)  # 统一数据格式为Python内置格式
 
         if shape is None:
             if self.is_encoded:
@@ -63,6 +65,8 @@ class Node(Assembly):
         else:
             if coding_method == 'mstb' or coding_method == 'sstb':
                 self.shape = (1, self.num)
+            elif self.is_encoded:
+                self.shape = tuple([1, 1] + list(shape))
             else:
                 self.shape = tuple([1] + list(shape))
 
@@ -204,10 +208,10 @@ class Encoder(Node):
         self.batch_size = None
         self.new_input = True
         coding_method = coding_method.lower()
-        if coding_method == 'null':
-            self.is_encoded = True
-        else:
-            self.is_encoded = kwargs.get('is_encoded', False)
+        # if coding_method == 'null':
+        #     self.is_encoded = True
+        # else:
+        #     self.is_encoded = kwargs.get('is_encoded', False)
 
     def __new__(cls, shape=None, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'),
                 coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
@@ -282,19 +286,20 @@ class Encoder(Node):
         if self.batch_size is not None:
             self._backend.set_batch_size(self.batch_size)
 
-        if self.sim_name == 'pytorch':
-            spikes = self.torch_coding(self.source, self.device)  # (time_step, batch_size, neuron_shape)
-        else:
-            spikes = self.numpy_coding(self.source, self.device)
-        self.all_spikes = spikes
-        
+        # if self.sim_name == 'pytorch':
+        #     spikes = self.torch_coding(self.source, self.device)  # (time_step, batch_size, neuron_shape)
+        # else:
+        #     spikes = self.numpy_coding(self.source, self.device)
+        # self.all_spikes = spikes
+
         if self.is_encoded:
-            self.shape = self.shape[1:]
+            shape = self.shape[1:]
+        else:
+            shape = self.shape
         # self.shape = spikes[0].shape
 
         key = self.id + ':' + '{'+self.coding_var_name+'}'
-        self._var_names.append(key)
-        backend.add_variable(key, self.shape, value=0)
+        self.variable_to_backend(key, shape, value=0)
         backend.register_initial(None, self.init_state, [])
         backend.register_standalone(key, self.next_stage, [])
 
@@ -357,7 +362,6 @@ class Decoder(Node):
 
     # stand alone operation: decoding spike patterns. Predict can be predict labels or RL action
     def get_output(self, output):
-        # For hardware applications, call get_output at each time step to store the output spike data.
         if (self.index % self.time_step) == 0:
             shape = list(output.shape)
             dec_shape = [self.time_step] + shape
@@ -366,6 +370,7 @@ class Decoder(Node):
             else:
                 self.records = np.zeros(dec_shape)
             self.index = 0
+
         self.records[self.index % self.time_step, :] = output
         self.index += 1
         if self.index >= self.time_step:
@@ -407,6 +412,7 @@ class Reward(Node):
                  coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
         super(Reward, self).__init__(shape, num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
         self.dec_sample_step = kwargs.get('dec_sample_step', 1)
+        self.reward_shape = kwargs.get('reward_shape', (1, ))
 
     def __new__(cls, shape=None, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'),
                 coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
@@ -455,7 +461,7 @@ class Reward(Node):
                 self.records = torch.zeros(dec_shape, device=self.device)
             else:
                 self.records = np.zeros(dec_shape)
-        reward = torch.zeros(1, device=self.device)
+        reward = torch.zeros(self.reward_shape, device=self.device)
         self.records[self.index, :] = output
         self.index += 1
         if self.index >= self.dec_sample_step:
@@ -476,8 +482,8 @@ class Reward(Node):
         output_name = self.dec_target.id + ':' + '{'+self.coding_var_name+'}'
         backend.register_initial(None, self.init_state, [])
         reward_name = 'Output_Reward'
-        # backend.add_variable(reward_name, (1, ), value=self.reward)
-        backend.add_variable(reward_name, (1,), value=0)
+        self.variable_to_backend(reward_name, self.reward_shape, value=0.0) # shape还是要让具体的子类定义吧
+
         backend.register_standalone(reward_name, self.get_reward, [output_name])
 
 
@@ -568,7 +574,7 @@ class Generator(Node):
 
         if self.dec_target is None:
             key = self.id + ':' + '{'+self.coding_var_name+'}'
-            backend.add_variable(key, self.shape, value=singlestep_spikes)
+            self.variable_to_backend(key, self.shape, value=singlestep_spikes)
         else:
             key = self.dec_target.id + ':' + '{'+self.coding_var_name+'}'
         self._var_names.append(key)
@@ -594,6 +600,7 @@ class Action(Node):
     def __init__(self, shape=None, num=None, dec_target=None,  dt=None, coding_method=('poisson', 'spike_counts', '...'),
                  coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
         super(Action, self).__init__(shape, num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
+        self.action = np.zeros((1,))
 
     def __new__(cls, shape=None, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'),
                 coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
