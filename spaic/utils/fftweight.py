@@ -94,10 +94,10 @@ def fft_weights(
     ucirc = np.exp(1j * 2 * np.pi * np.arange(0, nfft / 2 + 1) / nfft)[None, ...]
     
     # Common ERB filter code factored out
-    cf_array = filters.erb_space(fmin, fmax, nfilts)[::-1]
+    cf_array = erb_space(fmin, fmax, nfilts)[::-1]
 
     _, A11, A12, A13, A14, _, _, _, B2, gain = (
-        filters.make_erb_filters(fs, cf_array, width).T
+        make_erb_filters(fs, cf_array, width).T
     )
     
     A11, A12, A13, A14 = A11[..., None], A12[..., None], A13[..., None], A14[..., None]

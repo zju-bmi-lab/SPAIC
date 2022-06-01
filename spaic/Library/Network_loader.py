@@ -131,7 +131,7 @@ class ReloadedNetwork(spaic.Network):
 
         del self._backend_info
 
-    def load_net(self, data: dict):
+    def load_net(self, data):
         '''
             The function for load the whole network, main function of this class.
 

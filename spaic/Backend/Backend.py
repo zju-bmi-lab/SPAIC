@@ -797,30 +797,13 @@ class Backend(BaseModule, ABC):
 
         if op[1] in self.basic_operate:
             op[1] = self.basic_operate[op[1]]
-            # if isinstance(op[0], str):
-            #     op[0] = [op[0]]
-            # elif op[0] is None:
-            #     op[0] = []
-            # op[2] = op[2:]
             self._operations.append(op)
         elif callable(op[1]):
             self.register_standalone(op[0], op[1], op[2])
         else:
             raise ValueError("No operation %s in basic_operate" % op[1])
 
-        # if isinstance(op[0], str):
-        #     op[0] = [op[0]]
-        # elif op[0] is None:
-        #     op[0] = []
-        # op[2] = op[2:]
-        # if op[1] in self.basic_operate:
-        #     op[1] = self.basic_operate[op[1]]
-        # elif not callable(op[1]):
-        #     raise ValueError("No operation %s in basic_operate or not exist operation %s" % (op[1], op[1]))
-        #
-        # self._operations.append(op)
-
-    def register_standalone(self, output_names: list, function, input_names: list):
+    def register_standalone(self, output_names, function, input_names: list):
         '''
         Add standalone operations from front objects to _standalone_operations of Backend.
         Args:
