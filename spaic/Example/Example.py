@@ -59,8 +59,8 @@ class TestNet(spaic.Network):
         self.spk_l1 = spaic.SpikeMonitor(self.layer1, 'O')
 
 Net = TestNet()
+Net.build()
 
-Net.set_backend('torch', device)
 print("Start running")
 
 eval_losses = []

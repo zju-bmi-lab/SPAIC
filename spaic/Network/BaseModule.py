@@ -8,9 +8,10 @@ Created on 2020/9/9
 
 @description: 
 """
-from abc import  abstractmethod
+from abc import abstractmethod
 from collections import OrderedDict
 import spaic
+
 
 class BaseModule():
     '''
@@ -19,14 +20,15 @@ class BaseModule():
     '''
     _Module_Count = 0
     _class_label = '<bm>'
+
     def __init__(self):
         self.id = None
         self.name = None
-        self.hided = False
+        self.enabled = True
+        self.training = True
         self._supers = []
         self._var_names = []
         self._var_dict = dict()
-        pass
 
     @abstractmethod
     def build(self, backend):
@@ -43,7 +45,7 @@ class BaseModule():
                 self.name = given_name
             elif 'autoname' in self.name:
                 self.name = given_name
-                
+
         # elif isinstance(given_name, list):
         #     context = given_name[-1]
         #     spaic.global_module_name_count += 1
@@ -84,15 +86,16 @@ class BaseModule():
         elif self.build_level > level:
             self.build_level = level
 
-    def variable_to_backend(self, name, shape, value=None, grad=False, is_sparse=False, init=None, init_param=None,
+    def variable_to_backend(self, name, shape, value=None, is_parameter=False, is_sparse=False, init=None,
+                            init_param=None,
                             min=None, max=None, is_constant=False):
         self._var_names.append(name)
-        self._var_dict[name] = self._backend.add_variable(name, shape, value, grad, is_sparse, init, init_param, min, max, is_constant)
+        self._var_dict[name] = self._backend.add_variable(name, shape, value, is_parameter, is_sparse, init, init_param,
+                                                          min, max, is_constant)
         return self._var_dict[name]
 
-
     def get_value(self, name):
-        name = '{'+name+'}'
+        name = '{' + name + '}'
         full_name = None
         for key in self._var_names:
             if name in key:
@@ -101,18 +104,32 @@ class BaseModule():
                 else:
                     full_name = key
         if full_name is None:
-            raise  ValueError("No such variable name in this module")
+            raise ValueError("No such variable name in this module")
         else:
             return self._var_dict[full_name].value
 
+    def set_value(self, name, value):
+        name = '{' + name + '}'
+        full_name = None
+        for key in self._var_names:
+            if name in key:
+                if full_name is not None:
+                    raise ValueError("multiple variable with same name in this module")
+                else:
+                    full_name = key
+        if full_name is None:
+            raise ValueError("No such variable name in this module")
+        else:
+            self._var_dict[full_name].value = value
 
 
 class VariableAgent(object):
-    def __init__(self, backend, var_name):
+    def __init__(self, backend, var_name, is_parameter=False):
         super(VariableAgent, self).__init__()
         assert isinstance(backend, spaic.Backend)
         self._backend = backend
         self._var_name = var_name
+        self._is_parameter = is_parameter
 
     @property
     def var_name(self):
@@ -121,6 +138,32 @@ class VariableAgent(object):
     @property
     def value(self):
         return self._backend.get_varialble(self._var_name)
+
+    @value.setter
+    def value(self, value):
+        self._backend.set_variable_value(self._var_name, value, self._is_parameter)
+
+
+class OperationCommand(object):
+    def __init__(self, front_module, output, function, input):
+        super(OperationCommand, self).__init__()
+        assert isinstance(front_module, BaseModule)
+        assert isinstance(output, list)
+        assert isinstance(function, str) or callable(function)
+        assert isinstance(input, list)
+
+        self.front_module = front_module
+        self.output = output
+        self.function = function
+        self.input = input
+        self.training_only = False
+
+    @property
+    def enabled(self):
+        if self.training_only:
+            return self.front_module.enabled and self.front_module.training
+        else:
+            return self.front_module.enabled
 
 # class NetModule(BaseModule):
 #     '''
@@ -134,5 +177,6 @@ class VariableAgent(object):
 #
 #     def add_trainable_names(self, name):
 #         pass
+
 
 

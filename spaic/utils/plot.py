@@ -158,7 +158,7 @@ def main():
 
     parser.add_argument(
         '-a', '--accurate', action='store_const', dest='function',
-        const=gtgram.gtgram, default=fftweight.fft_gtgram,
+        const=gtgram.gtgram, default=fft_gtgram,
         help="Use the full filterbank approach instead of the weighted FFT "
              "approximation. This is much slower, and uses a lot of memory, but"
              " is more accurate."

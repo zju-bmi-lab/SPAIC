@@ -131,7 +131,7 @@ class ReloadedNetwork(spaic.Network):
 
         del self._backend_info
 
-    def load_net(self, data: dict):
+    def load_net(self, data):
         '''
             The function for load the whole network, main function of this class.
 
@@ -249,14 +249,15 @@ class ReloadedNetwork(spaic.Network):
 
         # con.pop('weight_path')
         return_conn = spaic.Connection(
-            pre_assembly    = con.get('pre_assembly'),
-            post_assembly   = con.get('post_assembly'),
-            name            = con.get('name'),
-            link_type       = con.get('link_type', 'full'),
-            max_delay       = con.get('max_delay', 0),
-            sparse_with_mask= con.get('sparse_with_mask', False),
-            pre_var_name    = con.get('pre_var_name', 'O'),
-            post_var_name   = con.get('post_var_name', 'WgtSum'),
+            pre_assembly     = con.get('pre_assembly'),
+            post_assembly    = con.get('post_assembly'),
+            name             = con.get('name'),
+            link_type        = con.get('link_type', 'full'),
+            syn_type         = con.get('synapse_type', ['basic_synapse']),
+            max_delay        = con.get('max_delay', 0),
+            sparse_with_mask = con.get('sparse_with_mask', False),
+            pre_var_name     = con.get('pre_var_name', 'O'),
+            post_var_name    = con.get('post_var_name', 'WgtSum'),
             **con.get('parameters')
         )
         return_conn.id = con.get('id', None)

@@ -9,112 +9,12 @@ Created on 2020/8/5
 @description:
 定义神经集群间的连接，包括记录神经元集群、连接的突触前、突触后神经元编号、连接形式（全连接、稀疏连接、卷积）、权值、延迟 以及连接产生函数、重连接函数等。
 """
-from ..Network.Topology import Connection, SynapseModel
-from ..Neuron.Neuron import NeuronGroup
+from ..Network.Topology import Connection
 from ..Network.Assembly import Assembly
 import numpy as np
 import scipy.sparse as sp
 import torch
-
-
-class Basic_synapse(SynapseModel):
-        """
-        Basic synapse
-        Compute Isyn
-        """
-        def __init__(self, conn, **kwargs):
-            super(Basic_synapse, self).__init__()
-
-            if conn.link_type == 'conv':
-                if conn.maxpool_on:
-                    self._syn_operations.append([conn.post_var_name+'[post]', 'conv_max_pool2d', conn.pre_var_name+'[input]', 'weight[link]', 'maxpool_kernel_size[pre]',
-                                'stride[pre]', 'padding[pre]', 'dilation[pre]', 'groups[pre]'])
-                else:
-                    self._syn_operations.append([conn.post_var_name+'[post]', 'conv_2d', conn.pre_var_name+'[input][updated]', 'weight[link]', 'stride[pre]', 'padding[pre]', 'dilation[pre]',
-                                'groups[pre]'])
-            else:
-                if conn.is_sparse:
-                    self._syn_operations.append([conn.post_var_name+'[post]', 'sparse_mat_mult_weight', 'weight[link]', conn.pre_var_name+'[input]'])
-                elif conn.max_delay > 0:
-                    self._syn_operations.append([conn.post_var_name+'[post]', 'mult_sum_weight', conn.pre_var_name+'[input]', 'weight[link]'])
-                else:
-                    self._syn_operations.append([conn.post_var_name+'[post]', 'mat_mult_weight', conn.pre_var_name+'[input][updated]', 'weight[link]'])
-
-SynapseModel.register('basic_synapse', Basic_synapse)
-
-
-class DirectPass_synapse(SynapseModel):
-    """
-    DirectPass synapse
-    target_name = input_name
-    """
-
-    def __init__(self, conn, **kwargs):
-        super(DirectPass_synapse, self).__init__()
-        self._syn_operations.append([conn.post_var_name + '[post]', 'equal', conn.pre_var_name + '[input]'])
-
-
-SynapseModel.register('directpass_synapse', DirectPass_synapse)
-
-
-class Electrical_synapse(SynapseModel):
-    """
-    Electrical synapse
-    Iele = weight *（V(l-1) - V(l)）
-    """
-    def __init__(self, conn, **kwargs):
-        super(Electrical_synapse, self).__init__()
-        # V_post = conn.get_post_name(conn.post_assembly, 'V')
-        # V_pre = conn.get_pre_name(conn.pre_assembly, 'V')
-        # Vtemp_post = conn.get_link_name(conn.pre_assembly, conn.post_assembly, 'Vtemp')
-        # I_post = conn.get_post_name(conn.post_assembly, 'I_ele')
-        # weight = conn.get_link_name(conn.pre_assembly, conn.post_assembly, 'weight')
-        # Vtemp_pre = conn.get_link_name(conn.post_assembly, conn.pre_assembly, 'Vtemp')
-        # I_pre = conn.get_pre_name(conn.pre_assembly, 'I_ele')
-        #
-        # self._syn_variables[Vtemp_post] = 0.0
-        # self._syn_variables[I_post] = 0.0
-        # self._syn_variables[Vtemp_pre] = 0.0
-        # self._syn_variables[I_pre] = 0.0
-        # self._syn_operations.append([Vtemp_post, 'minus', V_pre, V_post])
-        # self._syn_operations.append([I_post, 'var_mult', weight, Vtemp_post + '[updated]'])
-        # self._syn_operations.append([Vtemp_pre, 'minus', V_post, V_pre])
-        # self._syn_operations.append([I_pre, 'var_mult', weight, Vtemp_pre + '[updated]'])
-
-        # self._syn_variables['Vprepost'] = np.zeros([1, conn.pre_num, conn.post_num])
-        assert isinstance(conn.pre_assembly, NeuronGroup) and isinstance(conn.post_assembly, NeuronGroup), f"Electrical synapses exist in connections in which the presynaptic and postsynaptic objects are neurongroups"
-
-        self._syn_variables['Isyn[post]'] = np.zeros([1, conn.post_num])
-        self._syn_variables['Isyn[pre]'] = np.zeros([1, conn.pre_num])
-        self._syn_constant_variables['unsequence_dim'] = 0
-        self._syn_constant_variables['permute_dim'] = [1, 2, 0]
-        self._syn_constant_variables['Vpre_permute_dim'] = [2, 1, 0]
-        self._syn_constant_variables['post_sum_dim'] = 2
-        self._syn_constant_variables['pre_sum_dim'] = 1
-
-        # unsequence_dim_name =
-        self._syn_operations.append(['Vpre', 'unsqueeze', 'V[pre]', 'unsequence_dim'])
-        self._syn_operations.append(['Vpre_temp', 'permute', 'Vpre', 'Vpre_permute_dim'])
-        self._syn_operations.append(['Vpost_temp', 'unsqueeze', 'V[post]', 'unsequence_dim'])
-        # [pre_num, batch_size, post_num] [pre_num, batch_size, 1] [1, batch_size, post_num]
-        self._syn_operations.append(['Vprepost', 'minus', 'Vpre_temp', 'Vpost_temp'])
-        # [batch_size, post_num, pre_num]
-        self._syn_operations.append(['Vprepost_temp', 'permute', 'Vprepost', 'permute_dim'])
-        self._syn_operations.append(['I_post_temp', 'var_mult', 'Vprepost_temp', 'weight[link]'])
-        # [batch_size, post_num]
-        self._syn_operations.append(['Isyn[post]', 'reduce_sum', 'I_post_temp', 'post_sum_dim'])
-
-        # [pre_num, batch_size, post_num]  [1, batch_size, post_num] [pre_num, batch_size, 1]
-        self._syn_operations.append(['Vpostpre', 'minus', 'Vpost_temp', 'Vpre_temp'])
-        # [batch_size, post_num, pre_num]
-        self._syn_operations.append(['Vpostpre_temp', 'permute', 'Vpostpre', 'permute_dim'])
-        self._syn_operations.append(['I_pre_temp', 'var_mult', 'Vpostpre_temp', 'weight[link]'])
-        # [batch_size, pre_num]
-        self._syn_operations.append(['Isyn[pre]', 'reduce_sum', 'I_pre_temp', 'pre_sum_dim'])
-
-
-SynapseModel.register('electrical_synapse', Electrical_synapse)
-
+import random
 
 class FullConnection(Connection):
 
@@ -127,11 +27,11 @@ class FullConnection(Connection):
         link_type(str): full
     '''
 
-    def __init__(self, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse_connect', 'conv','...'), policies=[],
-                 max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='Isyn', **kwargs):
+    def __init__(self, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse_connect', 'conv','...'),
+                 syn_type=['basic_synapse'], max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='Isyn', **kwargs):
 
         super(FullConnection, self).__init__(pre_assembly=pre_assembly, post_assembly=post_assembly, name=name,
-                                             link_type=link_type, max_delay=max_delay,
+                                             link_type=link_type, syn_type=syn_type, max_delay=max_delay,
                                              sparse_with_mask=sparse_with_mask,
                                              pre_var_name=pre_var_name, post_var_name=post_var_name, **kwargs)
         weight = kwargs.get('weight', None)
@@ -139,10 +39,16 @@ class FullConnection(Connection):
         self.w_mean = kwargs.get('w_mean', 0.005)
         self.w_max = kwargs.get('w_max', None)
         self.w_min = kwargs.get('w_min', None)
-        self.param_init = kwargs.get('param_init', None)
+        # self.init = kwargs.get('init', None)
         self.is_parameter = kwargs.get('is_parameter', True)
         self.is_sparse = kwargs.get('is_sparse', False)
-        self._variables = dict()
+        # self._variables = dict()
+
+        if self.bias:
+            import math
+            bound = math.sqrt(1/self.pre_num)
+            self.bias_value = np.random.uniform(-bound, bound, self.post_num)
+            self._variables['bias[link]'] = self.bias_value
 
         if weight is None:
             # Connection weight
@@ -152,6 +58,7 @@ class FullConnection(Connection):
             self.weight = weight
 
         self._variables['weight[link]'] = self.weight
+
 
         pass
 
@@ -165,14 +72,14 @@ class FullConnection(Connection):
         pass
 
 Connection.register('full', FullConnection)
-Connection.register('full_connection',FullConnection)
+Connection.register('full_connection', FullConnection)
 
 
 class one_to_one_sparse(Connection):
     def __init__(self, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse_connect', 'conv','...'),
-                 max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='Isyn', **kwargs):
+                 syn_type=['basic_synapse'], max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='Isyn', **kwargs):
         super(one_to_one_sparse, self).__init__(pre_assembly=pre_assembly, post_assembly=post_assembly, name=name,
-                                                link_type=link_type, max_delay=max_delay,
+                                                link_type=link_type, syn_type=syn_type, max_delay=max_delay,
                                                 sparse_with_mask=sparse_with_mask,
                                                 pre_var_name=pre_var_name, post_var_name=post_var_name, **kwargs)
         try:
@@ -185,10 +92,10 @@ class one_to_one_sparse(Connection):
         self.w_mean = kwargs.get('w_mean', 0.05)
         self.w_max = kwargs.get('w_max', None)
         self.w_min = kwargs.get('w_min', None)
-        self.param_init = kwargs.get('param_init', None)
+        # self.init = kwargs.get('init', None)
         self.is_parameter = kwargs.get('is_parameter', False)
         self.is_sparse = kwargs.get('is_sparse', True)
-        self._variables = dict()
+        # self._variables = dict()
 
         if weight is None:
             # Connection weight
@@ -213,9 +120,9 @@ Connection.register('one_to_one_sparse', one_to_one_sparse)
 
 class one_to_one_mask(Connection):
     def __init__(self, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse_connect', 'conv','...'),
-                 max_delay=0, sparse_with_mask=True, pre_var_name='O', post_var_name='Isyn', **kwargs):
+                 syn_type=['basic_synapse'], max_delay=0, sparse_with_mask=True, pre_var_name='O', post_var_name='Isyn', **kwargs):
         super(one_to_one_mask, self).__init__(pre_assembly=pre_assembly, post_assembly=post_assembly, name=name,
-                                              link_type=link_type, max_delay=max_delay,
+                                              link_type=link_type, syn_type=syn_type, max_delay=max_delay,
                                               sparse_with_mask=sparse_with_mask,
                                               pre_var_name=pre_var_name, post_var_name=post_var_name, **kwargs)
         try:
@@ -228,10 +135,10 @@ class one_to_one_mask(Connection):
         self.w_mean = kwargs.get('w_mean', 0.05)
         self.w_max = kwargs.get('w_max', None)
         self.w_min = kwargs.get('w_min', None)
-        self.param_init = kwargs.get('param_init', None)
+        # self.init = kwargs.get('init', None)
         self.is_parameter = kwargs.get('is_parameter', True)
         self.is_sparse = kwargs.get('is_sparse', False)
-        self._variables = dict()
+        # self._variables = dict()
 
         if weight is None:
             # Connection weight
@@ -268,21 +175,19 @@ class conv_connect(Connection):
     '''
 
     def __init__(self, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse_connect', 'conv','...'),
-                 max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='Isyn', **kwargs):
+                 syn_type=['basic_synapse'], max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='Isyn', **kwargs):
         super(conv_connect, self).__init__(pre_assembly=pre_assembly, post_assembly=post_assembly, name=name,
-                                           link_type=link_type, max_delay=max_delay,
+                                           link_type=link_type, syn_type=syn_type, max_delay=max_delay,
                                            sparse_with_mask=sparse_with_mask,
                                            pre_var_name=pre_var_name, post_var_name=post_var_name, **kwargs)
         self.out_channels = kwargs.get('out_channels', 4)
         self.in_channels = kwargs.get('in_channels', 1)
-        self.kernel_size = kwargs.get('kernel_size', (3, 3))
-        self.maxpool_on = kwargs.get('maxpool_on', True)
-        self.maxpool_kernel_size = kwargs.get('maxpool_kernel_size', (2, 2))
+        self.kernel_size = kwargs.get('kernel_size', [3, 3])
         self.w_std = kwargs.get('w_std', 0.05)
         self.w_mean = kwargs.get('w_mean', 0.05)
 
         weight = kwargs.get('weight', None)
-        self.param_init = kwargs.get('param_init', None)
+        # self.init = kwargs.get('init', None)
         self.is_parameter = kwargs.get('is_parameter', True)
         self.is_sparse = kwargs.get('is_sparse', False)
         self.mask = kwargs.get('mask', None)
@@ -291,21 +196,18 @@ class conv_connect(Connection):
         self.dilation = kwargs.get('dilation', 1)
         self.groups = kwargs.get('groups', 1)
 
-        self._variables = dict()
-        self._variables['stride[pre]'] = self.stride
-        self._variables['padding[pre]'] = self.padding
-        self._variables['dilation[pre]'] = self.dilation
-        self._variables['groups[pre]'] = self.groups
-        self._variables['maxpool_kernel_size[pre]'] = self.maxpool_kernel_size
+        if isinstance(self.kernel_size, int):
+            self.kernel_size = [self.kernel_size] * 2
+        if isinstance(self.stride, int):
+            self.stride = [self.stride] * 2
+        if isinstance(self.padding, int):
+            self.padding = [self.padding] * 2
+        # self._variables = dict()
+        self._constant_variables['stride[pre]'] = self.stride
+        self._constant_variables['padding[pre]'] = self.padding
+        self._constant_variables['dilation[pre]'] = self.dilation
+        self._constant_variables['groups[pre]'] = self.groups
 
-        '''
-        set the basic parameters, for example: link_length, connection weight, connection shape, the name for backend variables, the backend variable,the backend basic operation.
-
-        Args:
-            pre_group(Groups): the neuron group which need to be connected in the pre_assembly.
-            post_group(Groups): the neuron group which need to be connected with the pre_group neuron.
-
-        '''
         self.shape = (self.out_channels, self.in_channels, self.kernel_size[0], self.kernel_size[1])
         if weight is None:
             # Connection weight
@@ -319,15 +221,37 @@ class conv_connect(Connection):
         Hin = self.pre_assembly.shape[-2]
         Win = self.pre_assembly.shape[-1]
 
-        if self.maxpool_on:  # 池化
+        pool_Flag = False
+        if 'avgpool' in self.synapse_name or 'avgpool_synapse' in self.synapse_name:
+            pool_Flag = True
 
-            Hin = int(Hin / self.maxpool_kernel_size[0])
-            Win = int(Win / self.maxpool_kernel_size[1])
+        if 'maxpool' in self.synapse_name or 'maxpool_synapse' in self.synapse_name:
+            pool_Flag = True
 
-        Ho = int((Hin + 2 * self.padding - self.kernel_size[
-            0]) / self.stride + 1)  # Ho = (Hin + 2 * padding[0] - kernel_size[0]) / stride[0] + 1
-        Wo = int((Win + 2 * self.padding - self.kernel_size[
-            1]) / self.stride + 1)  # Wo = (Win + 2 * padding[0] - kernel_size[1]) / stride[0] + 1
+
+        # if self.pool is not None:  # 池化
+        if pool_Flag:
+            self.pool_kernel_size = kwargs.get('pool_kernel_size', [2, 2])
+            self.pool_stride = kwargs.get('pool_stride', 2)
+            self.pool_padding = kwargs.get('pool_padding', 0)
+            if isinstance(self.pool_kernel_size, int):
+                self.pool_kernel_size = [self.pool_kernel_size] * 2
+            if isinstance(self.pool_stride, int):
+                self.pool_stride = [self.pool_stride] * 2
+            if isinstance(self.pool_padding, int):
+                self.pool_padding = [self.pool_padding] * 2
+
+            self._constant_variables['pool_kernel_size[pre]'] = self.pool_kernel_size
+            self._constant_variables['pool_stride[pre]'] = self.pool_stride
+            self._constant_variables['pool_padding[pre]'] = self.pool_padding
+
+            # Ho = int(Ho / self.pool_kernel_size[0])
+            # Wo = int(Wo / self.pool_kernel_size[1])
+            Hin = int((Hin + 2 * self.pool_padding[0] - self.pool_kernel_size[0]) / self.pool_stride[0] + 1)  # Ho = (Hin + 2 * padding[0] - kernel_size[0]) / stride[0] + 1
+            Win = int((Win + 2 * self.pool_padding[1] - self.pool_kernel_size[1]) / self.pool_stride[1] + 1)
+
+        Ho = int((Hin + 2 * self.padding[0] - self.kernel_size[0]) / self.stride[0] + 1)  # Ho = (Hin + 2 * padding[0] - kernel_size[0]) / stride[0] + 1
+        Wo = int((Win + 2 * self.padding[1] - self.kernel_size[1]) / self.stride[1] + 1)  # Wo = (Win + 2 * padding[0] - kernel_size[1]) / stride[0] + 1
 
         post_num = int(Ho * Wo * self.out_channels)
 
@@ -343,6 +267,11 @@ class conv_connect(Connection):
             else:
                 self.post_assembly.shape = (self.out_channels, Ho, Wo)
 
+        if self.bias:
+            import math
+            bound = math.sqrt(1 / (self.in_channels*self.kernel_size[0]*self.kernel_size[1]))
+            self.bias_value = np.random.uniform(-bound, bound, self.out_channels)
+            self._variables['bias[link]'] = self.bias_value
 
     def condition_check(self, pre_group, post_group):
         '''
@@ -369,9 +298,9 @@ Connection.register('conv_connection', conv_connect)
 class sparse_connect_sparse(Connection):
 
     def __init__(self, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse_connect', 'conv','...'),
-                 max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='Isyn', **kwargs):
+                 syn_type=['basic_synapse'], max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='Isyn', **kwargs):
         super(sparse_connect_sparse, self).__init__(pre_assembly=pre_assembly, post_assembly=post_assembly, name=name,
-                                                    link_type=link_type, max_delay=max_delay,
+                                                    link_type=link_type, syn_type=syn_type, max_delay=max_delay,
                                                     sparse_with_mask=sparse_with_mask,
                                                     pre_var_name=pre_var_name, post_var_name=post_var_name, **kwargs)
         weight = kwargs.get('weight', None)
@@ -379,10 +308,10 @@ class sparse_connect_sparse(Connection):
         self.density = kwargs.get('density', 0.1)
         self.w_max = kwargs.get('w_max', None)
         self.w_min = kwargs.get('w_min', None)
-        self.param_init = kwargs.get('param_init', None)
+        # self.init = kwargs.get('init', None)
         self.is_parameter = kwargs.get('is_parameter', False)
         self.is_sparse = kwargs.get('is_sparse', True)
-        self._variables = dict()
+        # self._variables = dict()
 
         if weight is None:
             # Connection weight
@@ -411,9 +340,9 @@ Connection.register('sparse_connection_sparse', sparse_connect_sparse)
 class sparse_connect_mask(Connection):
 
     def __init__(self, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse_connect', 'conv','...'),
-                 max_delay=0, sparse_with_mask=True, pre_var_name='O', post_var_name='Isyn', **kwargs):
+                 syn_type=['basic_synapse'], max_delay=0, sparse_with_mask=True, pre_var_name='O', post_var_name='Isyn', **kwargs):
         super(sparse_connect_mask, self).__init__(pre_assembly=pre_assembly, post_assembly=post_assembly, name=name,
-                                                  link_type=link_type, max_delay=max_delay,
+                                                  link_type=link_type, syn_type=syn_type, max_delay=max_delay,
                                                   sparse_with_mask=sparse_with_mask,
                                                   pre_var_name=pre_var_name, post_var_name=post_var_name, **kwargs)
         weight = kwargs.get('weight', None)
@@ -422,10 +351,10 @@ class sparse_connect_mask(Connection):
         self.density = kwargs.get('density', 0.1)
         self.w_max = kwargs.get('w_max', None)
         self.w_min = kwargs.get('w_min', None)
-        self.param_init = kwargs.get('param_init', None)
+        # self.init = kwargs.get('init', None)
         self.is_parameter = kwargs.get('is_parameter', True)
         self.is_sparse = kwargs.get('is_sparse', False)
-        self._variables = dict()
+        # self._variables = dict()
 
         if weight is None:
             # Connection weight
@@ -455,19 +384,19 @@ Connection.register('sparse_connection', sparse_connect_mask)
 class random_connect_sparse(Connection):
 
     def __init__(self, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse_connect', 'conv','...'),
-                 max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='Isyn', **kwargs):
+                 syn_type=['basic_synapse'], max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='Isyn', **kwargs):
         super(random_connect_sparse, self).__init__(pre_assembly=pre_assembly, post_assembly=post_assembly, name=name,
-                                                    link_type=link_type, max_delay=max_delay,
+                                                    link_type=link_type, syn_type=syn_type, max_delay=max_delay,
                                                     sparse_with_mask=sparse_with_mask,
                                                     pre_var_name=pre_var_name, post_var_name=post_var_name, **kwargs)
         weight = kwargs.get('weight', None)
         self.probability = kwargs.get('probability', 0.1)
         self.w_max = kwargs.get('w_max', None)
         self.w_min = kwargs.get('w_min', None)
-        self.param_init = kwargs.get('param_init', None)
+        # self.init = kwargs.get('init', None)
         self.is_parameter = kwargs.get('is_parameter', False)
         self.is_sparse = kwargs.get('is_sparse', True)
-        self._variables = dict()
+        # self._variables = dict()
 
         if weight is None:
             # Link_parameters
@@ -500,19 +429,19 @@ Connection.register('random_connection_sparse', random_connect_sparse)
 class random_connect_mask(Connection):
 
     def __init__(self, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse_connect', 'conv', '...'),
-                 max_delay=0, sparse_with_mask=True, pre_var_name='O', post_var_name='Isyn', **kwargs):
+                 syn_type=['basic_synapse'], max_delay=0, sparse_with_mask=True, pre_var_name='O', post_var_name='Isyn', **kwargs):
         super(random_connect_mask, self).__init__(pre_assembly=pre_assembly, post_assembly=post_assembly, name=name,
-                                                  link_type=link_type, max_delay=max_delay,
+                                                  link_type=link_type, syn_type=syn_type, max_delay=max_delay,
                                                   sparse_with_mask=sparse_with_mask,
                                                   pre_var_name=pre_var_name, post_var_name=post_var_name, **kwargs)
         weight = kwargs.get('weight', None)
         self.probability = kwargs.get('probability', 0.1)
         self.w_max = kwargs.get('w_max', None)
         self.w_min = kwargs.get('w_min', None)
-        self.param_init = kwargs.get('param_init', None)
+        # self.init = kwargs.get('init', None)
         self.is_parameter = kwargs.get('is_parameter', True)
         self.is_sparse = kwargs.get('is_sparse', False)
-        self._variables = dict()
+        # self._variables = dict()
 
         if weight is None:
             # Link_parameters
@@ -558,35 +487,14 @@ class NullConnection(Connection):
 
     '''
 
-    def __init__(self, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse_connect', 'conv','...'), policies=[],
-                 max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='Isyn', **kwargs):
+    def __init__(self, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse_connect', 'conv','...'),
+                 syn_type=['basic_synapse'], max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='Isyn', **kwargs):
 
         super(NullConnection, self).__init__(pre_assembly=pre_assembly, post_assembly=post_assembly, name=name,
-                                             link_type=link_type, policies=policies, max_delay=max_delay,
+                                             link_type=link_type, syn_type=syn_type, max_delay=max_delay,
                                              sparse_with_mask=sparse_with_mask,
                                              pre_var_name=pre_var_name, post_var_name=post_var_name, **kwargs)
-        self._variables = dict()
-
-    # def unit_connect(self, pre_group, post_group):
-    #     # The number of neurons in neuron group
-    #     pre_num = pre_group.num
-    #     post_num = post_group.num
-    #     link_num = pre_num * post_num
-    #     try:
-    #         assert pre_num == post_num
-    #     except AssertionError:
-    #         raise ValueError('DirectPass must be defined in two groups with the same size, but the pre_num %s is not equal to the post_num %s.' % (pre_num, post_num))
-    #
-    #     # The name for backend variables
-    #     input_name = self.get_input_name(pre_group, post_group)
-    #     target_name = self.get_post_name(post_group, self.post_var_name)
-    #
-    #     # The backend basic operation
-    #     var_code = None
-    #     if self.max_delay > 0:
-    #         op_code = [target_name, 'equal', input_name]
-    #     else:
-    #         op_code = [target_name, 'equal', input_name]
+        # self._variables = dict()
 
         pass
 
@@ -595,11 +503,12 @@ Connection.register('null', NullConnection)
 class DistDepd_connect(Connection):
 
     def __init__(self, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse', 'conv','...'),
-                 max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='Isyn', **kwargs):
+                 syn_type=['basic_synapse'], max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='Isyn', **kwargs):
 
-        super(DistDepd_connect, self).__init__(pre_assembly=pre_assembly, post_assembly=post_assembly, name=name, link_type=link_type,
-                                             max_delay=max_delay, sparse_with_mask=sparse_with_mask,
-                                             pre_var_name=pre_var_name, post_var_name=post_var_name, **kwargs)
+        super(DistDepd_connect, self).__init__(pre_assembly=pre_assembly, post_assembly=post_assembly, name=name,
+                                               link_type=link_type, syn_type=syn_type, max_delay=max_delay,
+                                               sparse_with_mask=sparse_with_mask,
+                                               pre_var_name=pre_var_name, post_var_name=post_var_name, **kwargs)
         self.distance_weight_function = kwargs.get('distance_weight_function', None)
         self.zero_self = kwargs.get('zero_self', False)
         if self.distance_weight_function is None:
@@ -673,13 +582,13 @@ class DistDepd_connect(Connection):
 Connection.register('dist_depd', DistDepd_connect)
 
 
-class reconnect(Connection):
-    def __init__(self, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse_connect', 'conv', '...'),
-                 max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='Isyn', **kwargs):
-        super(reconnect, self).__init__(pre_assembly=pre_assembly, post_assembly=post_assembly, name=name, link_type=link_type,
-                                             max_delay=max_delay, sparse_with_mask=sparse_with_mask, pre_var_name=pre_var_name, post_var_name=post_var_name, **kwargs)
-    def unit_connect(self, pre_group, post_group):
-        pass
-
-    def condition_check(self, pre_group, post_group):
-        pass
+# class reconnect(Connection):
+#     def __init__(self, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse_connect', 'conv', '...'),
+#                  max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='Isyn', **kwargs):
+#         super(reconnect, self).__init__(pre_assembly=pre_assembly, post_assembly=post_assembly, name=name, link_type=link_type,
+#                                         max_delay=max_delay, sparse_with_mask=sparse_with_mask, pre_var_name=pre_var_name, post_var_name=post_var_name, **kwargs)
+#     def unit_connect(self, pre_group, post_group):
+#         pass
+#
+#     def condition_check(self, pre_group, post_group):
+#         pass

@@ -10,6 +10,7 @@ Created on 2022/1/18
 """
 from ..Network.BaseModule import BaseModule
 from ..Network.Assembly import Assembly
+# from ..Network.Synapse import Flatten_synapse
 from ..Network.BaseModule import VariableAgent
 from ..Backend.Backend import Backend
 from abc import abstractmethod
@@ -335,12 +336,17 @@ class SynapseModel(ABC):
     #: A dictionary mapping synapse model names to `Model` objects
     synapse_models = dict()
 
-    def __init__(self, **kwargs):
+    def __init__(self, conn, **kwargs):
         super(SynapseModel, self).__init__()
         self.name = 'none'
         self._syn_operations = []
         self._syn_variables = dict()
         self._syn_constant_variables = dict()
+        updated_input = conn.updated_input
+        if updated_input:
+            self.input_name = conn.pre_var_name + '[input][updated]'
+        else:
+            self.input_name = conn.pre_var_name + '[input]'
 
     @staticmethod
     def register(name, model):
@@ -428,7 +434,7 @@ class Connection(Projection):
     _class_label = '<con>'
 
     def __init__(self, pre_assembly: Assembly, post_assembly: Assembly, name=None, link_type=('full', 'sparse_connect', 'conv', '...'),
-                  max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='Isyn', **kwargs):
+                 syn_type=['basic_synapse'], max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='Isyn', **kwargs):
 
         super(Connection, self).__init__(pre_assembly, post_assembly)
         # assert pre_assembly._is_terminal
@@ -459,9 +465,12 @@ class Connection(Projection):
         self._supers = list()
         self._link_var_codes = list()
         # self._link_op_codes = list()
-        # self._policies = policies
 
         self.parameters = kwargs
+        self.init = kwargs.get('init', None)
+        self.init_param = kwargs.get('init_param', None)
+        self.bias = kwargs.get('bias', False)
+        self.updated_input = kwargs.get('updated_input', True)
 
         self.w_max = None
         self.w_min = None
@@ -470,16 +479,28 @@ class Connection(Projection):
         self.running_var = None
         self.running_mean = None
         self.decay = 0.9
-        self.synapse_type = kwargs.get('synapse_type', 'basic_synapse')
+        self._variables = dict()
+        self._constant_variables = dict()
 
         self.flatten = kwargs.get('flatten', False)
 
-        if isinstance(self.synapse_type, str):
-            self.synapse_class = SynapseModel.apply_model(self.synapse_type)
-            self.synapse_name = self.synapse_type  # self.neuron_model -> self.model_name
-            self.synapse = None
+        if len(syn_type) == 0:
+            raise ValueError('Please set the param syn_type, you can set it as \'basic_synapse\'')
+
+        if isinstance(syn_type, list):
+            self.synapse_type = syn_type
         else:
-            raise ValueError("only support set synapse model with string")
+            self.synapse_type = [syn_type]
+        self.synapse_class = []
+        self.synapse_name = []
+
+        for i in range(len(self.synapse_type)):
+            if isinstance(self.synapse_type[i], str):
+                self.synapse_class.append(SynapseModel.apply_model(self.synapse_type[i]))
+                self.synapse_name.append(self.synapse_type[i])  # self.neuron_model -> self.model_name
+                self.synapse = []
+            else:
+                raise ValueError("only support set synapse model with string")
 
         # construct unit connection information by policies,
         # construct in __init__ is potentially bad, as network structure may change before build. should add new function
@@ -499,12 +520,12 @@ class Connection(Projection):
         return (grad - self.running_mean) / (1.0e-10 + self.running_var)
 
     def __new__(cls, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse_connect', 'conv','...'),
-                max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='Isyn', **kwargs):
+                syn_type=['basic_synapse'], max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='Isyn', **kwargs):
         if cls is not Connection:
             return super().__new__(cls)
 
         if link_type in cls._connection_subclasses:
-            return cls._connection_subclasses[link_type](pre_assembly, post_assembly, name, link_type, max_delay, sparse_with_mask, pre_var_name, post_var_name, **kwargs)
+            return cls._connection_subclasses[link_type](pre_assembly, post_assembly, name, link_type, syn_type, max_delay, sparse_with_mask, pre_var_name, post_var_name, **kwargs)
 
         else:
             raise ValueError("No connection type: %s in Connection classes" %link_type)
@@ -668,6 +689,18 @@ class Connection(Projection):
             return var_names
 
 
+    def decode_syn_op(self, syn_ops, synapse_name, op_len):
+        for i in range(1, op_len):
+            pre_op_return_name = syn_ops[i-1][0]
+            post_op_first_input = syn_ops[i][2]
+            if '[updated]' in post_op_first_input:
+                post_op_first_input = post_op_first_input.replace('[updated]', '')
+            if post_op_first_input == pre_op_return_name:
+                temp_name = synapse_name[i-1]+'_' + str(i-1)
+                syn_ops[i-1][0] = temp_name
+                syn_ops[i][2] = temp_name
+        return syn_ops
+
     def build(self, backend):
         '''
         add the connection variable, variable name and opperation to the backend.
@@ -695,13 +728,19 @@ class Connection(Projection):
                 shape = ()
 
             if 'weight' in key:
-                self.variable_to_backend(var_name, self.shape, value, self.is_parameter, self.is_sparse,
-                                     self.param_init)  # (var_name, shape, value, is_parameter, is_sparse, init)
+                self.variable_to_backend(name=var_name, shape=self.shape, value=value, is_parameter=self.is_parameter,
+                                         is_sparse=self.is_sparse, init=self.init, init_param=self.init_param)  # (var_name, shape, value, is_parameter, is_sparse, init)
+            elif 'bias' in key:
+                self.variable_to_backend(name=var_name, shape=value.shape, value=value, is_parameter=self.is_parameter)
             else:
                 self.variable_to_backend(var_name, shape, value=value)
             # del[self._variables[key]]
             # self._var_names.append(var_name)
             # self._var_dict[var_name] = VariableAgent(backend, var_name)
+
+        for (key, value) in self._constant_variables.items():
+            var_name = self.add_conn_label(key)
+            self.variable_to_backend(name=var_name, shape=None, value=value, is_constant=True)
 
         weight_name = self.get_link_name(self.pre_assembly, self.post_assembly, 'weight')
         if self.sparse_with_mask:
@@ -713,39 +752,32 @@ class Connection(Projection):
         if (self.w_min is not None) or (self.w_max is not None):
             backend.register_initial(None, self.clamp_weight, [weight_name])
 
-        if self.synapse_class is not None:
-            self.synapse = self.synapse_class(self)
+        syn_ops = []
+        for i in range(len(self.synapse_class)):
+            if self.synapse_class[i] is not None:
+                self.synapse.append(self.synapse_class[i](self))
 
-        for (key, value) in self.synapse._syn_variables.items():
-            key = self.add_conn_label(key)
-            self.variable_to_backend(key, value.shape, value=value)
+            for (key, value) in self.synapse[i]._syn_variables.items():
+                key = self.add_conn_label(key)
+                self.variable_to_backend(key, value.shape, value=value)
 
-        for (key, value) in self.synapse._syn_constant_variables.items():
-            key = self.add_conn_label(key)
-            self.variable_to_backend(key, shape=None, value=value, is_constant=True)
+            for (key, value) in self.synapse[i]._syn_constant_variables.items():
+                key = self.add_conn_label(key)
+                self.variable_to_backend(key, shape=None, value=value, is_constant=True)
 
-        for op in self.synapse._syn_operations:
+            for op in self.synapse[i]._syn_operations:
+                syn_ops.append(op)
+
+        syn_ops = self.decode_syn_op(syn_ops, self.synapse_name, len(syn_ops))
+
+
+        for sop in syn_ops:
             addcode_op = []
-            if self.flatten:
-                for ind, name in enumerate(op):
-                    if ind != 1:
-                        if self.pre_var_name+'[input]' in op[ind]:
-                            view_dim = [-1, self.pre_num]
-                            input_name = self.add_conn_label(self.pre_var_name+'[input]')
-                            view_dim_name = input_name + '_view_dim'
-                            self.variable_to_backend(view_dim_name, shape=None, value=view_dim, is_constant=True)
-                            backend.add_operation([input_name+'_temp', 'view', input_name, view_dim_name])
-                            addcode_op.append(input_name+'_temp')
-                        else:
-                            addcode_op.append(self.add_conn_label(op[ind]))
-                    else:
-                        addcode_op.append(op[ind])
-            else:
-                for ind, name in enumerate(op):
-                    if ind != 1:
-                        addcode_op.append(self.add_conn_label(op[ind]))
-                    else:
-                        addcode_op.append(op[ind])
+            for ind, name in enumerate(sop):
+                if ind != 1:
+                    addcode_op.append(self.add_conn_label(sop[ind]))
+                else:
+                    addcode_op.append(sop[ind])
             backend.add_operation(addcode_op)
 
 

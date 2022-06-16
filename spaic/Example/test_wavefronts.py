@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on 2022/1/6
-@project: spaic
+@project: SPAIC
 @filename: test_wavefronts
 @author: Hong Chaofei
 @contact: hongchf@gmail.com
@@ -43,7 +43,7 @@ for x in range(29):
 CANNNet = spaic.Network()
 with CANNNet:
     input = spaic.Generator(num=200*200, shape=(1, 200, 200), coding_method='poisson_generator')
-    # input = spaic.Encoder(num=200*200, shape=(1, 200, 200), coding_method='constant_current')
+    # input = spaic.Encoder(num=200*200, shape=(1, 200, 200), coding_method='poisson_generator')
     exc_layer = spaic.NeuronGroup(neuron_number=200 * 200, shape=(1, 200, 200),  neuron_model='meanfield', tau=1.0)
     inh_layer = spaic.NeuronGroup(neuron_number=200 * 200, shape=(1, 200, 200), neuron_model='meanfield', tau=2.0)
     inp_link = spaic.Connection(input, exc_layer, link_type='conv', in_channels=1, out_channels=1, kernel_size=(29,29), maxpool_on=False, padding=14, weight=weight1, post_var_name='Iext')
@@ -62,8 +62,8 @@ with CANNNet:
 
 
 
-CANNNet.set_backend('torch')
-CANNNet._backend.dt=0.2
+CANNNet.set_backend('pytorch')
+CANNNet.set_backend_dt(0.2)
 
 # ion()
 inp = np.zeros((1,1,200, 200))
@@ -71,9 +71,8 @@ inp[0,0, 100, 100] = 5.0
 for kk in range(25):
     # # if kk == 1:
     # inp[0, 0, 100, 100] = 0.0
-
-    input(inp) # try input(0.01)
-    CANNNet.run(10.0)
+    input(inp)
+    CANNNet.run_continue(10.0)
     out = om.values
     # imshow(CANNNet._backend._variables['CANNNet<net>_inter_link<con>:CANNNet<net>_layer<neg><-CANNNet<net>_layer<neg>:{weight}'].detach().numpy())
     # show()

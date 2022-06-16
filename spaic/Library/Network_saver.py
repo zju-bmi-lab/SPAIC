@@ -311,7 +311,7 @@ def trans_connection(connection: Connection, combine: bool, save_weight: bool):
     para_dict = dict()
 
     name_needed = ['pre_assembly', 'post_assembly']
-    needed = ['name', 'link_type', 'max_delay', 'sparse_with_mask',
+    needed = ['name', 'link_type', 'synapse_type', 'max_delay', 'sparse_with_mask',
               'pre_var_name', 'post_var_name', 'parameters', 'id', ]
     unneeded = ['hided', 'pre_groups', 'post_groups', 'pre_assemblies', 'post_assemblies',
                 'unit_connections', '_var_names', '_supers', '_backend']
