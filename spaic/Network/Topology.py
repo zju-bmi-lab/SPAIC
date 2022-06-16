@@ -318,7 +318,12 @@ class Projection(BaseModule):
         new_connections = dict()
         for key, con in connection_inforamtion._connections.items():
             assert con.is_unit
-            new_connections[key] = Connection(con.pre_assembly, con.post_assembly, link_type=self.link_type, **self.ConnectionParameters)
+            if con.link_type is not None:
+                link_type = con.link_type
+            else:
+                assert self.link_type is not None
+                link_type = self.link_type
+            new_connections[key] = Connection(con.pre_assembly, con.post_assembly, link_type=link_type, **self.ConnectionParameters)
             new_connections[key].add_super(self)
         self._connections = new_connections
 
