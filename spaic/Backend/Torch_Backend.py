@@ -13,6 +13,7 @@ import numpy as np
 # from torch import fx
 #from torch.nn import Module, Parameter
 import torch.nn.functional as fn
+import torch.nn as nn
 from typing import Tuple, Dict, Callable
 
 class Torch_Engine(torch.nn.Module):
@@ -133,7 +134,7 @@ class Torch_Backend(Backend):
                     if init is not None:
                         # self._variables[sparse_value] = self.init_param(True, init)
                         data = torch.empty(shape, dtype=torch.float32, device=self.device, requires_grad=True)
-                        self._variables[sparse_value] = self.param_init_operate[init](data, **init_param)
+                        self._variables[sparse_value] = self.param_init_operate[init](data, *init_param)
                     else:
                         self._variables[sparse_value] = torch.tensor(v, dtype=torch.float32, requires_grad=True, device=self.device)
                     self._parameters_dict[sparse_value] = self._variables[sparse_value]
@@ -151,7 +152,7 @@ class Torch_Backend(Backend):
                         data = torch.empty(shape, dtype=torch.float32, device=self.device, requires_grad=grad)
                         init = init.lower()
                         if init in self.param_init_operate.keys():
-                            self._variables[name] = self.param_init_operate[init](data)
+                            self._variables[name] = self.param_init_operate[init](data, *init_param)
                         else:
                             raise ValueError("No initialize method: %s in param_init_operate" % init)
                     else:
@@ -159,7 +160,7 @@ class Torch_Backend(Backend):
                             self._variables[name] = value.clone().detach()
                         else:
                             self._variables[name] = torch.tensor(value, dtype=torch.float32, device=self.device,
-                                                                   requires_grad=grad)
+                                                                 requires_grad=grad)
 
             elif len(shape) == 0:
                 # add constant
@@ -172,13 +173,29 @@ class Torch_Backend(Backend):
                     data = value*torch.ones(shape, dtype=torch.float32, device=self.device, requires_grad=grad)
                     init = init.lower()
                     if init in self.param_init_operate.keys():
-                        self._variables[name] = self.param_init_operate[init](data)
+                        self._variables[name] = self.param_init_operate[init](data, *init_param)
                     else:
                         raise ValueError("No initialize method: %s in param_init_operate" % init)
                 else:
                     self._variables[name] = value*torch.ones(shape, dtype=torch.float32, device=self.device, requires_grad=grad)
 
         return self._variables[name]
+
+    def set_variable_value(self, name, value, is_parameter):
+        if is_parameter:
+            assert name in self._parameters_dict
+            assert self._parameters_dict[name].shape == value.shape
+            if not isinstance(value, torch.Tensor):
+                value = torch.tensor(value, dtype=self._parameters_dict[name].dtype, device=self._parameters_dict[name].device)
+            with torch.no_grad():
+                self._parameters_dict[name].data = value
+        else:
+            assert name in self._InitVariables_dict
+            self._backend._InitVariables_dict[name].shape == value.shape
+            if not isinstance(value, torch.Tensor):
+                value = torch.tensor(value, dtype=self._InitVariables_dict[name].dtype, device=self._InitVariables_dict[name].device)
+            with torch.no_grad():
+                self._InitVariables_dict[name].data = value
 
     # def init_param(self, grad, *init):
     #     if init[0] in self.param_init_operate:
@@ -193,6 +210,9 @@ class Torch_Backend(Backend):
     #     for var in init[2:]:
     #         inputs.append(var)
     #     return init_op(*inputs)
+
+    def sparse_to_dense(self, index_name, value_name, shape_name):
+        return torch.sparse.FloatTensor(self._variables[index_name], self._variables[value_name], self._variables[shape_name])
 
     def get_str(self, level):
         return level*' ' + 'torch_backend'
@@ -247,17 +267,36 @@ class Torch_Backend(Backend):
             xshape[0] = xshape[0]*xshape[1]
             extend_size = xshape[1]
             xshape.pop(1)
-            out = fn.conv2d(x.reshape(xshape), kernel, stride=int(stride), padding=int(padding), dilation=int(dilation), groups=int(groups))
+            out = fn.conv2d(x.reshape(xshape), kernel, stride=stride, padding=padding, dilation=dilation, groups=groups)
             outshape = list(out.shape)
             outshape[0] = outshape[0]//extend_size
             outshape.insert(1, extend_size)
             return out.view(outshape)
         else:
-            return fn.conv2d(x, kernel, stride=int(stride), padding=int(padding), dilation=int(dilation), groups=int(groups))
+            return fn.conv2d(x, kernel, stride=stride, padding=padding, dilation=dilation, groups=groups)
 
-    def conv_max_pool2d(self, x, kernel, max_kernel, stride, padding, dilation, groups):
+    def conv_max_pool2d(self, x, kernel, pool_kernel, stride, pool_stride, padding, pool_padding, dilation, groups):
+        return fn.max_pool2d(fn.conv2d(x, kernel, stride=stride, padding=padding,
+                             dilation=dilation, groups=groups), kernel_size=pool_kernel,
+                             stride=pool_stride, padding=pool_padding)
 
-        return fn.conv2d(fn.max_pool2d(x, int(max_kernel[0])), kernel, stride=int(stride), padding=int(padding), dilation=int(dilation), groups=int(groups))
+        # return fn.conv2d(fn.max_pool2d(x, int(max_kernel[0])), kernel, stride=int(stride), padding=int(padding), dilation=int(dilation), groups=int(groups))
+
+    def conv_avg_pool2d(self, x, kernel, pool_kernel, stride, pool_stride, padding, pool_padding, dilation, groups):
+        return fn.avg_pool2d(fn.conv2d(x, kernel, stride=stride, padding=padding,
+                             dilation=dilation, groups=groups), kernel_size=pool_kernel,
+                             stride=pool_stride, padding=pool_padding)
+    def conv_add_bias(self, x, bias):
+        bias_t = bias.repeat(x.shape[-2], x.shape[-1], 1).permute(2, 1, 0)
+        return x+bias_t
+    def max_pool2d(self, x, pool_kernel, pool_stride, pool_padding):
+        return fn.max_pool2d(x, kernel_size=pool_kernel, stride=pool_stride, padding=pool_padding)
+
+    def avg_pool2d(self, x, pool_kernel, pool_stride, pool_padding):
+        return fn.avg_pool2d(x, kernel_size=pool_kernel, stride=pool_stride, padding=pool_padding)
+
+    def dropout(self, x, p, inplace=False):
+        return fn.dropout(x, p=p, inplace=inplace)
 
     def reshape_mat_mult(self, A, X):
 
@@ -414,7 +453,7 @@ class Torch_Backend(Backend):
             data.clamp_min_(min)
 
 
-    def uniform(self, data, a=0.0, b=1.0):
+    def uniform(self, data, a=-0.0, b=1.0):
         '''
         Args:
             data(tensor): an n-dimensional torch.Tensor

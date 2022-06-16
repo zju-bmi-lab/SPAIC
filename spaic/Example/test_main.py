@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on 2022/1/4
-@project: spaic
+@project: SPAIC
 @filename: test_main
 @author: Hong Chaofei
 @contact: hongchf@gmail.com
@@ -11,6 +11,8 @@ Created on 2022/1/4
 import spaic as SPAIC
 # Spike-based Artificial Intelligence Computing
 
+
+
 from matplotlib.pyplot import *
 import torch
 import torch.nn.functional as F
@@ -18,18 +20,31 @@ from matplotlib.pyplot import *
 
 
 # 创建数据集
-
 from spaic.IO.Dataset import MNIST
-import os
-os.chdir("../../")
-root = './spaic/Datasets/MNIST'
+root = 'D://Datasets/MNIST'
 train_set = MNIST(root, is_train=True)
 test_set = MNIST(root, is_train=False)
 
 # 创建DataLoader迭代器
-bat_size = 100
+bat_size = 200
 train_loader = SPAIC.Dataloader(train_set, batch_size=bat_size, shuffle=True, drop_last=False)
 test_loader = SPAIC.Dataloader(test_set, batch_size=bat_size, shuffle=False)
+
+beta = 12.0/8.0
+V0 = (1/(beta-1))*(beta**(beta/(beta-1)))
+Rec = []
+@SPAIC.NeuronGroup.custom_model(input_vars=['M', 'S', 'E', 'O','Isyn', 'tauM', 'tauS', 'tauE', 'Vth'],
+                                output_vars=['V', 'M', 'S', 'E'],
+                                new_vars_dict={'M':0, 'S':0, 'E':0, 'O':0, 'V':0, 'Isyn':0, 'tauM':12.0, 'tauS':8.0, 'tauE':20.0, 'Vth':1},
+                                equation_type='exp_euler_iterative')
+def custom_clif(M, S, E, O, Isyn, tauM, tauS, tauE, Vth):
+    M = tauM*M + V0*Isyn
+    S = tauS*S + V0*Isyn
+    E = tauE*E + Vth*O
+    V = M-S-E
+    # Rec.append(V)
+     # print(len(Rec))
+    return V, M, S, E
 
 
 class TestNet(SPAIC.Network):
@@ -40,17 +55,18 @@ class TestNet(SPAIC.Network):
         # coding
         self.input = SPAIC.Encoder(num=784, coding_method='poisson',unit_conversion=1.0)
         # neuron group
-        self.layer1 = SPAIC.NeuronGroup(400, neuron_model='clif')
-        self.layer2 = SPAIC.NeuronGroup(10, neuron_model='clif')
+        self.layer1 = SPAIC.NeuronGroup(400, neuron_model=custom_clif)
+        self.layer2 = SPAIC.NeuronGroup(10, neuron_model=custom_clif)
         # decoding
         self.output = SPAIC.Decoder(num=10, dec_target=self.layer2, coding_method='spike_counts')
 
         # Connection
-        self.connection1 = SPAIC.Connection(self.input, self.layer1, link_type='full', w_mean=0.01, w_std=0.05)
-        self.connection2 = SPAIC.Connection(self.layer1, self.layer2, link_type='full')
+        self.connection1 = SPAIC.Connection(self.input, self.layer1, link_type='full', w_mean=0.005, w_std=0.05)
+        self.connection2 = SPAIC.Connection(self.layer1, self.layer2, link_type='full', w_mean=0.005, w_std=0.05)
 
         # Monitor
-        self.mon_V = SPAIC.StateMonitor(self.layer1, 'V') # index=[[0, 0, 0], [1, 3, 5]]
+        # self.mon_V = SPAIC.StateMonitor(self.layer1, 'V', index=[[1, 3, 5]]) # index=[[0, 0, 0], [1, 3, 5]]
+        self.SpkM = SPAIC.SpikeMonitor(self.layer1)
 
         # Learner
         self.learner = SPAIC.Learner(trainable=self, algorithm='STCA', alpha=0.5)
@@ -58,9 +74,10 @@ class TestNet(SPAIC.Network):
 
 
 Net = TestNet()
-Net.set_backend('pytorch', device='cuda')
-
-
+Net.set_backend('pytorch',device='cuda')
+Net.build()
+print(Net)
+print(Net.connection1.get_value('weight'))
 
 # for data, label in train_loader:
 #     Net.input(data)
@@ -96,7 +113,11 @@ for epoch in range(5):
         pbar.set_description_str("[loss:%f]Batch progress: " % batch_loss.item())
         pbar.update()
 
-
+    # pbar.close()
+    # spk_t = Net.SpkM.spk_times[0]
+    # spk_i = Net.SpkM.spk_index[0]
+    # plot(spk_t,spk_i, '.')
+    # show()
 
 
 # ======================================== Mean Field ======================================

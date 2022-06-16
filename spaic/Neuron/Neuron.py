@@ -200,7 +200,7 @@ class NeuronGroup(Assembly):
             #     else:
             #         shape = ()
             # else:
-            shape = ()
+            shape = None
 
             self.variable_to_backend(key, shape, value=var, is_constant=True)
 
@@ -463,7 +463,7 @@ class IFModel(NeuronModel):
         self._parameter_variables['ConstantDecay'] = kwargs.get('ConstantDecay', 0.0)
         self._parameter_variables['Vth'] = kwargs.get('v_th', 1.0)
 
-        self._operations.append(('Vtemp', 'add', 'V', 'Isyn'))
+        self._operations.append(('Vtemp', 'add', 'V', 'Isyn[updated]'))
         self._operations.append(('Vtemp1', 'minus', 'Vtemp', 'ConstantDecay'))
         self._operations.append(('O', 'threshold', 'Vtemp1', 'Vth'))
         self._operations.append(('Resetting', 'var_mult', 'Vtemp1', 'O[updated]'))
@@ -480,8 +480,10 @@ class NullModel(NeuronModel):
         super(NullModel, self).__init__()
         # self.neuron_parameters['ConstantDecay'] = kwargs.get('ConstantDecay', 0.0)
         # self.neuron_parameters['v_th'] = kwargs.get('v_th', 1.0)
-
+        self._variables['Isyn'] = 0.0
         self._variables['O'] = 0.0
+
+        self._operations.append(('O', 'equal', 'Isyn[updated]'))
 
 NeuronModel.register("null", NullModel)
 
@@ -1018,7 +1020,7 @@ class LIFModel(NeuronModel):
         self._parameter_variables['Vth'] = kwargs.get('v_th', 1)
         self._constant_variables['Vreset'] = kwargs.get('v_reset', 0.0)
 
-        self._tau_variables['tauM'] = kwargs.get('tau_m', 20.0)
+        self._tau_variables['tauM'] = kwargs.get('tau_m', 20.0)  # dt/taum
 
         # self._operations.append(('I_che', 'add', 'WgtSum[updated]', 'b'))
         # self._operations.append(('I', 'add', 'I_che[updated]', 'I_ele'))
@@ -1029,6 +1031,32 @@ class LIFModel(NeuronModel):
         self._operations.append(('V', 'minus', 'Vtemp', 'Resetting'))
 
 NeuronModel.register("lif", LIFModel)
+
+
+# class linearDecayLIFModel(NeuronModel):
+#     """
+#     LIF model:
+#     # V(t) = tuaM * V^n[t-1] + Isyn[t]   # tauM: constant membrane time (tauM=RmCm)
+#     O^n[t] = spike_func(V^n[t-1])
+#     """
+#
+#     def __init__(self, **kwargs):
+#         super(ConstantDecayLIFModel, self).__init__()
+#         # initial value for state variables
+#         self._variables['V'] = 0.0
+#         self._variables['O'] = 0.0
+#         self._variables['Isyn'] = 0.0
+#
+#         self._parameter_variables['Vth'] = kwargs.get('v_th', 1)
+#         self._constant_variables['Vreset'] = kwargs.get('v_reset', 0.0)
+#         self._constant_variables['Vdecay'] = kwargs.get('v_decay', 1.0)
+#
+#         self._operations.append(('Vtemp', 'var_linear', 'tauM', 'V', 'Isyn[updated]'))
+#         self._operations.append(('O', 'threshold', 'Vtemp', 'Vth'))
+#         self._operations.append(('Resetting', 'var_mult', 'Vtemp', 'O[updated]'))
+#         self._operations.append(('V', 'minus', 'Vtemp', 'Resetting'))
+#
+# NeuronModel.register("constantdecaylif", ConstantDecayLIFModel)
 
 class ConstantCurrentLIFModel(NeuronModel):
     """

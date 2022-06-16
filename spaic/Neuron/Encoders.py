@@ -42,8 +42,8 @@ class SigleSpikeToBinary(Encoder):
 
     def torch_coding(self, source, device):
         assert (source >= 0).all(), "Inputs must be non-negative"
-        if source.__class__.__name__ == 'ndarray':
-            source = torch.tensor(source, device=device, dtype=torch.float32)
+        # if source.__class__.__name__ == 'ndarray':
+        #     source = torch.tensor(source, device=device, dtype=torch.float32)
         shape = list(source.shape)
         spk_shape = [self.time_step] + shape
 
@@ -52,7 +52,7 @@ class SigleSpikeToBinary(Encoder):
         spike_index = source_temp
         spike_index = spike_index.reshape([1] + shape).to(device=device, dtype=torch.long)
         spikes = torch.zeros(spk_shape, device=device)
-        spike_src = torch.ones_like(spike_index, device=device, dtype=torch.float)
+        spike_src = torch.ones_like(spike_index, device=device, dtype=torch.float32)
         spikes.scatter_(dim=0, index=spike_index, src=spike_src)
         return spikes
 
@@ -72,8 +72,8 @@ class MultipleSpikeToBinary(Encoder):
 
     def torch_coding(self, source, device):
         # 直接使用for循环
-        if source.__class__.__name__ == 'ndarray':
-            source = torch.tensor(source, device=device, dtype=torch.float32)
+        # if source.__class__.__name__ == 'ndarray':
+        #     source = torch.tensor(source, device=device, dtype=torch.float32)
         all_spikes = []
         if '[2]' in self.coding_var_name:
             for i in range(source.shape[0]):
@@ -155,7 +155,7 @@ class PoissonEncoding(Encoder):
     def __init__(self, shape=None, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'),
                  coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
         super(PoissonEncoding, self).__init__(shape, num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
-        self.unit_conversion = kwargs.get('unit_conversion', 0.1)
+        self.unit_conversion = kwargs.get('unit_conversion', 1.0)
 
     def numpy_coding(self, source, device):
         # assert (source >= 0).all(), "Inputs must be non-negative"

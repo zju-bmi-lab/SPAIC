@@ -125,6 +125,11 @@ class Backend(BaseModule, ABC):
         self.basic_operate['log10'] = self.log10
 
         self.basic_operate['conv_max_pool2d'] = self.conv_max_pool2d
+        self.basic_operate['conv_avg_pool2d'] = self.conv_avg_pool2d
+        self.basic_operate['conv_add_bias'] = self.conv_add_bias
+        self.basic_operate['max_pool2d'] = self.max_pool2d
+        self.basic_operate['avg_pool2d'] = self.avg_pool2d
+        self.basic_operate['dropout'] = self.dropout
         self.basic_operate['reshape_mat_mult'] = self.reshape_mat_mult
         self.basic_operate['exp'] = self.exp
         self.basic_operate['mult_sum_weight'] = self.mult_sum_weight
@@ -500,10 +505,7 @@ class Backend(BaseModule, ABC):
             value_name = key + '_sparse_value'
             shape_name = key + '_sparse_shape'
             if index_name in self._variables.keys() and value_name in self._variables.keys():
-                if self.backend_name == 'pytorch':
-                    self._variables[key] = torch.sparse.FloatTensor(self._variables[index_name],
-                                                                    self._variables[value_name],
-                                                                    self._variables[shape_name])
+                self._variables[key] = self.sparse_to_dense(index_name, value_name, shape_name)
 
         # Initialize the record of Monitor
         for monitor in self._monitors:
@@ -697,14 +699,25 @@ class Backend(BaseModule, ABC):
         return reduced
 
     def get_varialble(self, name):
-        if name in self._variables:
-            return self._variables[name]
-        elif name in self._parameters_dict:
+        if name in self._parameters_dict:
             return self._parameters_dict[name]
-        elif name in self._InitVariables_dict:
-            return self._InitVariables_dict[name]
+        elif name in self._variables:
+            return self._variables[name]
         else:
             raise ValueError("not found variable:%s in the backend"%name)
+
+    def set_variable_value(self, name, value, is_parameter):
+        '''
+        Set the backend value, in specific Backend
+        Args:
+            name:
+            value:
+            is_parameter:
+
+        Returns:
+
+        '''
+        NotImplementedError()
 
     def add_variable(self, name, shape, value=None, is_parameter=False, is_sparse=False, init=None, init_param=None,
                      min=None, max=None, is_constant=False):
@@ -740,7 +753,7 @@ class Backend(BaseModule, ABC):
                                                                        is_sparse=is_sparse, init=init,
                                                                        init_param=init_param)
 
-        var_agent = VariableAgent(self, name)
+        var_agent = VariableAgent(self, name, is_parameter)
         return var_agent
 
     def has_variable(self, name):
@@ -781,6 +794,17 @@ class Backend(BaseModule, ABC):
         '''
         NotImplementedError()
 
+    @abstractmethod
+    def sparse_to_dense(self, index_name, value_name, shape_name):
+        '''
+        This method will be sparse matrix to dense matrix.
+        Args:
+            index_name (str)
+            value_name (str)
+            shape_name (str)
+        '''
+        NotImplementedError()
+
     def add_operation(self, op):
         '''
         Add basic operations from front objects to _operations of Backend.
@@ -797,13 +821,30 @@ class Backend(BaseModule, ABC):
 
         if op[1] in self.basic_operate:
             op[1] = self.basic_operate[op[1]]
+            # if isinstance(op[0], str):
+            #     op[0] = [op[0]]
+            # elif op[0] is None:
+            #     op[0] = []
+            # op[2] = op[2:]
             self._operations.append(op)
         elif callable(op[1]):
             self.register_standalone(op[0], op[1], op[2])
         else:
             raise ValueError("No operation %s in basic_operate" % op[1])
 
-    def register_standalone(self, output_names, function, input_names: list):
+        # if isinstance(op[0], str):
+        #     op[0] = [op[0]]
+        # elif op[0] is None:
+        #     op[0] = []
+        # op[2] = op[2:]
+        # if op[1] in self.basic_operate:
+        #     op[1] = self.basic_operate[op[1]]
+        # elif not callable(op[1]):
+        #     raise ValueError("No operation %s in basic_operate or not exist operation %s" % (op[1], op[1]))
+        #
+        # self._operations.append(op)
+
+    def register_standalone(self, output_names: list, function, input_names: list):
         '''
         Add standalone operations from front objects to _standalone_operations of Backend.
         Args:
