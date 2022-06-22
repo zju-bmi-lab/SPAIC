@@ -50,12 +50,12 @@ class TestNet(spaic.Network):
         # can set neuron param dict, including 'tau_p', 'tau_q', 'tau_m', 'v_th' and 'v_reset'
 
         #self.layer1 = spaic.NeuronGroup(676, neuron_shape=None, neuron_model='clif', batch_size=bat_size)  #26*26*4 经过池化 13*13*4, kernel_size=2
-        self.layer1 = spaic.NeuronGroup(4 * 12 * 12, neuron_shape=None, neuron_model='lif',
+        self.layer1 = spaic.NeuronGroup(4 * 26 * 26, neuron_shape=None, neuron_model='lif',
                                           batch_size=bat_size)  #24*24*4经过池化 12*12*4, kernel_size=2
 
 
         #self.layer2 = spaic.NeuronGroup(200, neuron_shape=None, neuron_model='clif',batch_size=bat_size)  # 11*11*8经过池化 5*5*8, kernel_size=2
-        self.layer2 = spaic.NeuronGroup(8 * 10 * 10, neuron_shape=None, neuron_model='lif',
+        self.layer2 = spaic.NeuronGroup(8 * 24 * 24, neuron_shape=None, neuron_model='lif',
                                           batch_size=bat_size)  # 8*8*8经过池化 4*4*8, kernel_size=2
 
 
@@ -65,16 +65,17 @@ class TestNet(spaic.Network):
 
         # Connection
         self.connection1 = spaic.Connection(self.input, self.layer1, link_type='conv', in_channels=1, out_channels=4,
-                                              kernel_size=(3, 3), maxpool_on=True, maxpool_kernel_size=(2, 2),
+                                              kernel_size=(3, 3), # maxpool_on=True, maxpool_kernel_size=(2, 2),
                                               w_std=0.05, w_mean=0.05)
 
 
         self.connection2 = spaic.Connection(self.layer1, self.layer2, link_type='conv', in_channels=4, out_channels=8,
-                                              kernel_size=(3, 3), maxpool_on=False, maxpool_kernel_size=(2, 2),
+                                              kernel_size=(3, 3), # maxpool_on=False, maxpool_kernel_size=(2, 2),
                                               w_std=0.05, w_mean=0.05)
 
-        self.connection3 = spaic.Connection(self.layer2, self.layer3, link_type='full', flatten=True, w_std=0.05,
-                                              w_mean=0.02)
+        self.connection3 = spaic.Connection(self.layer2, self.layer3, link_type='full',
+                                            syn_type=['flatten', 'basic_synapse'],
+                                            w_std=0.05, w_mean=0.02)
         # Learner
         self._learner = Learner(algorithm='STCA', a=0.01, trainable=[self.connection1, self.connection2, self.connection3, self.layer1, self.layer2, self.layer3])
         self.set_backend(backend)
