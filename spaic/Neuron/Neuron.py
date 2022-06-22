@@ -280,12 +280,12 @@ class NeuronGroup(Assembly):
                 if '[constant]' in key:
                     model._constant_variables[key.replace('[constant]','')] = value
                 elif 'tau' in key.lower():
-                    model._tau_constant_variables[key] = value
+                    model._tau_variables[key] = value
                 else:
                     model._variables[key] = value
         new_vars_dict = dict()
         new_vars_dict.update(model._variables)
-        new_vars_dict.update(model._tau_constant_variables)
+        new_vars_dict.update(model._tau_variables)
         new_vars_dict.update(model._membrane_variables)
         new_vars_dict.update(model._constant_variables)
         for var in input_vars:

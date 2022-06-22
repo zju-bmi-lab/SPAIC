@@ -8,7 +8,7 @@ Created on 2020/8/11
 @description: 
 """
 # print('__file__={0:<35} | __name__={1:<20} | __package__={2:<20}'.format(__file__,__name__,str(__package__)))
-from .Network import Network, Connection, Assembly, Projection
+from .Network import Network, Connection, Assembly, Projection, Synapse
 from .Neuron import NeuronGroup
 
 from .Neuron import Node, Encoders, Decoders, Generators, Rewards, Actions
