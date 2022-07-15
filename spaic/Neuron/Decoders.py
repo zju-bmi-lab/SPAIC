@@ -273,6 +273,112 @@ class Voltage_Sum(Decoder):
 
 Decoder.register('voltage_sum', Voltage_Sum)
 
+class Complex_Count(Decoder):
+    def __init__(self, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'), coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
+        super(Complex_Count, self).__init__(num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
+
+    def torch_coding(self, record: torch.Tensor, target, device):
+        assert record.dtype.is_complex
+        tlen = record.shape[0]
+        time_array = torch.arange(0, tlen, device=device, dtype=torch.float)
+        # count = record.real
+        count = record.imag.gt(0)
+        t = time_array.view(-1,1,1)
+        out = torch.sum(count*self.dt*(t-record.imag), dim=0) + 1.0e-6
+        rate = torch.sum(count, dim=0)/self._backend.time
+        return out, rate
+
+Decoder.register('complex_count', Complex_Count)
+
+
+class Complex_Phase(Decoder):
+    def __init__(self, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'), coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
+        super(Complex_Phase, self).__init__(num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
+        self.trange = kwargs.get('trange',2.0)
+        class TransClamp(torch.autograd.Function):
+            @staticmethod
+            def forward(ctx, x, min=None, max=None):
+                return torch.clamp(x, min, max)
+
+            @staticmethod
+            def backward(ctx, grad_outputs):
+                return grad_outputs, None, None
+        self.clamp = TransClamp.apply
+
+
+    def torch_coding(self,  record: torch.Tensor, target, device):
+        tlen = record.shape[0]
+        time_array = self.dt * torch.arange(0, tlen, device=device, dtype=torch.float)
+        spk = record.real.gt(0.0)
+        count = torch.cumsum(spk, dim=0)
+        spk_count = (spk*count + 1.0e6*(1-spk.to(torch.float))).detach()
+        sort_spk_count, sort_spk_index = torch.sort(spk_count, dim=0)
+        sort_spk = torch.gather(spk, dim=0, index=sort_spk_index)
+
+        rate = torch.sum(spk, dim=0) / self._backend.time
+
+        time = time_array.view(-1,1,1) - record.imag
+        sort_time = torch.gather(time, dim=0, index=sort_spk_index)
+        sort_time_aim = sort_time
+        sort_time_target = torch.amin(sort_time, dim=-1, keepdim=True).detach()
+        sort_time_diff = torch.exp((sort_time_target-sort_time_aim)/self.trange)*sort_spk
+        out_time_score = torch.sum(sort_time_diff, dim=0) + 1.0e-4 + rate
+        # (0.9 ** sort_spk_count) *
+
+        return out_time_score, rate
+
+Decoder.register('complex_phase', Complex_Phase)
+
+class Complex_Trajectory(Decoder):
+
+    def __init__(self, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'), coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
+        super(Complex_Trajectory, self).__init__(num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
+        self.tau_d = kwargs.get('tau_d', 20.0+20*torch.rand(num).view(1,-1))
+        self.tau_r = kwargs.get('tau_r', 10.0+50*torch.rand(num).view(1,-1))
+        self.group_num = kwargs.get('group_num', 1)
+        self.num = num
+        assert num%self.group_num == 0
+        if not isinstance(self.tau_d, torch.Tensor):
+            self.tau_d = torch.tensor(self.tau_d)
+        if not isinstance(self.tau_r, torch.Tensor):
+            self.tau_r = torch.tensor(self.tau_r)
+        self.weight = torch.randn(num).view(1,-1)
+
+    def build(self, backend):
+        super(Complex_Trajectory, self).build(backend)
+        tau_d = self.variable_to_backend(self.id+'_Complex_Trajectory_tau_d', self.tau_d.shape, self.tau_d, True)
+        tau_r = self.variable_to_backend(self.id+'_Complex_Trajectory_tau_r', self.tau_r.shape, self.tau_r, True)
+        weight = self.variable_to_backend(self.id+'_Complex_Trajectory_weight', self.weight.shape, self.weight, True)
+        self.tau_d = tau_d.value
+        self.tau_r = tau_r.value
+        self.weight = weight.value
+
+
+
+
+    def torch_coding(self,  record: torch.Tensor, target, device):
+        decay = torch.exp(-self.dt/self.tau_d).to(device)
+        rota = (2.0*torch.pi*self.dt/self.tau_r).to(device)
+        complex_beta = torch.view_as_complex(torch.stack([decay * torch.cos(-rota),
+                                                          decay * torch.sin(-rota)], dim=-1))
+        weight = self.weight.unsqueeze(-1)
+        tlen = record.shape[0]
+        Xs = []
+        x = torch.zeros_like(record[0])
+        for ii in range(tlen):
+            x = complex_beta*x + record[ii].real.detach()*(0.0+1.0j)*complex_beta**record[ii].imag
+            Xs.append(x)
+        Xs = weight*torch.stack(Xs, dim=-1)
+        Xs = Xs.view(-1, self.group_num, self.num//self.group_num, tlen)
+
+        # trace = Xs.real
+        # dtrace = rota*Xs.imag - Xs.real/self.tau_d
+
+        return torch.sum(Xs.real, dim=-2)
+
+Decoder.register('complex_trajectory', Complex_Trajectory)
+
+
 class Spike_Conv(Decoder):
-    def __init__(self, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'), coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), decay=0.9, ocillate=-0.01, **kwargs):
+    def __init__(self, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_cou nts', '...'), coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), decay=0.9, ocillate=-0.01, **kwargs):
         super(Spike_Conv, self).__init__(num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)

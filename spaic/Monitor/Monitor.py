@@ -10,7 +10,7 @@ Created on 2020/8/12
 定义神经集群放电以及神经元状态量、连接状态量的仿真记录模块
 """
 from ..Network.Assembly import BaseModule, Assembly
-from ..Network.Connection import Connection
+from ..Network.Connections import Connection
 from ..Backend.Backend import Backend
 import numpy as np
 import torch
@@ -232,8 +232,10 @@ class SpikeMonitor(Monitor):
                         self._spk_times.append(time_seq)
                 else:
                     for ii in range(batch_size):
-
-                        rec_spikes_i = rec_spikes[ii,...].bool().reshape(-1)
+                        if rec_spikes.dtype.is_complex:
+                            rec_spikes_i = (rec_spikes[ii, ...].imag.bool()*rec_spikes[ii, ...].real.gt(0.5)).reshape(-1)
+                        else:
+                            rec_spikes_i = rec_spikes[ii,...].bool().reshape(-1)
 
                         num = int(rec_spikes_i.size(0)/step)
                         time_seq = torch.tensor(self._times).unsqueeze(dim=0).expand(num, -1).reshape(-1)
@@ -273,6 +275,36 @@ class SpikeMonitor(Monitor):
             else:
                 spike = np.stack(self._records, axis=-1)
             return np.mean(spike, axis=0).numpy()
+
+    @property
+    def time_pop_rate(self):
+        if isinstance(self._records[0], torch.Tensor):
+            if '{[2]' in self.var_name:
+                spike = torch.stack(self._records, dim=-1).cpu().detach()[:,0,...]
+            else:
+                spike = torch.stack(self._records, dim=-1).cpu().detach()
+            return torch.mean(spike, dim=1).numpy()
+        else:
+            if '{[2]' in self.var_name:
+                spike = np.stack(self._records, axis=-1)[:,0,...]
+            else:
+                spike = np.stack(self._records, axis=-1)
+            return np.mean(spike, axis=1).numpy()
+
+    # def smooth_pop_rate(self, window=1.0):
+    #
+
+    @property
+    def spk_count(self):
+        if isinstance(self._records[0], torch.Tensor):
+            spike = torch.stack(self._records, dim=-1).cpu()
+            if spike.dtype.is_complex:
+                spike = spike.real
+            return torch.sum(spike.gt(0.0), dim=-1).numpy()
+        else:
+            spike = np.stack(self._records, axis=-1).__gt__(0.0)
+            return np.sum(spike, axis=-1)
+
 
 
     @property

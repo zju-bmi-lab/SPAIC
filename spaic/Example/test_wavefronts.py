@@ -52,7 +52,7 @@ with CANNNet:
                                  kernel_size=(29, 29), maxpool_on=False, padding=14, weight=weight2,
                                  post_var_name='WgtSum')
     ie_link = spaic.Connection(inh_layer, exc_layer, link_type='conv', in_channels=1, out_channels=1,
-                                 kernel_size=(29, 29), maxpool_on=False, padding=14, weight=-3.0*weight1,
+                                 kernel_size=(29, 29), maxpool_on=False, padding=14, weight=-2.0*weight1,
                                  post_var_name='WgtSum')
     ii_link = spaic.Connection(inh_layer, inh_layer, link_type='conv', in_channels=1, out_channels=1,
                                  kernel_size=(29, 29), maxpool_on=False, padding=14, weight=-weight1,
@@ -67,7 +67,7 @@ CANNNet.set_backend_dt(0.2)
 
 # ion()
 inp = np.zeros((1,1,200, 200))
-inp[0,0, 100, 100] = 5.0
+inp[0,0, 100, 100] = 1.0
 for kk in range(25):
     # # if kk == 1:
     # inp[0, 0, 100, 100] = 0.0
@@ -80,7 +80,8 @@ for kk in range(25):
     timelen = out.shape[-1]
     print(kk)
     for ii in range(timelen):
-        fig = figure(1)
+        # fig = figure(1)
+        clf()
         imshow(out[0,0,:,:,ii])
         # show()
         draw()

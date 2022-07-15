@@ -93,7 +93,7 @@ class Learner(BaseModule, ABC):
                 trainable(list) : The trainable target waiting for added.
         '''
         from ..Network.Assembly import Assembly
-        from ..Network.Connection import Connection
+        from ..Network.Connections import Connection
         from ..Neuron.Neuron import NeuronGroup
         from ..Neuron.Module import Module
         from ..Neuron.Node import Node
@@ -123,7 +123,7 @@ class Learner(BaseModule, ABC):
                 pathway(list) : The pathway target waiting for added.
         '''
         from ..Network.Assembly import Assembly
-        from ..Network.Connection import Connection
+        from ..Network.Connections import Connection
         from ..Neuron.Neuron import NeuronGroup
         from ..Neuron.Module import Module
         from ..Neuron.Node import Node

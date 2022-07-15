@@ -12,7 +12,6 @@ from abc import abstractmethod
 from collections import OrderedDict
 import spaic
 
-
 class BaseModule():
     '''
     Base class for all snn modules (assemblies, connection, learner, monitor, piplines).
@@ -86,16 +85,14 @@ class BaseModule():
         elif self.build_level > level:
             self.build_level = level
 
-    def variable_to_backend(self, name, shape, value=None, is_parameter=False, is_sparse=False, init=None,
-                            init_param=None,
+    def variable_to_backend(self, name, shape, value=None, is_parameter=False, is_sparse=False, init=None, init_param=None,
                             min=None, max=None, is_constant=False):
         self._var_names.append(name)
-        self._var_dict[name] = self._backend.add_variable(name, shape, value, is_parameter, is_sparse, init, init_param,
-                                                          min, max, is_constant)
+        self._var_dict[name] = self._backend.add_variable(name, shape, value, is_parameter, is_sparse, init, init_param, min, max, is_constant)
         return self._var_dict[name]
 
-    def get_value(self, name):
-        name = '{' + name + '}'
+    def get_full_name(self, name):
+        name = '{'+name+'}'
         full_name = None
         for key in self._var_names:
             if name in key:
@@ -103,8 +100,12 @@ class BaseModule():
                     raise ValueError("multiple variable with same name in this module")
                 else:
                     full_name = key
+        return full_name
+
+    def get_value(self, name):
+        full_name = self.get_full_name(name)
         if full_name is None:
-            raise ValueError("No such variable name in this module")
+            raise  ValueError("No such variable name in this module")
         else:
             return self._var_dict[full_name].value
 
@@ -121,6 +122,9 @@ class BaseModule():
             raise ValueError("No such variable name in this module")
         else:
             self._var_dict[full_name].value = value
+
+
+
 
 
 class VariableAgent(object):
@@ -144,6 +148,9 @@ class VariableAgent(object):
         self._backend.set_variable_value(self._var_name, value, self._is_parameter)
 
 
+
+
+
 class OperationCommand(object):
     def __init__(self, front_module, output, function, input):
         super(OperationCommand, self).__init__()
@@ -165,6 +172,8 @@ class OperationCommand(object):
         else:
             return self.front_module.enabled
 
+
+
 # class NetModule(BaseModule):
 #     '''
 #     Base class for snn network modules: assemblies, connection
@@ -177,6 +186,5 @@ class OperationCommand(object):
 #
 #     def add_trainable_names(self, name):
 #         pass
-
 
 

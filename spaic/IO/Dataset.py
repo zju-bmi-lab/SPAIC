@@ -3,7 +3,6 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 
-
 import json
 import pickle
 
@@ -149,17 +148,18 @@ class cifar10(Dataset):
 
     def __getitem__(self, index):
         # 数据归一化到[0,1]
-        # mean = (0.4914, 0.4822, 0.4465)
-        # std = (0.2023, 0.1994, 0.2010)
-        mean = (0.485, 0.456, 0.406)
-        std = (0.229, 0.224, 0.225)
+        mean = (0.4914, 0.4822, 0.4465)
+        std = (0.2023, 0.1994, 0.2010)
+
         if self._is_train:
             img = (self.data['train_images'][index]/255.0 - mean)/std
+            # img = (self.data['train_images'][index])
             img = np.float32(img.transpose(2, 0, 1))
             # img = np.float32(self.data['train_images'][index])
             label = np.int64(self.data['train_labels'][index])
         else:
             img = (self.data['test_images'][index] / 255.0 - mean) / std
+            # img = (self.data['test_images'][index])
             img = np.float32(img.transpose(2, 0, 1))
             label = np.int64(self.data['test_labels'][index])
 

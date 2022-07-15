@@ -64,7 +64,7 @@ class Torch_Backend(Backend):
         super(Torch_Backend, self).__init__()
 
         self.device = device
-        self.data_type = torch.float
+        self.data_type = torch.float32
         self.debug_data = []
         pass
 
@@ -84,6 +84,14 @@ class Torch_Backend(Backend):
         self.graph_update_step = self.engine
         # print(self.engine.code)
 
+    def build_graph(self):
+
+        for key, value in self._InitVariables_dict.items():
+            if isinstance(value, torch.Tensor):
+                value = value.to(self.device)
+                self._InitVariables_dict[key] = value
+
+        super(Torch_Backend, self).build_graph()
 
 
     # def graph_update_step(self):
@@ -117,10 +125,13 @@ class Torch_Backend(Backend):
             init_param = dict()
         if value is not None:
             if hasattr(value, "__len__"):
-                if tuple(value.shape) != tuple(shape):
+                if tuple(value.shape) == (1,) and isinstance(value, torch.Tensor):
+                    self._variables[name] = value.to(self.device) * torch.ones(shape, dtype=self.data_type, device=self.device,
+                                                               requires_grad=grad)
+                elif tuple(value.shape) != tuple(shape):
                     raise ValueError("Value is not scalar and the shape of Value is not equal to shape")
                 # add a sparse matrices with all dimensions greater than 2
-                if is_sparse:
+                elif is_sparse:
                     i = np.nonzero(value)
                     v = value[i]
 
@@ -133,10 +144,10 @@ class Torch_Backend(Backend):
                     sparse_value = name + '_sparse_value'
                     if init is not None:
                         # self._variables[sparse_value] = self.init_param(True, init)
-                        data = torch.empty(shape, dtype=torch.float32, device=self.device, requires_grad=True)
+                        data = torch.empty(shape, dtype=self.data_type, device=self.device, requires_grad=True)
                         self._variables[sparse_value] = self.param_init_operate[init](data, *init_param)
                     else:
-                        self._variables[sparse_value] = torch.tensor(v, dtype=torch.float32, requires_grad=True, device=self.device)
+                        self._variables[sparse_value] = torch.tensor(v, dtype=self.data_type, requires_grad=True, device=self.device)
                     self._parameters_dict[sparse_value] = self._variables[sparse_value]
 
                     # The shape of sparse matrix
@@ -149,7 +160,7 @@ class Torch_Backend(Backend):
                 else:
                     # add a non sparse matrices with all dimensions greater than 2
                     if init is not None:
-                        data = torch.empty(shape, dtype=torch.float32, device=self.device, requires_grad=grad)
+                        data = torch.empty(shape, dtype=self.data_type, device=self.device, requires_grad=grad)
                         init = init.lower()
                         if init in self.param_init_operate.keys():
                             self._variables[name] = self.param_init_operate[init](data, *init_param)
@@ -157,27 +168,27 @@ class Torch_Backend(Backend):
                             raise ValueError("No initialize method: %s in param_init_operate" % init)
                     else:
                         if isinstance(value, torch.Tensor):
-                            self._variables[name] = value.clone().detach()
+                            self._variables[name] = value.clone().detach().to(self.device)
                         else:
-                            self._variables[name] = torch.tensor(value, dtype=torch.float32, device=self.device,
-                                                                 requires_grad=grad)
+                            self._variables[name] = torch.tensor(value, dtype=self.data_type, device=self.device,
+                                                                   requires_grad=grad)
 
             elif len(shape) == 0:
                 # add constant
-                self._variables[name] = torch.tensor(value, dtype=torch.float32, device=self.device, requires_grad=grad)
+                self._variables[name] = torch.tensor(value, dtype=self.data_type, device=self.device, requires_grad=grad)
 
             else:
                 # add a matrix through constant
                 if init is not None:
                     # self._variables[name] = self.init_param(grad, init)
-                    data = value*torch.ones(shape, dtype=torch.float32, device=self.device, requires_grad=grad)
+                    data = value*torch.ones(shape, dtype=self.data_type, device=self.device, requires_grad=grad)
                     init = init.lower()
                     if init in self.param_init_operate.keys():
                         self._variables[name] = self.param_init_operate[init](data, *init_param)
                     else:
                         raise ValueError("No initialize method: %s in param_init_operate" % init)
                 else:
-                    self._variables[name] = value*torch.ones(shape, dtype=torch.float32, device=self.device, requires_grad=grad)
+                    self._variables[name] = value*torch.ones(shape, dtype=self.data_type, device=self.device, requires_grad=grad)
 
         return self._variables[name]
 
@@ -197,6 +208,7 @@ class Torch_Backend(Backend):
             with torch.no_grad():
                 self._InitVariables_dict[name].data = value
 
+
     # def init_param(self, grad, *init):
     #     if init[0] in self.param_init_operate:
     #         init_op = self.param_init_operate[init[0]]
@@ -204,7 +216,7 @@ class Torch_Backend(Backend):
     #         raise ValueError("No init operate %s in param_init_operate" % init[0])
     #     inputs = []
     #     shape = init[1]
-    #     data = torch.empty(shape, dtype=torch.float32, device=self.device, requires_grad=grad)
+    #     data = torch.empty(shape, dtype=self.data_type, device=self.device, requires_grad=grad)
     #     inputs.append(data)
     #
     #     for var in init[2:]:
@@ -343,8 +355,32 @@ class Torch_Backend(Backend):
         Returns
         -------
         '''
+
         X = X.permute(1, 0)
         return torch.matmul(A, X)
+
+    def mat_mult_weight_complex(self, A, X, beta):
+        '''
+        Parameters
+        ----------
+        A--->preGroup:input
+        X--->postGroup:weight
+        beta---> postGroup:beta_complex
+        Returns
+        -------
+        '''
+        if A.dtype.is_complex:
+            A = A.unsqueeze(-2)
+            beta = beta.unsqueeze(-1)
+            real = A.real
+            imag = A.imag
+            O = beta ** imag * (real * (0 + 1.0j))
+            return torch.sum(O * X, dim=-1)
+        else:
+            X = X.permute(1, 0)
+            Out = torch.matmul(A, X)
+            Out = Out*(0.0+1.0j)
+            return Out
 
 
     def mat_mult_pre(self, A, X):
