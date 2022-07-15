@@ -291,7 +291,7 @@ class Network(Assembly):
         assert name not in self._monitors.keys(), "monitor with name: %s have the same name with an already exists monitor" % (
             name)
 
-        self._monitors[name] = monitor
+        self.__setattr__(name, monitor)
 
     def save_state(self, filename=None, direct=None, save=True, hdf5=False):
         """
