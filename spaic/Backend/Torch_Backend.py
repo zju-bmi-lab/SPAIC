@@ -145,7 +145,7 @@ class Torch_Backend(Backend):
                     if init is not None:
                         # self._variables[sparse_value] = self.init_param(True, init)
                         data = torch.empty(shape, dtype=self.data_type, device=self.device, requires_grad=True)
-                        self._variables[sparse_value] = self.param_init_operate[init](data, *init_param)
+                        self._variables[sparse_value] = self.param_init_operate[init](data, **init_param)
                     else:
                         self._variables[sparse_value] = torch.tensor(v, dtype=self.data_type, requires_grad=True, device=self.device)
                     self._parameters_dict[sparse_value] = self._variables[sparse_value]
@@ -163,7 +163,7 @@ class Torch_Backend(Backend):
                         data = torch.empty(shape, dtype=self.data_type, device=self.device, requires_grad=grad)
                         init = init.lower()
                         if init in self.param_init_operate.keys():
-                            self._variables[name] = self.param_init_operate[init](data, *init_param)
+                            self._variables[name] = self.param_init_operate[init](data, **init_param)
                         else:
                             raise ValueError("No initialize method: %s in param_init_operate" % init)
                     else:
@@ -184,7 +184,7 @@ class Torch_Backend(Backend):
                     data = value*torch.ones(shape, dtype=self.data_type, device=self.device, requires_grad=grad)
                     init = init.lower()
                     if init in self.param_init_operate.keys():
-                        self._variables[name] = self.param_init_operate[init](data, *init_param)
+                        self._variables[name] = self.param_init_operate[init](data, **init_param)
                     else:
                         raise ValueError("No initialize method: %s in param_init_operate" % init)
                 else:
