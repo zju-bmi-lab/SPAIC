@@ -8,7 +8,7 @@
 @description:
 """
 from .Learner import Learner
-from ..Network.Connection import conv_connect
+from ..Network.Connections import conv_connect
 from ..IO.utils import im2col
 import numpy as np
 import torch

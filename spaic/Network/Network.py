@@ -133,6 +133,7 @@ class Network(Assembly):
         self._backend.builded = True
 
 
+
         # for group in all_groups:
         #     if hasattr(group, 'index'):
         #         group.index = 0
@@ -290,7 +291,7 @@ class Network(Assembly):
         assert name not in self._monitors.keys(), "monitor with name: %s have the same name with an already exists monitor" % (
             name)
 
-        self.__setattr__(name, monitor)
+        self._monitors[name] = monitor
 
     def save_state(self, filename=None, direct=None, save=True, hdf5=False):
         """
@@ -408,10 +409,5 @@ class Network(Assembly):
         os.chdir(origin_path)
         return
 
-    def train(self):
-        pass
-
-    def test(self):
-        pass
 
 

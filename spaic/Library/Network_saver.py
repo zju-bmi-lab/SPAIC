@@ -225,7 +225,7 @@ def trans_layer(layer: NeuronGroup):
     para_dict = dict()
 
 
-    unneeded = ['hided', '_backend', '_connections', '_supers', '_input_connections',
+    unneeded = [ 'enabled', '_backend', '_connections', '_supers', '_input_connections',
                 '_output_connections', '_var_names', 'model_class', '_operations', 'model',
                 '_groups']
     needed = ['model_name', 'id', 'name', 'num', 'position', 'shape', 'type', 'parameters']

@@ -97,6 +97,7 @@ class Backend(BaseModule, ABC):
         self.basic_operate['var_linear'] = self.var_linear
         self.basic_operate['mat_linear'] = self.mat_linear
         self.basic_operate['mat_mult_weight'] = self.mat_mult_weight
+        self.basic_operate['mat_mult_weight_complex'] = self.mat_mult_weight_complex
         self.basic_operate['mat_mult_pre'] = self.mat_mult_pre
         self.basic_operate['mat_mult'] = self.mat_mult
         self.basic_operate['bmm'] = self.bmm
@@ -110,7 +111,7 @@ class Backend(BaseModule, ABC):
         self.basic_operate['stack'] = self.stack
         self.basic_operate['permute'] = self.permute
         self.basic_operate['view'] = self.view
-        self.basic_operate['equal'] = self.equal
+        self.basic_operate['assign'] = self.assign
         self.basic_operate['unsqueeze'] = self.unsqueeze
 
         self.basic_operate['reduce_sum'] = self.reduce_sum
@@ -339,9 +340,7 @@ class Backend(BaseModule, ABC):
                         label_outputs.append(('temp_dict', var_name))
 
             # add the operation to built graph
-
             self._graph_operations.append([label_outputs, op[1], label_inputs])
-
 
         for reduce_op in temp_reduce_sum_ops:
             reduce_len = len(reduce_dict[reduce_op[0]])
@@ -489,6 +488,9 @@ class Backend(BaseModule, ABC):
 
         # Initialize untrainable variables
         self._variables.clear()
+
+        # Initialize system spacial variables such as backend dt
+        self._variables['[dt]'] = self.dt
 
         for key, value in self._InitVariables_dict.items():
             self._variables[key] = value
@@ -699,6 +701,7 @@ class Backend(BaseModule, ABC):
         return reduced
 
     def get_varialble(self, name):
+
         if name in self._parameters_dict:
             return self._parameters_dict[name]
         elif name in self._variables:
@@ -719,6 +722,7 @@ class Backend(BaseModule, ABC):
         '''
         NotImplementedError()
 
+
     def add_variable(self, name, shape, value=None, is_parameter=False, is_sparse=False, init=None, init_param=None,
                      min=None, max=None, is_constant=False):
         '''
@@ -733,6 +737,7 @@ class Backend(BaseModule, ABC):
         if is_parameter:
             self._parameters_dict[name] = self.add_backend_variable(name, shape, value, grad=True, is_sparse=is_sparse,
                                                                     init=init, init_param=init_param)
+            # store clamp operations
             if min is not None and max is not None:
                 self._clamp_parameter_dict[name] = (self.clamp_, [self._parameters_dict[name], min, max])
             elif min is not None:
@@ -747,7 +752,6 @@ class Backend(BaseModule, ABC):
                                                                          is_sparse=is_sparse, init=init,init_param=init_param)
         elif is_constant:
             self._InitVariables_dict[name] = value
-            self._variables[name] = value
         else:
             self._InitVariables_dict[name] = self.add_backend_variable(name, shape, value, grad=False,
                                                                        is_sparse=is_sparse, init=init,
@@ -821,13 +825,30 @@ class Backend(BaseModule, ABC):
 
         if op[1] in self.basic_operate:
             op[1] = self.basic_operate[op[1]]
+            # if isinstance(op[0], str):
+            #     op[0] = [op[0]]
+            # elif op[0] is None:
+            #     op[0] = []
+            # op[2] = op[2:]
             self._operations.append(op)
         elif callable(op[1]):
             self.register_standalone(op[0], op[1], op[2])
         else:
             raise ValueError("No operation %s in basic_operate" % op[1])
 
-    def register_standalone(self, output_names, function, input_names: list):
+        # if isinstance(op[0], str):
+        #     op[0] = [op[0]]
+        # elif op[0] is None:
+        #     op[0] = []
+        # op[2] = op[2:]
+        # if op[1] in self.basic_operate:
+        #     op[1] = self.basic_operate[op[1]]
+        # elif not callable(op[1]):
+        #     raise ValueError("No operation %s in basic_operate or not exist operation %s" % (op[1], op[1]))
+        #
+        # self._operations.append(op)
+
+    def register_standalone(self, output_names: list, function, input_names: list):
         '''
         Add standalone operations from front objects to _standalone_operations of Backend.
         Args:
@@ -840,6 +861,10 @@ class Backend(BaseModule, ABC):
             output_names = [output_names]
         elif output_names is None:
             output_names = []
+        if isinstance(input_names, str):
+            input_names = [input_names]
+        elif input_names is None:
+            input_names = []
         op = [output_names, function, input_names]
         self._operations.append(op)
 
@@ -853,6 +878,15 @@ class Backend(BaseModule, ABC):
             funtion (): the standalone method
             input_names (list): the name of the arguments of the method
         '''
+        if isinstance(function, str):
+            if function in self.basic_operate:
+                function = self.basic_operate[function]
+            else:
+                raise ValueError("No operation %s in basic_operate" % function)
+        else:
+            assert callable(function)
+        if isinstance(input_names, str):
+            input_names = [input_names]
         self._initial_operations.append((output_name, function, input_names))
 
     def store(self, name='default'):
@@ -956,17 +990,17 @@ class Backend(BaseModule, ABC):
         -------
         '''
 
-    def equal(self, x):
+    def assign(self, x):
         '''
         Parameters
         ----------
         y---> target
         x---> input
+        y = x
         Returns
         -------
         '''
-        y = x
-        return y
+        return x
 
     @abstractmethod
     def unsqueeze(self, x, dim):
@@ -1130,6 +1164,10 @@ class Backend(BaseModule, ABC):
         Returns:
             mat_mult_weight(A,X)
         '''
+        NotImplementedError()
+
+    @abstractmethod
+    def mat_mult_weight_complex(self, A, X, beta):
         NotImplementedError()
 
     @abstractmethod

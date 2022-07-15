@@ -68,6 +68,7 @@ class NeuronGroup(Assembly):
         self._var_names = list()
         self._var_dict = dict()
         self._operations = OrderedDict()
+        self._init_operations = OrderedDict()
 
 
     def set_num_shape(self, num, shape):
@@ -90,23 +91,26 @@ class NeuronGroup(Assembly):
     def get_model(self):
         return self.model
 
-    def add_neuron_label(self, key: str):
+    def _add_label(self, key):
         if isinstance(key, str):
-            if '[updated]' in key:
-                return self.id + ':' +'{'+key.replace('[updated]', "")+'}' + '[updated]'
+            if key == '[dt]':
+                return key
+            elif '[updated]' in key:
+                return self.id + ':' + '{' + key.replace('[updated]', "") + '}' + '[updated]'
             else:
-                return self.id + ':' + '{'+key+'}'
+                return self.id + ':' + '{' + key + '}'
+        elif isinstance(key, VariableAgent):
+            return key.var_name
+        else:
+            raise ValueError(" the key data type is not supported for add_label")
+
+    def add_neuron_label(self, key: str):
+        if isinstance(key, str) or isinstance(key, VariableAgent):
+            return self._add_label(key)
         elif isinstance(key, list) or isinstance(key, tuple):
             keys = []
             for k in key:
-                if isinstance(k, str):
-                    if '[updated]' in k:
-                        mk = self.id + ':' + '{' + k.replace('[updated]', "") + '}' + '[updated]'
-                    else:
-                        mk = self.id + ':' + '{' + k + '}'
-                    keys.append(mk)
-                elif isinstance(k, VariableAgent):
-                    keys.append(k.var_name)
+                keys.append(self._add_label(k))
             return keys
 
     def build(self, backend):
@@ -124,6 +128,8 @@ class NeuronGroup(Assembly):
         # else:
         #     self.model = self.model_class()
         if self.model_class is not None:
+            if 'dt' not in self.parameters:
+                self.parameters['dt'] = self._backend.dt
             self.model = self.model_class(**self.parameters)
 
 
@@ -142,7 +148,8 @@ class NeuronGroup(Assembly):
 
         for (key, membrane_tau_var) in self.model._membrane_variables.items():
             key = self.add_neuron_label(key)
-            membrane_tau_var = dt / membrane_tau_var
+            # TODO: 计划把membrane tau反过来了变成membrane_tau/dt，需要把用的模型也改一下
+            membrane_tau_var = dt/membrane_tau_var
             shape = (1, *self.shape)  # (1, neuron_num)
             self.variable_to_backend(key, shape, value=membrane_tau_var)
 
@@ -222,10 +229,27 @@ class NeuronGroup(Assembly):
                         addcode_op.append(self.add_neuron_label(op[ind]))
                     else:
                         addcode_op.append(op[ind])
-                backend.register_standalone(addcode_op[2], addcode_op[1], addcode_op[0])
+                backend.register_standalone(addcode_op[0], addcode_op[1], addcode_op[2])
             op_count += 1
 
             self._operations[op_name] = addcode_op
+
+        for op in self.model._init_operations:
+            addcode_op = []
+            for ind, value in enumerate(op):
+                if ind != 1:
+                    addcode_op.append(self.add_neuron_label(value))
+                else:
+                    addcode_op.append(value)
+            if len(op) > 3:
+                addcode_op[2] = addcode_op[2:]
+                addcode_op = addcode_op[:3]
+            op_count += 1
+            backend.register_initial(addcode_op[0], addcode_op[1], addcode_op[2])
+            op_name = str(op_count) + ':' + 'custom_initial_function'
+            self._init_operations[op_name] = addcode_op
+
+
 
         if self.model_name == "slif" or self.model_name == 'selif':
             self.model.build((1, *self.shape), backend)
@@ -308,7 +332,7 @@ class NeuronGroup(Assembly):
                     raise ValueError("The variable %s is not in model variable dict and not a Variable of other modules"%var)
 
         def model_function(func):
-            op_code = [input_vars, func, output_vars]
+            op_code = [output_vars, func,input_vars ]
             model._operations.append(op_code)
             if add_threshold == True:
                 model._operations.append(('O', 'threshold', 'V[updated]', 'Vth'))
@@ -330,6 +354,7 @@ class NeuronModel(ABC):
         super(NeuronModel, self).__init__()
         self.name = 'none'
         self._operations = []
+        self._init_operations = []
         self._variables = dict()
         # self._tau_constant_variables = dict()
         self._tau_variables = dict()
@@ -427,7 +452,7 @@ class CLIFModel(NeuronModel):
         V0 = (1 / (beta - 1)) * (beta ** (beta / (beta - 1)))
         self._parameter_variables['V0'] = V0
 
-        self._parameter_variables['Vth'] = np.asarray(kwargs.get('v_th', 1.0))  # self.neuron_parameters['v_th']
+        self._constant_variables['Vth'] = kwargs.get('v_th', 1.0)
 
         # self._operations.append(('I_che', 'var_mult', 'V0', 'WgtSum[updated]'))
         # self._operations.append(('I', 'add', 'I_che[updated]', 'I_ele'))
@@ -753,7 +778,7 @@ class SLIFModel(NeuronModel):
                  tau_q=8.0,
                  v_th=1.0,
                  v_reset=2.0,
-                 outlayer=False
+                 outlayer=False,
                  ):
         super(SLIFModel, self).__init__()
         from spaic.Learning.TRUE_Learner import TRUE_SpikeProp
@@ -1863,11 +1888,11 @@ class CANN_MeanFieldModel(NeuronModel):
         self._membrane_variables['tau'] = kwargs.get('tau', 1.0)
 
         self._variables['Iext'] = 0.0
-        self._variables['WgtSum'] = 0.0
+        self._variables['Isyn'] = 0.0
         self._variables['U'] = 0.0
         self._variables['O'] = 0.0
 
-        self._operations.append(('Isum', 'var_linear', 'rho', 'WgtSum', 'Iext'))
+        self._operations.append(('Isum', 'var_linear', 'rho', 'Isyn', 'Iext'))
         self._operations.append(('dU', 'minus', 'Isum', 'U'))
         self._operations.append(('U', 'var_linear', 'tau', 'dU', 'U'))
         self._operations.append(('ReU', 'relu', 'U[updated]'))
@@ -1935,3 +1960,170 @@ class SimpleRateModel(NeuronModel):
         self._operations.append(('U', 'var_linear', 'tau', 'dU', 'U'))
 
 
+class  ComplexNeuron(NeuronModel):
+
+    def __init__(self, **kwargs):
+        super(ComplexNeuron, self).__init__()
+        self.dt = kwargs.get('dt', 0.1)
+        self.tau_d = kwargs.get('tau_d', 20.0)
+        self.tau_r = kwargs.get('tau_r', 100.0)
+        self.v_th = kwargs.get('v_th', 1.0)
+        self.noise = kwargs.get('noise_amp', 0.01)
+        self.rota = 2.0 * np.pi / self.tau_r
+        self.debug = kwargs.get('debug', False)
+        self.phase_th = np.arctan(self.rota*self.tau_d)
+        self.a = 304.78*self.noise*self.tau_d*np.exp(-0.00383*self.tau_r)/(1.0+0.0573*self.tau_d)
+        self.b = 3.0 - self.a/(self.rota*self.tau_d)
+        tau_rd = (self.tau_d*self.tau_r)**0.275
+        self.d = 0.42*6*self.noise*tau_rd/(1.0+6*self.noise*tau_rd) + 0.58
+        self.c = 1.0 - self.d
+        self.e = 31.13*self.noise*(self.tau_d+9.338)*np.exp(-0.007445*self.tau_r)
+        self.f = -np.log(1/(self.d-self.c/(1+np.exp(-3)))-1)-self.e/(self.rota*self.tau_d)
+
+
+        decay = np.exp(-self.dt/self.tau_d)
+        rota = -self.dt*self.rota
+
+        self.complex_beta = torch.view_as_complex(torch.stack([torch.tensor(decay*np.cos(rota)),
+                                                               torch.tensor(decay*np.sin(rota))], dim=-1))
+        self.complex_delta = torch.view_as_complex(torch.stack([torch.tensor(decay*np.cos(rota)-1.0),
+                                                                torch.tensor(decay*np.sin(rota))], dim=-1))
+
+
+        tmax = np.arctan(self.tau_d*self.rota)/self.rota
+        vmax = np.exp(-tmax/self.tau_d)*np.sin(self.rota*tmax)
+        # self.v0 = torch.tensor(1.0/vmax)
+        self._constant_variables['complex_beta'] = self.complex_beta
+        self._constant_variables['complex_delta'] = self.complex_delta
+        self._constant_variables['v0'] = torch.tensor(1.0/vmax)
+        self._variables['V'] = torch.zeros(1, dtype=torch.cfloat)
+        self._variables['Isyn'] = torch.zeros(1, dtype=torch.cfloat)
+        self._variables['O'] = torch.zeros(1, dtype=torch.cfloat)
+        # self._operations.append(['I', 'var_mult', 'v0', 'Isyn[updated]'])
+        # self._operations.append(['V', 'var_linear', 'complex_beta', 'V', 'I[updated]'])
+
+        self._operations.append(['V', self.update, ['V', 'Isyn', 'O', 'v0','complex_beta']])
+        self._operations.append(['O', self.homogeneous_threshold, ['V[updated]','V']])
+
+        class Threshold_tranform(torch.autograd.Function):
+            @staticmethod
+            def forward(ctx, V, spike_t):
+                v_real = V.real
+                v_imag = V.imag
+                spike_r = spike_t.gt(0.0).to(spike_t.dtype)
+                ctx.save_for_backward(v_real, v_imag, spike_r)
+                spike = torch.complex(spike_r, spike_t)
+                return spike
+
+            @staticmethod
+            def backward(ctx, grad: torch.Tensor):
+                # for non-spike V-r relation
+                # x = tanh(relu(a * v_imag + b))
+                # y = sigmoid(c*v_real + d*v_real*v_imag + e)
+                # rate = f*x*y
+                a = 0.94618509  # 0.27619485
+                b = -0.5102664  # -0.50902513
+                c = 39.51957129  # 35.95826301
+                d = 1.37852679  # 0.33839744
+                e = -40.14163617  # -35.99719179
+                f = 1.0091576  # 1.05521074
+
+                # for spiked V-r relation
+                # rate = 0.5*sigmoid(g*v_imag+h)
+                g = 9.49284672
+                h = -9.66862883
+
+                # for spike timing confidence relation
+                # confidence = sigmoid(j*v_imag+k)
+                j =  1.1050525
+                k = -1.72167392
+                v_real, v_imag, spike_r = ctx.saved_tensors
+                tanh_nsr = torch.tanh(torch.relu(a*v_imag + b))
+                tanh_nsr_nz = tanh_nsr.gt(0.0)
+                dtanh_nsr_nz = (1-tanh_nsr**2.0)
+                sigmoid_nsr = torch.sigmoid(c*v_real + d*v_real*v_imag + e)
+                vdr_nsr = f*tanh_nsr*sigmoid_nsr
+                dvr_nsr = f*sigmoid_nsr*tanh_nsr_nz*dtanh_nsr_nz*(c+d*v_imag)*vdr_nsr
+                dvi_nsr = f*sigmoid_nsr*(tanh_nsr*(1-sigmoid_nsr)*a + tanh_nsr_nz*dtanh_nsr_nz*d*v_real)*vdr_nsr
+
+                sigmoid_sdr = torch.sigmoid(g*v_imag+h)
+                dvi_sdr = 0.25*(1-sigmoid_sdr)*g*sigmoid_sdr**2
+
+                sigmoid_time_confidence = torch.sigmoid(j*v_imag**2+k)
+                grad_spike_t = grad.imag*sigmoid_time_confidence
+
+                grad_v_real = grad.real*dvr_nsr*(1-spike_r)
+                grad_v_imag = grad.real*(dvi_nsr*(1-spike_r) + dvi_sdr*spike_r)
+                grad_v = torch.complex(grad_v_real, grad_v_imag)
+
+                return grad_v, grad_spike_t
+
+
+    def update(self, V, Isyn, O, v0, complex_beta):
+        Oi = O.real
+        Ot = O.imag
+        if self.debug:
+            noise = 0.00 * torch.randn_like(Isyn)
+            if Isyn.dtype.is_complex:
+                V = complex_beta * V + v0 * Isyn - Ot.gt(0) * (10.0 + 10.0j) + noise - V.real.lt(-1.0) * (10.0 + 10.0j)
+            else:
+                V = complex_beta * V + v0 * Isyn * (0 + 1.0j) - Ot.gt(0) * (10.0 + 10.0j) + noise - V.real.lt(-1.0) * (
+                            10.0 + 10.0j)
+        else:
+            if Isyn.dtype.is_complex:
+                V = complex_beta*V + v0*Isyn - (complex_beta**Ot*(Oi*(2.0+0.0j)))*Ot.gt(0.0) + (0.0+0.005j)
+            else:
+                V = complex_beta*V + v0*Isyn*(0+1.0j) - (complex_beta**Ot*(Oi*(2.0+0.0j)))*Ot.gt(0.0)
+        return V
+
+
+    def homogeneous_threshold(self, V, V_old):
+        # dv = (V * complex_delta).real
+
+        v_real = V.real
+        v_imag = V.imag
+        if isinstance(self.phase_th, np.ndarray):
+            self.phase_th = torch.tensor(self.phase_th, device=V.device)
+            self.tau_d = torch.tensor(self.tau_d, device=V.device)
+            self.rota = torch.tensor(self.rota, device=V.device)
+            self.a = torch.tensor(self.a, device=V.device)
+            self.b = torch.tensor(self.b, device=V.device)
+            self.c = torch.tensor(self.c, device=V.device)
+            self.d = torch.tensor(self.d, device=V.device)
+            self.e = torch.tensor(self.e, device=V.device)
+            self.f = torch.tensor(self.f, device=V.device)
+
+
+
+        phase_right = torch.arctan(V_old.real/(V_old.imag+V_old.imag.eq(0)*1.0e-8)).lt(self.phase_th)
+        phase = torch.arctan(v_real/(v_imag+v_imag.eq(0)*1.0e-8))
+
+
+        dv = (self.rota * v_imag - v_real / self.tau_d) * self.dt
+        time_to_spike = (self.v_th - v_real) / (torch.clamp_min(dv, 0.0)+1.0e-8)
+        imag_sup = torch.relu(1.0 - time_to_spike)
+        real_sup = self.c*torch.sigmoid(self.a*v_imag+self.b) + self.d # parameters for tau_d=20, tau_r=100
+
+        time_to_spike = torch.relu((self.phase_th - phase)/(self.rota*self.dt))
+        imag_sub = torch.relu(1.0-time_to_spike)*phase_right*v_real.gt(0.0)
+        v_amp = 0.5*v_imag + 0.5*v_real/(self.rota*self.tau_d)
+        real_sub = torch.sigmoid(self.e*v_amp+self.f) # parameters for tau_d=20, tau_r=100
+
+        real = imag_sub.gt(0)*real_sub + imag_sup.gt(0)*real_sup
+        imag = imag_sub + imag_sup
+        O = torch.complex(real, imag)
+
+        return O
+
+    def heterogeneous_threshold(self, V, complex_delta):
+        # dv = (V * complex_delta).real
+        dv = (self.rota * V.imag - V.real / self.tau_d) * self.dt
+        svr = torch.sigmoid(1.0 * (V.real + V.imag - 1.0))
+        imag = torch.relu(1.0 - (self.v_th - V.real) / (torch.clamp_min(dv, 0.0)+1.0e-4))
+        real = imag.gt(0.0)#*svr.detach() + torch.sigmoid(20.0*(V.real-1.0))*(svr-svr.detach()) #
+        O = torch.view_as_complex(torch.stack([real, imag], dim=-1))
+        return O
+
+
+
+NeuronModel.register("complex", ComplexNeuron)

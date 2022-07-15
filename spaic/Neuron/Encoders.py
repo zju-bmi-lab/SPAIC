@@ -52,7 +52,7 @@ class SigleSpikeToBinary(Encoder):
         spike_index = source_temp
         spike_index = spike_index.reshape([1] + shape).to(device=device, dtype=torch.long)
         spikes = torch.zeros(spk_shape, device=device)
-        spike_src = torch.ones_like(spike_index, device=device, dtype=torch.float32)
+        spike_src = torch.ones_like(spike_index, device=device, dtype=self._backend.data_type)
         spikes.scatter_(dim=0, index=spike_index, src=spike_src)
         return spikes
 
@@ -81,7 +81,7 @@ class MultipleSpikeToBinary(Encoder):
                 assert (spiking_times >= 0).all(), "Inputs must be non-negative"
                 # spike_index = (spiking_times + np.random.rand(*(spiking_times.shape))) / self.dt
                 spike_index = spiking_times / self.dt
-                delta_times = torch.tensor((np.ceil(spike_index) - spike_index) * self.dt, device=device, dtype=torch.float)
+                delta_times = torch.tensor((np.ceil(spike_index) - spike_index) * self.dt, device=device, dtype=self._backend.data_type)
                 values = torch.ones(spike_index.shape, device=device)
                 indexes = [spike_index, neuron_ids]
                 indexes = torch.tensor(indexes, device=device, dtype=torch.long)
@@ -111,7 +111,7 @@ class MultipleSpikeToBinary(Encoder):
                 # mapping the spike times into [0,1] matrix.
                 indexes = indexes.to(dtype=torch.long)
                 values = torch.ones(spike_index.shape, device=device)
-                spike = torch.sparse.FloatTensor(indexes, values, size=spk_shape)
+                spike = torch.sparse_coo_tensor(indexes, values, size=spk_shape, dtype=self._backend.data_type)
                 spike = spike.to_dense()
                 all_spikes.append(spike)
             spikes = torch.stack(all_spikes, dim=1)
@@ -156,6 +156,8 @@ class PoissonEncoding(Encoder):
                  coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
         super(PoissonEncoding, self).__init__(shape, num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
         self.unit_conversion = kwargs.get('unit_conversion', 1.0)
+        self.single_test = kwargs.get("single_test", False)
+        self.end_time = kwargs.get("end_time", None)
 
     def numpy_coding(self, source, device):
         # assert (source >= 0).all(), "Inputs must be non-negative"
@@ -167,11 +169,17 @@ class PoissonEncoding(Encoder):
     def torch_coding(self, source, device):
         # assert (source >= 0).all(), "Inputs must be non-negative"
         if source.__class__.__name__ == 'ndarray':
-            source = torch.tensor(source, device=device, dtype=torch.float32)
-        shape = source.shape
+            source = torch.tensor(source, device=device, dtype=self._backend.data_type)
+        # shape = source.shape
         # source_temp = source.view(shape[0], -1)
-        spk_shape = [self.time_step] + list(shape)
-        spikes = torch.rand(spk_shape, device=device).le(source * self.unit_conversion*self.dt).float()
+        spk_shape = [self.time_step] + list(self.shape)
+        if self.single_test:
+            spikes = torch.rand([self.time_step,1,self.shape[-1]], device=device).le(source * self.unit_conversion * self.dt).float()
+        else:
+            spikes = torch.rand(spk_shape, device=device).le(source * self.unit_conversion*self.dt).float()
+
+        if self.end_time is not None:
+            spikes[int(self.end_time/self.dt):,...] = 0.0
         return spikes
 
 Encoder.register('poisson', PoissonEncoding)
@@ -187,15 +195,19 @@ class Latency(Encoder):
     def __init__(self, shape=None, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'),
                  coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
         super(Latency, self).__init__(shape, num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
+        self.max_scale = kwargs.get("max_scale", None)
 
     def torch_coding(self, source, device):
         assert (source >= 0).all(), "Inputs must be non-negative"
+        if self.max_scale is None:
+            max_scale = self.time_step - 1.0
+        else:
+            max_scale = self.max_scale/self.dt
 
         if source.__class__.__name__ == 'ndarray':
-            source = torch.tensor(source, device=device, dtype=torch.float32)
+            source = torch.tensor(source, device=device, dtype=self._backend.data_type)
         shape = list(source.shape)
         spk_shape = [self.time_step] + shape
-        max_scale = self.time_step - 1.0
 
         # Create spike times in order of decreasing intensity.
         min_value = 1.0e-10
@@ -203,7 +215,7 @@ class Latency(Encoder):
         spike_index = max_scale*(1-source_temp)
         spike_index = spike_index.reshape([1] + shape).to(device=device, dtype=torch.long)
         spikes = torch.zeros(spk_shape, device=device)
-        spike_src = torch.ones_like(spike_index, device=device, dtype=torch.float)
+        spike_src = torch.ones_like(spike_index, device=device, dtype=self._backend.data_type)
         spikes.scatter_(dim=0, index=spike_index, src=spike_src)
         return spikes
 Encoder.register('latency', Latency)
@@ -233,7 +245,7 @@ class Relative_Latency(Encoder):
     def torch_coding(self, source, device):
         import torch.nn.functional as F
         if source.__class__.__name__ == 'ndarray':
-            source = torch.tensor(source, device=device, dtype=torch.float32)
+            source = torch.tensor(source, device=device, dtype=self._backend.data_type)
 
         self.max_scale = self.time_step - 1.0
         shape = list(source.shape)
@@ -247,12 +259,65 @@ class Relative_Latency(Encoder):
         min_index = torch.min(spike_index)
         cut_index = (min_index + 0.8*(max_index-min_index)).to(torch.long)
         spikes = torch.zeros(spk_shape, device=device)
-        spike_src = torch.ones_like(spike_index, device=device, dtype=torch.float)
+        spike_src = torch.ones_like(spike_index, device=device, dtype=self._backend.data_type)
         spikes.scatter_(dim=0, index=spike_index, src=spike_src)
         spikes[cut_index:, ...] = 0
         return spikes
 Encoder.register('relative_latency', Relative_Latency)
 
 
+class Constant_Current(Encoder):
+    def __init__(self,shape=None, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'),
+                 coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
+        super(Constant_Current, self).__init__(shape, num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
+        self.amp = kwargs.get('amp', 1.0)
+        self.input_norm = kwargs.get('input_norm', False)
 
 
+    def torch_coding(self, source, device):
+        if source.__class__.__name__ == 'ndarray':
+            source = torch.tensor(source, device=device, dtype=self._backend.data_type)
+        if self.input_norm:
+            bn_mean = torch.mean(source)
+            if source.dim == 2:
+                source = source*(bn_mean/torch.mean(source, dim=1))
+            elif source.dim == 3:
+                source = source*(bn_mean/torch.mean(source, dim=(1,2)))
+
+        shape = list(source.shape)
+        spk_shape = [self.time_step] + shape
+        spikes = source.unsqueeze(0)*torch.ones(spk_shape, device=device, dtype=self._backend.data_type)*self.amp
+        return spikes
+Encoder.register('constant_current', Constant_Current)
+
+
+class UniformEncoding(Encoder):
+
+    def __init__(self,shape=None, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'),
+                 coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
+        super(UniformEncoding, self).__init__(shape, num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
+        self.max_time = kwargs.get('max_time', None)
+        self.amp = kwargs.get('amp', 1.0)
+        self.bias = kwargs.get('bias', 0.05)
+
+    def torch_coding(self, source, device):
+        if self.max_time is None:
+            max_time = self.time
+        else:
+            max_time = self.max_time
+        shape = list(source.shape)
+        source_size = np.prod(shape)
+        spk_shape = [self.time_step] + shape
+        if not isinstance(source, torch.Tensor):
+            source = torch.tensor(source, dtype=self._backend.data_type, device=device)
+        else:
+            source = source.to(device)
+        amax = torch.amax(source)
+        amin = torch.amin(source)
+        period_timestep = torch.ceil(self.amp*max_time*(self.bias+amax-source)/((self.bias+amax-amin)*self.dt)).unsqueeze(0)
+        period_timestep = period_timestep + source.eq(amin)*10*max_time/self.dt
+        time_step = torch.arange(self.time_step, device=device).expand((source_size, self.time_step)).t().view(spk_shape) + 1
+        spikes = torch.fmod(time_step, period_timestep).eq(0).float()
+        return spikes
+
+Encoder.register('uniform', UniformEncoding)

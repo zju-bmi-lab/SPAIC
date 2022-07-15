@@ -27,6 +27,8 @@ class Poisson_Generator(Generator):
         # the unit of dt is 0.1ms, for each time step, the rate has to be multiplied by 1e-4
         self.unit_conversion = kwargs.get('unit_conversion', 0.1)
         self.weight = kwargs.get('weight', 1.0)
+        self.start_time = kwargs.get('start_time', None)
+        self.end_time = kwargs.get('end_time', None)
         if rate is not None:
             if hasattr(rate, '__iter__'):
                 self.source = rate
@@ -49,9 +51,15 @@ class Poisson_Generator(Generator):
         # else:
         #     batch = source.shape[0]
 
-        # shape = [self.batch, self.num]
+        # shape = [self.batch, self.nu]
         spk_shape = [self.time_step] + list(self.shape)
         spikes = self.weight*torch.rand(spk_shape, device=device).le(source*self.unit_conversion).float()
+        if self.start_time is not None:
+            start_time_step = int(self.start_time/self.dt)
+            spikes[:start_time_step, ...] = 0.0
+        if self.end_time is not None:
+            end_time_step = int(self.end_time/self.dt)
+            spikes[end_time_step:, ...] = 0.0
         return spikes
 
 Generator.register('poisson_generator', Poisson_Generator)
@@ -128,3 +136,70 @@ class CC_Generator(Generator):
         return spikes
 
 Generator.register('cc_generator', CC_Generator)
+Generator.register('constant_current', CC_Generator)
+class Sin_Generator(Generator):
+    """
+
+        Generate a sin current input.
+        time: encoding window ms
+        dt: time step
+    """
+    def __init__(self, shape=None, num=None, dec_target=None,  dt=None,
+                 coding_method=('poisson_generator', 'cc_generator', '...'),
+                 coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
+        super(Sin_Generator, self).__init__(shape, num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
+        self.num = num
+
+    def torch_coding(self, source, device):
+        # assert (source >= 0).all(), "Input rate must be non-negative"
+        if source.__class__.__name__ == 'ndarray':
+            source = torch.tensor(source, dtype=torch.float, device=device)
+        amp = source[0]
+        omg = 2*np.pi/source[1]
+        # if source.ndim == 0:
+        #     batch = 1
+        # else:
+        #     batch = source.shape[0]
+        #
+        # shape = [batch, self.num]
+        spk_shape = [self.time_step] + [1 for _ in range(len(list(self.shape)))]
+
+        t = torch.arange(0, self.time_step*self.dt, self.dt, device=device).view(spk_shape)
+        spikes = amp*torch.sin(omg*t)
+        return spikes
+
+Generator.register('sin_generator', Sin_Generator)
+Generator.register('sin', Sin_Generator)
+
+class Ramp_Generator(Generator):
+    def __init__(self, shape=None, num=None, dec_target=None,  dt=None,
+                 coding_method=('poisson_generator', 'cc_generator', '...'),
+                 coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
+        super(Ramp_Generator, self).__init__(shape, num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
+        self.base = kwargs.get('base', 0.0)
+        self.end_time = kwargs.get('end_time', None)
+        self.amp = kwargs.get('amp', 0.001)
+
+    def torch_coding(self, source, device):
+        if source.__class__.__name__ == 'ndarray':
+            source = torch.tensor(source, dtype=torch.float, device=device)
+        if self.base.__class__.__name__ == 'ndarray':
+            self.base = torch.tensor(self.base, dtype=torch.float, device=device)
+
+        slope = source
+        # spk_shape = [self.time_step] + [1 for _ in range(len(list(self.shape)))]
+        t_shape = [self.time_step] + [1 for _ in range(len(list(self.shape)))]
+        t = torch.arange(0, self.time_step*self.dt, self.dt, device=device).view(t_shape)
+        spikes = self.amp*(slope*t + self.base)
+        if self.end_time is not None:
+            time_step = int(self.end_time/self.dt)
+            spikes[time_step:,...] = 0.0
+        return spikes
+Generator.register('ramp_generator', Ramp_Generator)
+Generator.register('ramp', Ramp_Generator)
+
+
+
+
+
+

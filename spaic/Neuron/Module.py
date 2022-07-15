@@ -13,7 +13,6 @@ wrap around deep learning module such as a cnn network lstm cell
 import spaic
 from ..Network.Assembly import Assembly
 
-
 class Module(Assembly):
     _class_label = '<mod>'
 
@@ -99,3 +98,6 @@ class Module(Assembly):
     def parameters(self):
 
         return self.module.parameters() #.state_dic()
+
+    def train(self, mode=True):
+        self.module.train(mode)

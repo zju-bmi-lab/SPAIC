@@ -116,6 +116,7 @@ class Dataloader(object):
                 shape = self.data.shape[1:]
                 self.num = int(np.prod(shape))
             break
+        return self.data, self.label
 
     @property
     def _auto_collation(self):

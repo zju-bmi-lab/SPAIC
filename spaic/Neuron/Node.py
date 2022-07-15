@@ -93,6 +93,9 @@ class Node(Assembly):
         self.records = []
         self._var_names = list()
 
+    def init_state(self):
+        self.index = 0
+
     @property
     def dt(self):
         if self._dt is None:
@@ -366,7 +369,7 @@ class Decoder(Node):
             shape = list(output.shape)
             dec_shape = [self.time_step] + shape
             if type(output).__name__ == 'Tensor':
-                self.records = torch.zeros(dec_shape, device=self.device)
+                self.records = torch.zeros(dec_shape, device=self.device, dtype=output.dtype)
             else:
                 self.records = np.zeros(dec_shape)
             self.index = 0
@@ -539,6 +542,19 @@ class Generator(Node):
 
     def init_state(self):
         self.index = 0
+        self.new_input = True
+
+    def torch_coding(self, source, device):
+        '''
+
+        Args:
+            source (): It is input spike trains for encoding class and output spike trains for decoding class.
+            device (): CPU or CUDA, this parameter is taken from backend
+
+        Returns:
+
+        '''
+        raise NotImplementedError
 
     # initial operation: encoding input features into spike patterns
     def get_input(self):
@@ -556,7 +572,6 @@ class Generator(Node):
         if self.new_input:
             self.get_input()
             self.new_input = False
-
         self.index += 1
         return self.all_spikes[self.index-1]
 

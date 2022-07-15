@@ -96,6 +96,7 @@ class Assembly(BaseModule):
         self._output_connections = list()
         self.num = 0
         self.position = None
+        self.model_name = None
         # _var_names 和 _var_dict移动到了BaseModule 作为网络各模块的通用属性
         # self._var_names = []
         # self._var_dict = dict()
@@ -471,11 +472,11 @@ class Assembly(BaseModule):
             >>> TestAsb.assembly_hide()
         """
         if self._backend: self._backend.builded = False
-        self.hided = True
+        self.enabled = False
         for key, value in self._groups.items():
             value.assembly_hide()
         for key, value in self._connections.items():
-            value.hided = True
+            value.enabled = False
 
     def assembly_show(self):
         """
@@ -490,11 +491,11 @@ class Assembly(BaseModule):
 
         """
         if self._backend: self._backend.builded = False
-        self.hided = False
+        self.enabled = True
         for key, value in self._groups.items():
             value.assembly_show()
         for key, value in self._connections.items():
-            value.hided = False
+            value.enabled = True
 
     def get_groups(self, recursive=True):
         """
@@ -784,7 +785,21 @@ class Assembly(BaseModule):
         assert  assembly in self._supers, "the assembly is not in supers"
         self._supers.remove(assembly)
 
+
     # def __getattr__(self, name):
+
+    def train(self, mode=True):
+        self.training = mode
+        for g in self._groups.values():
+            g.train(mode)
+        for p in self._projections.values():
+            p.train(mode)
+        for c in self._connections.values():
+            c.training = mode
+
+    def eval(self):
+        self.train(False)
+
 
     def __enter__(self):
         import __main__
