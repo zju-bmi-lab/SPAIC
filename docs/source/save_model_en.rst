@@ -1,7 +1,7 @@
-保存与读取模型
+save or load model
 =====================
 
-该部分将详细描述两种存取网络信息的方式。
+This section will describe two ways of accessing network information in detail.
 
 Network内置函数
 ---------------------------------------------------------

@@ -11,7 +11,7 @@ Welcome to SPAIC's documentation!
 `SPAIC <https://github.com/ZhejianglabNCRC/SPAIC>`_ is a brain-inspired computing \
 framework for combining neuroscience with machine learning.
 
-* :ref:`中文首页 <index_cn>`
+* :ref:`中文首页(Chinese homepage) <index_cn>`
 
 I. How to install
 =======================
@@ -381,14 +381,6 @@ User manual:
    save_model_en
    custom_en/0_index
    monitor_en
-
-
-Document indexing
-====================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
 
 
 .. _index_cn:
