@@ -30,7 +30,7 @@ print(device)
 root = './spaic/Datasets/MNIST'
 train_set = dataset(root, is_train=True)
 test_set = dataset(root, is_train=False)
-run_time = 20.0
+run_time = 25.0
 node_num = dataset.maxNum
 label_num = dataset.class_number
 bat_size = 100
@@ -59,17 +59,15 @@ class TestNet(spaic.Network):
         # Connection
         self.connection1 = spaic.Connection(self.input, self.layer1, link_type='conv', in_channels=1, out_channels=4,
                                               kernel_size=(3, 3),
-                                              init='uniform', init_param=(-math.sqrt(1/(9)), math.sqrt(1/(9))),
-                                              bias=True)
+                                              init='uniform', init_param={'a':-math.sqrt(1/(9)), 'b':math.sqrt(1/(9))})
 
         self.connection2 = spaic.Connection(self.layer1, self.layer2, link_type='conv',
                                               in_channels=4, out_channels=8, kernel_size=(3, 3),
-                                              init='uniform', init_param=(-math.sqrt(1/(8*9)), math.sqrt(1/(8*9))),
-                                              bias=True)
+                                              init='uniform', init_param={'a':-math.sqrt(1/(8*9)), 'b':math.sqrt(1/(8*9))})
 
         self.connection3 = spaic.Connection(self.layer2, self.layer3, link_type='full',
                                               syn_type=['flatten', 'basic_synapse'],
-                                              init='kaiming_normal', init_param=(math.sqrt(5),), bias=True)
+                                              init='kaiming_normal', init_param={'a': math.sqrt(5)})
 
         self.mo = spaic.StateMonitor(self.layer1, var_name='O')
         # Learner
@@ -95,7 +93,7 @@ eval_acces = []
 losses = []
 acces = []
 # with torch.autograd.set_detect_anomaly(True):
-for epoch in range(1):
+for epoch in range(3):
         # 训练阶段
         pbar = tqdm(total=len(train_loader))
         train_loss = 0
@@ -105,9 +103,9 @@ for epoch in range(1):
             # 前向传播
 
             data, label = item
-            if Net.connection1.link_type is 'conv':
+            if Net.connection1.link_type == 'conv':
 
-                data = data.reshape(train_loader.batch_size, Net.input.shape[-3], Net.input.shape[-2], Net.input.shape[-1])#input.shape[0]:H, input.shape[1]:W
+                data = data.reshape(data.shape[0], Net.input.shape[-3], Net.input.shape[-2], Net.input.shape[-1])#input.shape[0]:H, input.shape[1]:W
 
 
             Net.input(data)
@@ -115,6 +113,7 @@ for epoch in range(1):
             Net.run(run_time)
 
             output = Net.output.predict
+            output = (output - torch.mean(output).detach()) / (torch.std(output).detach() + 0.0001)
             mo = Net.mo.values
 
             if sim_name == 'pytorch':
