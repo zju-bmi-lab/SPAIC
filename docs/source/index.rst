@@ -15,8 +15,9 @@ framework for combining neuroscience with machine learning.
 
 I. How to install
 =======================
-Install the latest version from source code：
-From GitHub：
+Install the latest version from source code:
+
+From GitHub:
 
 .. code-block:: python
 
@@ -52,17 +53,17 @@ and instantiate a network class:
 ------------------------------
 When building the framework of :code:`Network`, we need to add neurons and connect these \
 components in it, so that the :code:`Network` will not be an empty framework. The components \
-that can be added include the input and output parts: :code:`Node`; the neurongroup: \
- :code:`NeuronGroups`; the synapse connection :code:`connection`; the monitor: \
- :code:`monitors`; the learning algorithm: :code:`learners`. Also, we can add some \
-special components when building some large and complex networks, :code:`Assembly` and \
- :code:`Projection`, which used to let the complex structures more clearly.
+that can be added include the input and output parts: :code:`Node`; the neurongroup :code:`NeuronGroups`; \
+the synapse connection :code:`connection`; the monitor :code:`monitors` ;\
+the learning algorithm: :code:`learners`. Also, we can add some \
+special components when building some large and complex networks, :code:`Assembly` and :code:`Projection` , \
+which used to let the complex structures more clearly.
 
 2.1 Create Node and Neurongroups
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 For a network that uses STCA algorithm and recognize MNIST dataset, the node we need \
-is a :code:`Node.Encoder` layer as input to encode the input data, a :code:`clif` \
- :code:`NeuronGroup` layer for training and a :code:`Node.Decoder` layer as output \
+is a :code:`Node.Encoder` layer as input to encode the input data, a :code:`clif NeuronGroup` \
+layer for training and a :code:`Node.Decoder` layer as output \
 to decode the output data. So, what we need to do is add:
 
 .. code-block:: python
@@ -73,19 +74,20 @@ to decode the output data. So, what we need to do is add:
 
 .. note::
 
-   To be mentioned, the number of the neuron in :code:`output` need to be same as \
-the target layer of :code:`dec_target`.
+   To be mentioned, the number of the neuron in :code:`output` need to be same as the target layer of :code:`dec_target` .
 
 2.2 Construct connections
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 In this example, since the network structure is fairly simple, all that is required \
- is a simple full connection connecting the input layer to the training layer.
+is a simple full connection connecting the input layer to the training layer.
+
 .. code-block:: python
 
    self.connection1 = spaic.Connection(self.input, self.layer1, link_type='full')
 
 2.3 Add learning algorithm and optimization algorithm
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 In this example, we use STCA algorithm [#f1]_, it is a BPTT algorithm that use surrogate \
 gradient strategy. And we choose :code:`Adam` as our optimizer and set
 
@@ -269,7 +271,7 @@ with cuda.  Use :code:`0.1ms` as the time step
 
 
 4. Training results
---------------
+-----------------------
 After training and testing 100 Epochs, we get the following accuracy curve through matplotlib
 
 .. image:: _static/STCA_MNIST_Accuracy.png
@@ -277,9 +279,8 @@ After training and testing 100 Epochs, we get the following accuracy curve throu
 
 5. Save model
 -------------------
-After the training is completed, we can store the weight information through the built-in function \
-:code:`Network.save_state`, or use :code:`spaic.Network_saver.network_save` to store the overall \
-network structure and weight.
+After the training is completed, we can store the weight information through the built-in function :code:`Network.save_state`, \
+or use :code:`spaic.Network_saver.network_save` to store the overall network structure and weight.
 
 Method 1: (only store weights)
 
@@ -295,9 +296,7 @@ Method 2: (store network structure and weights at the same time)
 
 .. note::
 
-   In mode 2, the format of the network structure storage can be :code:`json` or :code:`yaml`, both of which \
-can be read directly without translation. The weights of the first and second methods are stored in \
-the tensor format of Pytorch recently.
+   In mode 2, the format of the network structure storage can be :code:`json` or :code:`yaml`, both of which can be read directly without trThe weights of the first and second methods are stored in the tensor format of Pytorch recently.
 
 Additional: Other ways of constructing networks
 ==========================
@@ -404,6 +403,7 @@ Document indexing
 I. 如何安装
 ============
 通过源代码安装最新版本：
+
 通过GitHub：
 
 .. code-block:: python

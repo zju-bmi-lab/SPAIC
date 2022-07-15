@@ -2,20 +2,20 @@ Input output
 ============
 Dataloader
 -------------------------------
-:code:`Dataloader` is the interface of loading dataset, it is used to
-是数据集读取的接口，该接口的目的是将自定义的Dataset根据 :code:`batch_size` 大小、\
-是否shuffle等封装成一个 :code:`batch_size` 大小的数组，用于网络的训练。
+:code:`Dataloader` is the interface of loading dataset, it is used to encapsulate \
+the custom Dataset into an array according to the size of :code:`batch_size` and \
+whether it is shuffle, etc, for network training.
 
-:code:`Dataloader` 由数据集和采样器组成，初始化参数如下：
+:code:`Dataloader` is consists of dataset and sampler, and the initialization parameters \
+are as follows:
 
-- dataset(Dataset)： 传入的数据集
-- batch_size(int, optional)： 每个batch的样本数, 默认为1
-- shuffle(bool, optional)： 在每个epoch开始的时候，对数据进行重新排序，默认为False
-- sampler(Sampler, optional)： 自定义从数据集中取样本的策略
-- batch_sampler(Sampler, optional)： 与sampler类似，但是一次只返回一个batch的索引
-
-- collate_fn (callable, optional)： 将一个list的sample组成一个mini-batch的函数
-- drop_last (bool, optional)： 如果设置为True，对于最后一个batch，如果样本数小于batch_size就会被扔掉，比如batch_size设置为64，而数据集只有100个样本，那么训练的时候后面的36个就会被扔掉。如果为False（默认），那么会继续正常执行，只是最后的batch_size会小一点。
+- dataset(Dataset): the dataset to be loaded
+- batch_size(int, optional): the number of samples in each batch, the default is 1
+- shuffle(bool, optional): whether reorder the data at the beginning of each epoch, the default is False
+- sampler(Sampler, optional): customize the strategy for taking samples from the dataset
+- batch_sampler(Sampler, optional): Similar to sampler, but only returns the index of one batch
+- collate_fn (callable, optional): A function that composes a list of samples into a mini-batch
+- drop_last (bool, optional):  If set to True, for the last batch, if the number of samples is less than batch_size, it will be thrown away. For example, if batch_size is set to 64, and the dataset has only 100 samples, then the last 36 samples will be trained during training. will be thrown away. If False (default), normal execution will continue, but the final batch_size will be smaller.
 
 Loading MNIST dataset as example：
 
@@ -32,7 +32,7 @@ Loading MNIST dataset as example：
 
 .. note::
 
-   To be mentioned：\
-    1、创建 :code:`Dataloader` 时如果指定了 :code:`sampler` 这个参数，那么 :code:`shuffle` 必须为False
+   To be mentioned: \
+    1. If :code:`sampler` has been specified when creating :code:`Dataloader`, the :code:`shuffle` must be False.
 
-    2、如果指定 :code:`batch_sampler` 这个参数，那么 :code:`batch_size` ，:code:`shuffle` ，:code:`sampler`， :code:`drop_last` 就不能再指定了
+    2. If :code:`batch_sampler` has been specified, then, :code:`batch_size`, :code:`shuffle`, :code:`sampler` and :code:`drop_last` can no longer be specified.
