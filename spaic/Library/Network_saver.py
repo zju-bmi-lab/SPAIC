@@ -64,7 +64,8 @@ def network_save(Net: Assembly, filename=None, path=None,
         os.chdir(path)
         if filename not in os.listdir():
             os.mkdir(filename)
-        os.chdir(filedir)
+        # os.chdir(filedir)
+        os.chdir(filename)
 
     result_dict = trans_net(Net=Net, path=path, combine=combine, save=save, save_weight=save_weight)
 

@@ -24,3 +24,10 @@ and the optional parameters are :code:`value`, :code:`is_parameter`, :code:`is_s
 :code:`name` decodes the :code:`key` when save on the backend，and :code:`shape` decides the shape, :code:`value` represent the value，\
 :code:`init` decides the value that everytime the variable initialized, :code:`is_parameter` decides whether this variable is trainable or not, \
 if the value of :code:`is_parameter` is :code:`true`, means it can be added.
+
+
+add_operation
+------------------
+When using :code:`add_operation` , the parameters that must be added is :code:`op` . :code:`op` is used to \
+load operations that backend need to calculate. It will put the operation given by users into the computing
+graph. It is mainly used for custom computation.

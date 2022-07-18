@@ -5,9 +5,17 @@
 
 Network内置函数
 ---------------------------------------------------------
-采用了Network中内置的 :code:`save_state` 与 :code:`state_from_dict` 函数将权重直接进行存储，该方式需要给予\
-一个文件的名称dir_name，然后平台会在当前程序的运行目录下新建'NetData/dir_name/backend/_parameters_dict'\
-用于保存权重文件，然后使用 :code:`Net.state_from_dict(dir_name)` 就可以从文件中读取权重赋予当前的Net。
+采用Network中内置的 :code:`save_state` 与 :code:`state_from_dict` 函数将权重直接进行存储。
+
+:code:`save_state` 函数可选的参数有 :code:`filename` 、\
+:code:`direct` 以及 :code:`save` 。用户如果直接调用 :code:`save_state` 函数时，将会以默认的随机名称 :code:`autoname` 将后端中的权重变量直接存储于当前目录下的\
+'autoname/parameters'文件夹下的'_parameters_dict.pt'文件中。而启用 :code:`filename` 时，将会以用户给予的 :code:`filename` 替换 :code:`autoname` 。
+而启用 :code:`direct` 参数则用于指定存储的目录。 :code:`save`参数默认为True，为启用保存，若为False，则该函数会直接返回后端中存储的权重信息。
+
+:code:`state_from_dict` 函数的参数与 :code:`save_state` 类似，不同点在于多了 :code:`state` 与 :code:`device` 参数而少了 :code:`save` 参数。 \
+:code:`state` 参数如果传入参数，则该函数会直接使用传入的参数来替代后端的权重参数，在该参数为None的情况下，则会根据 :code:`filename` 与 :code:`direct` 来决定文件\
+的读取路径。 使用此函数时选用的 :code:`device` 则会将读取出来的权重参数存储于对应的设备上。
+
 
 .. code-block:: python
 
@@ -16,8 +24,7 @@ Network内置函数
     Net.state_from_dict('Test1', device)
 
 
-.. note::
-    此处的device，指的是目标权重想要放在cpu或是cuda还是某一个其他的计算设备上
+
 
 
 network_save 与 network_load
