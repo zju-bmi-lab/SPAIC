@@ -3,13 +3,13 @@
 
 该部分将详细描述两种存取网络信息的方式。
 
-Network内置函数
+Network中预先定义的函数
 ---------------------------------------------------------
-采用Network中内置的 :code:`save_state` 与 :code:`state_from_dict` 函数将权重直接进行存储。
+采用Network中预定义的 :code:`save_state` 与 :code:`state_from_dict` 函数将权重直接进行存储。
 
 :code:`save_state` 函数可选的参数有 :code:`filename` 、\
 :code:`direct` 以及 :code:`save` 。用户如果直接调用 :code:`save_state` 函数时，将会以默认的随机名称 :code:`autoname` 将后端中的权重变量直接存储于当前目录下的\
-'autoname/parameters'文件夹下的'_parameters_dict.pt'文件中。而启用 :code:`filename` 时，将会以用户给予的 :code:`filename` 替换 :code:`autoname` 。
+'./autoname/parameters'文件夹下的'_parameters_dict.pt'文件中。而启用 :code:`filename` 时，将会以用户给予的 :code:`filename` 替换 :code:`autoname` 。
 而启用 :code:`direct` 参数则用于指定存储的目录。 :code:`save`参数默认为True，为启用保存，若为False，则该函数会直接返回后端中存储的权重信息。
 
 :code:`state_from_dict` 函数的参数与 :code:`save_state` 类似，不同点在于多了 :code:`state` 与 :code:`device` 参数而少了 :code:`save` 参数。 \
