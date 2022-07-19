@@ -10,12 +10,14 @@ Use pre-defined functions :code:`save_state` and :code:`state_from_dict` to save
 The optional parameters are :code:`filename` , :code:`direct` and :code:`save`. If users use :code:`save_state` without \
 giving any parameters, the function will use default name :code:`autoname` with random number as the direct name and save \
 the weight into the './autoname/parameters/_parameters_dict.pt'. If given :code:`filename`, or :code:`direct` , it will \
-save the weight into 'direct/filename/parameters/_parameters_dict.pt'. Parameter :code:`save` is default as True
+save the weight into 'direct/filename/parameters/_parameters_dict.pt'. Parameter :code:`save` is default as True, which \
+means it will save the weight. If users choose False, this function will return the :code:`parameter_dict` of the model \
+directly.
 
-Users need to provide the :code:`dir_name`
-函数将权重直接进行存储，该方式需要给予\
-一个文件的名称dir_name，然后平台会在当前程序的运行目录下新建'NetData/dir_name/backend/_parameters_dict'\
-用于保存权重文件，然后使用 :code:`Net.state_from_dict(dir_name)` 就可以从文件中读取权重赋予当前的Net。
+The parameters of :code:`state_from_dict` is same as :code:`save_state` but have two more parameters: :code:`state` and :code:`direct` ,\
+and :code:`save` parameters is unneeded. If users provide :code:`state` , this function will use given parameters to replace the parameter dict \
+of the backend. If :code:`state` is None, this function will decide the saving path according to :code:`filename` and :code:`direct`. The \
+:code:`device` will decide where to storage the parameters.
 
 .. code-block:: python
 
@@ -23,13 +25,11 @@ Users need to provide the :code:`dir_name`
     ...
     Net.state_from_dict('Test1', device)
 
-
-.. note::
-    此处的device，指的是目标权重想要放在cpu或是cuda还是某一个其他的计算设备上
-
-
 network_save 与 network_load
 ---------------------------------------------------------------------------------------------------------------------------------------
+The network save module with :code:`spaic.Network_saver.network_save` and :code:`spaic.Network_loader.network_load` \
+will save the whole network structure of the model and the weight information separately.
+
 Library中的网络存储模块 :code:`spaic.Network_saver.network_save` 函数与 :code:`spaic.Network_loader.network_load` 函数\
 将会将完整的网络结构以及权重信息分别存储下来，该方式在使用时需要一个文件名dir_name，然后平台会在当前程序的运行目录下新\
 建'NetData/dir_name/dir_name.json'用于保存网络结构，权重的存储路径与 :code:`net.save_state` 相同，都会在用户当前目录下新建NetData文件夹，然后存于\
