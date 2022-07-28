@@ -53,6 +53,7 @@
         spikes = torch.rand(spk_shape, device=device).le(source * self.unit_conversion).float()
         return spikes
 
+    Encoder.register("poisson", PoissonEncoding)
 
 在代码的最后，需要添加 :code:`Encoder.register("poisson", PoissonEncoding)` 用于将该编码方法添加至编码方法的库中，\
 以便前端的调用。

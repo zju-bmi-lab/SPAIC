@@ -11,10 +11,10 @@
 
 .. code-block:: python
 
-    def __init__(self, pre_assembly: Assembly, post_assembly: Assembly,
-            name=None, link_type=('full', 'sparse', 'conv', '...'),
-            policies=[], max_delay=0, sparse_with_mask=False, pre_var_name='O',
-            post_var_name='WgtSum', **kwargs):
+    def __init__(self, pre_assembly: Assembly, post_assembly: Assembly, name=None,
+            link_type=('full', 'sparse_connect', 'conv', '...'), syn_type=['basic_synapse'],
+            max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='Isyn',
+            syn_kwargs=None, **kwargs):
 
 在连接的初始化参数中，我们可以看到，在建立连接时，必须给定的参数为突触前神经元、突触后神经元以及连接类型。
 
@@ -22,13 +22,14 @@
 - post_assembly - 突触后神经元，或是突触后神经元组，亦可视为连接的终点，下一层
 - name - 连接的姓名，用于建立连接时更易区分，建议用户给定有意义的名称
 - link_type - 连接类型，可选的有全连接、稀疏连接、卷积连接等
-- policies - 连接的策略，
+- syn_type - 突触类型，将会在突触部分进行更为详细的讲解
 - max_delay - 突触延迟，即突触前神经元的信号将延迟几个时间步之后再传递给突触后神经元
 - sparse_with_mask - 稀疏矩阵所用过滤器的开启与否
 - pre_var_name - 突触前神经元对突触的输出，即该连接接收到的信号，默认接受到突触前神经元发放的‘output’脉冲信号，即默认\
 为'O'
-- post_var_name - 突触对突触后神经元的输出，即输出的信号，默认为输出权重和’WgtSum‘
-- \**kwargs 在自定义参数中包含了某些连接所需要的特定参数，这些参数将在下文提及这些连接时谈到
+- post_var_name - 突触对突触后神经元的输出，即输出的信号，默认为突触电流’Isyn‘
+- syn_kwargs - 突触的自定义参数，将在突触介绍部分做进一步讲解
+- \**kwargs - 在自定义参数中包含了某些连接所需要的特定参数，这些参数将在下文提及这些连接时谈到
 
 除了这些参数以外，还有一些与权重相关的重要参数，例如:
 
@@ -88,9 +89,31 @@
 
 卷积连接
 -----------------------
+常见的卷积连接，池化方法可选择的有 :code:`avgpool` 以及 :code:`maxpool` ，这两个池化方法需要在突触类型中传入方可启用。
+
+卷积连接中主要包含的连接参数有：
+.. code-block:: python
+
+        self.out_channels = kwargs.get('out_channels', 4)  # 输出通道
+        self.in_channels = kwargs.get('in_channels', 1)    # 输入通道
+        self.kernel_size = kwargs.get('kernel_size', [3, 3])# 卷积核
+        self.w_std = kwargs.get('w_std', 0.05) # 权重的方差，用于生成随机权重
+        self.w_mean = kwargs.get('w_mean', 0.05) # 权重的均值，用于生成随机权重
+        weight = kwargs.get('weight', None) # 权重，如果不给定权重，连接将采取生成随机权重
+
+        self.stride = kwargs.get('stride', 1)
+        self.padding = kwargs.get('padding', 0)
+        self.dilation = kwargs.get('dilation', 1)
+        self.groups = kwargs.get('groups', 1)
+
 
 稀疏连接
 ----------------------
+常见的稀疏连接，通过传入参数 :code:`density`来设置稀疏连接的连接稠密程度
+
+随机连接
+---------------------------
+常见的随机连接，通过传入参数 :code:`probability`来设置随机连接的连接概率
 
 
 

@@ -25,7 +25,7 @@
 
 .. code-block:: python
 
-    self.input = spaic.Encoder(num=100, coding_method='poisson')
+    self.input = spaic.Encoder(num=100, coding_method='poisson', unit_conversion=1.0) # unit_conversion为缩放参数，将会对脉冲的发放频率进行缩放
 
 生成器(Generator)
 ------------------------------

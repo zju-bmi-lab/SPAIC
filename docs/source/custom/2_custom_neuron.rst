@@ -35,12 +35,13 @@
 ----------
 在定义变量的阶段，我们需要先了解平台中设定的几个变量的形式：
 
-- _tau_constant_variables: 指数衰减常数
+- _tau_variables: 指数衰减常数
 - _membrane_variables: 衰减常数
 - _variables: 普通变量
+- _parameter_variables: 参数变量
 - _constant_variables: 固定变量
 
-对于 :code:`_tau_constant_variables` 我们会进行一个变换 :code:`tau_var = np.exp(-dt/tau_var)`,
+对于 :code:`_tau_variables` 我们会进行一个变换 :code:`tau_var = np.exp(-dt/tau_var)`,
 对于 :code:`_membrane_variables` 我们会进行一个变换 :code:`membrane_tau_var = dt/membrane_tau_var`,
 
 在定义变量时，同时需要设定初始值，在网络的每一次运行后，神经元的参数都会被重置为此处设定的初始值。
@@ -82,25 +83,16 @@
 
 .. code-block:: python
 
-    # PSP = WgtSum + b的公式转化为以下计算式并添加至self._operations中，PSP作为计算结果放置在第一位，计算符add放置在第二位
     # [updated]符号目前代表该数值取的是本轮计算中计算出的新值，临时变量无需添加，
-    self._operations.append(('PSP', 'add', 'WgtSum[updated]', 'b'))
-
-    # I_che = tauP * I_che + PSP的公式转化为以下计算式，由于PSP是临时变量，无需添加[updated]
-    self._operations.append(('I_che', 'var_linear', 'tauP', 'I_che', 'PSP'))
-
-    # I = I_che + I_ele， 此处的I_che需要使用上一步计算出的I_che时，就需要添加上I_che
-    self._operations.append(('I', 'add', 'I_che[updated]', 'I_ele[updated]'))
-
-    # Vtemp = V * tauM + I, 此处的tauM需要注意，因为tauM为 _tau_constant_variables
-    self._operations.append(('Vtemp', 'var_linear', 'V', 'tauM', 'I[updated]'))
+    # Vtemp = V * tauM + I, 此处的tauM需要注意，因为tauM为 _tau_variables
+    self._operations.append(('Vtemp', 'var_linear', 'tauM', 'V', 'Isyn[updated]'))
 
     # O = 1 if Vtemp >= Vth else 0， threshold起的作用为判断Vtemp是否达到阈值Vth
     self._operations.append(('O', 'threshold', 'Vtemp', 'Vth'))
 
     # 此处作用为在脉冲发放之后重置电压V
-    self._operations.append(('Vreset', 'var_mult', 'Vtemp', 'O[updated]'))
-    self._operations.append(('V', 'minus', 'Vtemp', 'Vreset'))
+    self._operations.append(('Resetting', 'var_mult', 'Vtemp', 'O[updated]'))
+    self._operations.append(('V', 'minus', 'Vtemp', 'Resetting'))
 
 
 在代码的最后，需要添加 :code:`NeuronModel.register("lif", LIFModel)` 用于将该神经元模型添加至神经元模型的库中，以便前端的调用。
