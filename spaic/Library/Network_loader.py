@@ -443,7 +443,7 @@ class ReloadedNetwork(spaic.Network):
     def trans_para(self, para):
         if isinstance(para, dict):
             for key, value in para.items():
-                para[key] = torch.tensor(value, dtype=torch.float32)  # 暂定数据类型为单精度，以后可以根据网络中某个类型设置而更改
+                para[key] = torch.tensor(value, dtype=torch.float32, device=self.device)  # 暂定数据类型为单精度，以后可以根据网络中某个类型设置而更改
         else:
-            para = torch.tensor(para, dtype=torch.float32)
+            para = torch.tensor(para, dtype=torch.float32, device=self.device)
         return para

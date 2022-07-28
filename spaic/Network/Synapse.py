@@ -135,24 +135,6 @@ class Electrical_synapse(SynapseModel):
 
     def __init__(self, conn, **kwargs):
         super(Electrical_synapse, self).__init__(conn)
-        # V_post = conn.get_post_name(conn.post_assembly, 'V')
-        # V_pre = conn.get_pre_name(conn.pre_assembly, 'V')
-        # Vtemp_post = conn.get_link_name(conn.pre_assembly, conn.post_assembly, 'Vtemp')
-        # I_post = conn.get_post_name(conn.post_assembly, 'I_ele')
-        # weight = conn.get_link_name(conn.pre_assembly, conn.post_assembly, 'weight')
-        # Vtemp_pre = conn.get_link_name(conn.post_assembly, conn.pre_assembly, 'Vtemp')
-        # I_pre = conn.get_pre_name(conn.pre_assembly, 'I_ele')
-        #
-        # self._syn_variables[Vtemp_post] = 0.0
-        # self._syn_variables[I_post] = 0.0
-        # self._syn_variables[Vtemp_pre] = 0.0
-        # self._syn_variables[I_pre] = 0.0
-        # self._syn_operations.append([Vtemp_post, 'minus', V_pre, V_post])
-        # self._syn_operations.append([I_post, 'var_mult', weight, Vtemp_post + '[updated]'])
-        # self._syn_operations.append([Vtemp_pre, 'minus', V_post, V_pre])
-        # self._syn_operations.append([I_pre, 'var_mult', weight, Vtemp_pre + '[updated]'])
-
-        # self._syn_variables['Vprepost'] = np.zeros([1, conn.pre_num, conn.post_num])
         assert isinstance(conn.pre_assembly, NeuronGroup) and isinstance(conn.post_assembly,
                                                                          NeuronGroup), f"Electrical synapses exist in connections in which the presynaptic and postsynaptic objects are neurongroups"
 
