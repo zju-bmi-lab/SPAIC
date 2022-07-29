@@ -22,83 +22,48 @@
 
 .. code-block:: python
 
-    def __init__(self, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse_connect', 'conv','...'), policies=[],
-                 max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='WgtSum', **kwargs):
-
+    def __init__(self, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse_connect', 'conv','...'),
+                 syn_type=['basic_synapse'], max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='Isyn',
+                 syn_kwargs=None, **kwargs):
         super(FullConnection, self).__init__(pre_assembly=pre_assembly, post_assembly=post_assembly, name=name,
-                                             link_type=link_type, policies=policies, max_delay=max_delay,
+                                             link_type=link_type, syn_type=syn_type, max_delay=max_delay,
                                              sparse_with_mask=sparse_with_mask,
-                                             pre_var_name=pre_var_name, post_var_name=post_var_name, **kwargs)
+                                             pre_var_name=pre_var_name, post_var_name=post_var_name, syn_kwargs=syn_kwargs, **kwargs)
         self.weight = kwargs.get('weight', None)
         self.w_std = kwargs.get('w_std', 0.05)
         self.w_mean = kwargs.get('w_mean', 0.005)
         self.w_max = kwargs.get('w_max', None)
         self.w_min = kwargs.get('w_min', None)
-        self.param_init = kwargs.get('param_init', None)
-        self.is_parameter = kwargs.get('is_parameter', True)
+
+        self.is_parameter = kwargs.get('is_parameter', True) # is_parameter以及is_sparse为后端使用的参数，用于确认该连接是否为可训练的以及是否为稀疏化存储的
         self.is_sparse = kwargs.get('is_sparse', False)
 
 在这个初始化方法中， :code:`FullConnection` 类所额外需要的参数，通过从 :code:`kwargs` 中获取的方式来设定。
 
-定义单元连接函数
---------------------
-单元连接函数主要需要实现连接方法的权值生成、用于后端变量添加的变量代码 :code:`var_code` 以及用于后端基础计算操作\
-的操作代码 :code:`op_code` 的定义，我们以 :code:`FullConnection` 连接方法的 :code:`unit_connect` 实现过程作为\
-示例进行展示：
-
-.. code-block:: python
-
-    def unit_connect(self, pre_group, post_group):
-        # Getting the number of neurons in pre and post neuron group
-        pre_num = pre_group.num
-        post_num = post_group.num
-        link_num = pre_num * post_num
-        shape = (post_num, pre_num)
-        if self.weight is None:
-            # Connection weight
-            weight = self.w_std*np.random.randn(*shape) + self.w_mean
-        else:
-            assert (self.weight.shape == shape), f "The size of the given weight {self.weight.shape} does not correspond to the size of synaptic matrix {shape} "
-            weight = self.weight
-
-        # The name for backend variables
-        input_name = self.get_input_name(pre_group, post_group)
-        weight_name = self.get_link_name(pre_group, post_group, 'weight')
-        target_name = self.get_post_name(post_group, self.post_var_name)
-
-        # The backend variable
-        var_code = (weight_name, shape, weight, self.is_parameter, self.is_sparse, self.param_init)
-
-        # The backend basic operation
-        if self.max_delay > 0 :
-            op_code = [target_name, 'mult_sum_weight', input_name, weight_name]
-        else:
-            op_code = [target_name, 'mat_mult_weight', input_name, weight_name]
-
-        connection_information = (pre_group, post_group, link_num, var_code, op_code)
-        self.unit_connections.append(connection_information)
-
-        pass
-
-在代码的最后，需要添加 :code:`Connection.register('full',FullConnection)` 用于将该连接方法添加至连接方法的库中，\
-以便前端的调用。
 
 突触模型自定义
 -----------------------
 突触模型是进行神经动力学仿真环节中非常重要的一步，不同的模型与不同的参数都会产生不同的现象。\
 为了应对用户不同的应用需求，SPAIC内置了两种最常用的突触模型（化学突触和电突触），但是偶尔还是会有力所不能及，\
-这时候就需要用户自己添加一些更符合其实验的个性化突触模型。定义突触的这一步可以 :code:`Network.Connection` \
-文件中依照格式进行添加。
+这时候就需要用户自己添加一些更符合其实验的个性化突触模型。定义突触的这一步可以参考 :code:`Network.Synapse` \
+文件依照格式进行添加。
 
 定义是否需要使用突触模型、使用哪种突触模型
 ------------------------------------------
-如果需要使用突触模型需要提前传入两个参数 :code:`self.synapse` 、 :code:`self.synapse_type` \
-这两个参数分别决定了是否要使用突触模型以及突触种类。这两个参数都是通过 :code:`kwargs` 中获取的方式来改变：
+如果需要使用突触模型，则需要在连接中传入具体想要选用的 :code:`self.synapse_type` ，这个参数决定了突触种类。\
+而突触的参数则根据 :code:`synapse_kwargs` 来获取：
 
 .. code-block:: python
 
-    self.synapse = kwargs.get('synapse', False)
-    self.synapse_type = kwargs.get('synapse_type', 'chemistry_i_synapse')
+    if isinstance(syn_type, list):
+        self.synapse_type = syn_type
+    else:
+        self.synapse_type = [syn_type]
+
+    if syn_kwargs is None:
+        self.syn_kwargs = dict()
+    else:
+        self.syn_kwargs = syn_kwargs
 
 定义可从外部获取的参数
 --------------------------
@@ -109,9 +74,9 @@
 .. code-block:: python
 
     # Chemistry current synapse
-    # I = tauP*I + WgtSum
+    # Isyn = O * weight
 
-在这个公式中，:code:`self.synapse` 是可变参数，所以我们通过 :code:`kwargs` 中获取的方式来改变：
+在这个公式中，:code:`self.tau_p` 是可变参数，所以我们通过 :code:`kwargs` 中获取的方式来改变：
 
 .. code-block:: python
 
@@ -156,8 +121,12 @@
 
 .. code-block:: python
 
-    # I = tauP * I + WgtSum 的公式转化为以下计算式并添加至self.._syn_operations中，I作为计算结果放置在第一位，计算符var_linear放置在第二位
+    # Isyn = O * weight 的公式转化为以下计算式并添加至self._syn_operations中，
+    # conn.post_var_name作为计算结果放置在第一位，
+    # 计算符mat_mult_weight放置在第二位，
+    # input_name以及weight[link]代表着计算的因子，放置于第三位及以后，
     # [updated]符号目前代表该数值取的是本轮计算中计算出的新值，临时变量无需添加，
-    self.._syn_operations.append([I, 'var_linear', tauP, I, WgtSum])
-
+    self._syn_operations.append(
+        [conn.post_var_name + '[post]', 'mat_mult_weight', self.input_name,
+         'weight[link]'])
 
