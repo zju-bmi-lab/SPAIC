@@ -589,6 +589,8 @@ class Torch_Backend(Backend):
     def log10(self, x):
         return torch.log10(x)
 
+    def reset(self, v, o):
+        return o.eq(0)*v
     # def reset(self, x, v_reset, u_reset, spike):
     #
     #     # if hasattr(x, "__len__"):

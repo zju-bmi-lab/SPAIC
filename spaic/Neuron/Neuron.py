@@ -508,7 +508,7 @@ class NullModel(NeuronModel):
         self._variables['Isyn'] = 0.0
         self._variables['O'] = 0.0
 
-        self._operations.append(('O', 'equal', 'Isyn[updated]'))
+        self._operations.append(('O', 'assign', 'Isyn[updated]'))
 
 NeuronModel.register("null", NullModel)
 
@@ -1045,12 +1045,13 @@ class LIFModel(NeuronModel):
         self._parameter_variables['Vth'] = kwargs.get('v_th', 1)
         self._constant_variables['Vreset'] = kwargs.get('v_reset', 0.0)
 
-        self._tau_variables['tauM'] = kwargs.get('tau_m', 20.0)  # dt/taum
+        self._tau_variables['tauM'] = kwargs.get('tau_m', 20.0)
 
         self._operations.append(('Vtemp', 'var_linear', 'tauM', 'V', 'Isyn[updated]'))
         self._operations.append(('O', 'threshold', 'Vtemp', 'Vth'))
-        self._operations.append(('Resetting', 'var_mult', 'Vtemp', 'O[updated]'))
-        self._operations.append(('V', 'minus', 'Vtemp', 'Resetting'))
+        self._operations.append(('V', 'reset', 'Vtemp',  'O'))
+        # self._operations.append(('Resetting', 'var_mult', 'Vtemp', 'O[updated]'))
+        # self._operations.append(('V', 'minus', 'Vtemp', 'Resetting'))
 
 NeuronModel.register("lif", LIFModel)
 

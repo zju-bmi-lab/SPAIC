@@ -367,7 +367,7 @@ class ReloadedNetwork(spaic.Network):
 
             # for key in key_parameters_dict:
             path = self._backend_info['_parameters_dict']
-            data = torch.load(path)
+            data = torch.load(path, map_location=device)
             for key, value in data.items():
                 # print(key, 'value:', value)
                 self._backend._parameters_dict[key] = value.to(device)

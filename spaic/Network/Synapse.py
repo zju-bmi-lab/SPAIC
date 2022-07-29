@@ -71,7 +71,7 @@ class DirectPass_synapse(SynapseModel):
 
     def __init__(self, conn, **kwargs):
         super(DirectPass_synapse, self).__init__(conn)
-        self._syn_operations.append([conn.post_var_name + '[post]', 'equal', self.input_name])
+        self._syn_operations.append([conn.post_var_name + '[post]', 'assign', self.input_name])
 
 SynapseModel.register('directpass_synapse', DirectPass_synapse)
 SynapseModel.register('directpass', DirectPass_synapse)
