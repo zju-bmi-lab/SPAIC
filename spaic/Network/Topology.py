@@ -703,15 +703,16 @@ class Connection(Projection):
         return self._backend.dt
 
     def decode_syn_op(self, syn_ops, synapse_name, op_len):
-        for i in range(1, op_len):
-            pre_op_return_name = syn_ops[i-1][0]
-            post_op_first_input = syn_ops[i][2]
-            if '[updated]' in post_op_first_input:
-                post_op_first_input = post_op_first_input.replace('[updated]', '')
-            if post_op_first_input == pre_op_return_name:
-                temp_name = synapse_name[i-1]+'_' + str(i-1)
-                syn_ops[i-1][0] = temp_name
-                syn_ops[i][2] = temp_name
+        if len(synapse_name) > 1:
+            for i in range(1, op_len):
+                pre_op_return_name = syn_ops[i-1][0]
+                post_op_first_input = syn_ops[i][2]
+                if '[updated]' in post_op_first_input:
+                    post_op_first_input = post_op_first_input.replace('[updated]', '')
+                if post_op_first_input == pre_op_return_name:
+                    temp_name = synapse_name[i-1]+'_' + str(i-1)
+                    syn_ops[i-1][0] = temp_name
+                    syn_ops[i][2] = temp_name
         return syn_ops
 
     def build(self, backend):

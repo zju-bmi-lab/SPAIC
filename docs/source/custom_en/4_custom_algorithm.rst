@@ -1,6 +1,8 @@
 .. _my-customalgorithm:
 
-算法自定义
+
+
+Custom algorithm
 ===========================
 
 替代梯度算法

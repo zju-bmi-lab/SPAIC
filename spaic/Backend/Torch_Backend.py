@@ -241,7 +241,7 @@ class Torch_Backend(Backend):
         except:
             # patch for SLIF 2[O]
             for ii in range(len(x)):
-                if x[ii].dim() ==2:
+                if x[ii].dim() == 2:
                     tmp = torch.zeros_like(x[ii])
                     tmp = torch.stack([x[ii], tmp], dim=1)
                     x[ii] = tmp

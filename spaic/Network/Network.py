@@ -291,15 +291,16 @@ class Network(Assembly):
         assert name not in self._monitors.keys(), "monitor with name: %s have the same name with an already exists monitor" % (
             name)
 
-        self._monitors[name] = monitor
+        self.__setattr__(name, monitor)
 
     def save_state(self, filename=None, direct=None, save=True, hdf5=False):
         """
         Save weights in memory or on hard disk.
 
         Args:
+            filename: The name of saved file.
             direct: Target direction for saving state.
-            mode: Determines whether saved in hard disk, default set false, it means will not save on disk.
+            # mode: Determines whether saved in hard disk, default set false, it means will not save on disk.
 
         Returns:
             state: Connections' weight of the network.
@@ -344,6 +345,7 @@ class Network(Assembly):
 
         Args:
             state: contains backend._parameters_dict .
+            filename: The name of saved file.
             direct: Target direction for reloading state.
             mode: Determines whether saved in hard disk, default set false, it means will not save on disk.
 
@@ -352,7 +354,10 @@ class Network(Assembly):
 
         """
         if not self._backend:
-            self.set_backend('torch', device=device)
+            if device:
+                self.set_backend('torch', device=device)
+            else:
+                self.set_backend('torch')
         if self._backend.builded is False:
             self.build()
         if self._backend.device != device:

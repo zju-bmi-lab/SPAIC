@@ -1,8 +1,8 @@
-监视器
+Monitor
 ============================
-
-监视器主要的作用是监控网络运行过程中各类变量的变化过程，在SPAIC中，我们内置了两种形式的监视器，分别是 :code:`StateMonitor` \
-与 :code:`SpikeMonitor` 。
+The main function of the monitor is to monitor the changes of various variables during the network \
+operation. In SPAIC, we have built-in two forms of monitors, namely :code:`StateMonitor` \
+and :code:`SpikeMonitor`.
 
 :code:`StateMonitor` 与 :code:`SpikeMonitor` 的建立方式相同， :code:`StateMonitor` 是神经元及网络连接等的一般状态量\
 的监视，而 :code:`SpikeMonitor` 是针对脉冲发放频率的监视：

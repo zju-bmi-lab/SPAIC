@@ -1,7 +1,8 @@
 突触
 ===========
 
-本章节将会主要提及脉冲神经网络中使用的不同的突触模型，主要分为化学突触与电突触两种。
+本章节将会主要提及脉冲神经网络中使用的不同的突触模型，主要分为化学突触与电突触两种。\
+突触类型主要在建立连接时传入 :code:`synapse_type` 进行设置，而突触的参数则由 :code:`synapse_kwargs` 传入。
 
 化学突触
 ---------------
@@ -10,33 +11,38 @@
 与抑制性递质转化为正负权值的形式来作用到神经元上。
 
 在SPAIC中，我们的连接默认使用化学突触的形式进行连接，神经元模型中也默认接收到的电流\
-来自于化学突触传递的电流。
+来自于突触传递的电流，因此我们将化学突触称之为基础突触，即 :code:`basic_synapse` 。
 
 .. code-block:: python
 
-    self.connection = spaic.Connection(self.layer1, self.layer2,
-                                              link_type='full', w_std=0.0, w_mean=0.1)
+    self.connection = spaic.Connection(self.layer1, self.layer2, link_type='full',
+                                        synapse_type=['basic_synapse'],
+                                        w_std=0.0, w_mean=0.1)
 
 电突触(Gap junction)
 ---------------------------------
 电突触，也就是我们常称之为Gap junction的一种突触形式，其原理是由于突触前与突出后神经元\
-相隔距离尤其地近，以至于产生了带电的离子互相交换。电突触的特点是，首先是突触后神经元受到的\
-刺激的程度总是等于或是小于突触前神经元，也就是突触的权值总是小于或等于1的。其次，另外一种\
-特点在于通常情况下电突触是双向的（即突触的作用同时作用在突触前神经元以及突触后神经元，使得\
-双方的电压不断接近）
+相隔距离尤其地近，以至于产生了带电的离子互相交换。电突触的特点在于通常情况下电突触是双向的\
+（即突触的作用同时作用在突触前神经元以及突触后神经元，使得双方的电压不断接近）
 
-电突触的数学公式为
+电突触的数学公式为 Igap = w_gap(Vpre - Vpost)
 
-若要使用电突触，则需要在连接的参数中设置突触的启用、突触类型为电突触并且使用支持电突触的后\
-端神经元模型：
+若要使用电突触，则需要在连接的参数中将突触类型设置为电突触:
 
 .. code-block:: python
 
     self.connection = spaic.Connection(self.layer1, self.layer2,
                                               link_type='full', w_std=0.0, w_mean=0.1,
-                                              synapse=True, synapse_type='electrical_synapse')
+                                              synapse_type=['electrical_synapse'])
 
 
-如何在启用突触后选取对应的神经元模型
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+其他突触
+-----------------------
+在突触中，我们还实现了一些其他种类的突触，并且将池化与展平操作都放入了突触中。
+
+Max pooling：:code:`maxpool_synapse`
+Average pooling：:code:`avgpool_synapse`
+Flatten： :code:`flatten`
+Dropout： :code:`dropout`
+Direct pass： :code:`directpass` ，该突触类型将会使得输出等同于输出部分，即输出的Isyn将会等同于连接接收到的另一端的输出的值
 

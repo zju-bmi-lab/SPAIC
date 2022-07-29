@@ -1047,9 +1047,6 @@ class LIFModel(NeuronModel):
 
         self._tau_variables['tauM'] = kwargs.get('tau_m', 20.0)  # dt/taum
 
-        # self._operations.append(('I_che', 'add', 'WgtSum[updated]', 'b'))
-        # self._operations.append(('I', 'add', 'I_che[updated]', 'I_ele'))
-
         self._operations.append(('Vtemp', 'var_linear', 'tauM', 'V', 'Isyn[updated]'))
         self._operations.append(('O', 'threshold', 'Vtemp', 'Vth'))
         self._operations.append(('Resetting', 'var_mult', 'Vtemp', 'O[updated]'))

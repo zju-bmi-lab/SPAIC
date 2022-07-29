@@ -34,9 +34,9 @@ STCA算法 [#f1]_ 中，梯度函数为:
 
 突触可塑性算法
 ---------------------------
-在我们平台上实现了两种STDP学习算法，一种是在线STDP学习算法 [#f3]_ ，一种是传统STDP学习算法 [#f4]_ 。
+在我们平台上实现了两种STDP学习算法，一种是基于全局突触可塑性的STDP学习算法 [#f3]_ ，一种是基于最邻近突触可塑性的STDP学习算法 [#f4]_ 。
 
-在线STDP学习算法
+全局可塑性STDP学习算法
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 该算法的权重更新公式为 [#f2]_ ：
 :math:`dw = Apost * (output_spike * input_trace) – Apre * (output_trace * input_spike)`
@@ -48,16 +48,16 @@ STCA算法 [#f1]_ 中，梯度函数为:
 
 .. code-block:: python
 
-  preg = conn.pre_assembly
-  postg = conn.post_assembly
+    preg = conn.pre_assembly
+    postg = conn.post_assembly
 
 之后获取学习算法需要的参数在后端的名称，例如：输入脉冲，输出脉冲，连接权重引用了 :code:`Connection` 中的获取名字的函数
 
 .. code-block:: python
 
-  pre_name = conn.get_input_name(preg, postg)
-  post_name = conn.get_target_output_name(postg)
-  weight_name = conn.get_weight_name(preg, postg)
+    pre_name = conn.get_input_name(preg, postg)
+    post_name = conn.get_group_name(postg, 'O')
+    weight_name = conn.get_link_name(preg, postg, 'weight')
 
 再将算法需要用到的参数添加到后端
 
@@ -71,27 +71,18 @@ STCA算法 [#f1]_ 中，梯度函数为:
 
 .. code-block:: python
 
-   #dw = Apost * (output_spike * input_trace) – Apre * (output_trace * input_spike)
-   backend.add_operation(['input_trace_s', 'var_mult', input_trace_name, 'trace_decay'])
-   backend.add_operation(['input_temp', 'minus', 'spike', pre_name])
-   backend.add_operation([input_trace_name, 'var_linear', 'input_temp', 'input_trace_s', pre_name])
+    backend.add_operation(['input_trace_temp', 'var_mult', input_trace_name, 'trace_decay'])
+    backend.add_operation([input_trace_name, 'add', pre_name, 'input_trace_temp'])
 
-   backend.add_operation(['output_trace_s', 'var_mult', output_trace_name, 'trace_decay'])
-   backend.add_operation(['output_temp', 'minus', 'spike', post_name])
-   backend.add_operation([output_trace_name, 'var_linear', 'output_temp', 'output_trace_s', post_name])
+    backend.add_operation(['output_trace_temp', 'var_mult', output_trace_name, 'trace_decay'])
+    backend.add_operation([output_trace_name, 'add', post_name, 'output_trace_temp'])
 
-   backend.add_operation(['pre_post_temp', 'mat_mult_pre', post_name, input_trace_name+'[updated]'])
-   backend.add_operation(['pre_post', 'var_mult', 'Apost', 'pre_post_temp'])
-   backend.add_operation(['post_pre_temp', 'mat_mult_pre', output_trace_name+'[updated]', pre_name])
-   backend.add_operation(['post_pre', 'var_mult', 'Apre', 'post_pre_temp'])
-   backend.add_operation([dw_name, 'minus', 'pre_post', 'post_pre'])
-
-之后将更新权重的函数添加进后端
-
-.. code-block:: python
-
-   backend.register_standalone(None, self.nearest_online_stdp_weightupdate, [dw_name, weight_name])
-
+    backend.add_operation(['pre_post_temp', 'mat_mult_pre', post_name, input_trace_name+'[updated]'])
+    backend.add_operation(['pre_post', 'var_mult', 'Apost', 'pre_post_temp'])
+    backend.add_operation(['post_pre_temp', 'mat_mult_pre', output_trace_name+'[updated]', pre_name])
+    backend.add_operation(['post_pre', 'var_mult', 'Apre', 'post_pre_temp'])
+    backend.add_operation([dw_name, 'minus', 'pre_post', 'post_pre'])
+    backend.add_operation([weight_name, self.full_online_stdp_weightupdate, dw_name, weight_name])
 
 权重更新代码：
 

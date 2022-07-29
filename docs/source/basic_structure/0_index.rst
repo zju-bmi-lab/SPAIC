@@ -71,7 +71,7 @@ Connection (连接)
 
 平台前端结构图：
 
-.. image:: ../_static/SPAIC_FRONTEND.png
+.. image:: ../_static/SPAIC_FRONTEND.jpg
     :width: 100%
 
 Backend
