@@ -37,11 +37,12 @@ test_loader = spaic.Dataloader(test_set, batch_size=bat_size, shuffle=False)
 from spaic.Neuron import NeuronModel
 
 
-@spaic.NeuronGroup.custom_model(input_vars=['V', 'tau_m', 'dt', 'Isyn', 'O'], output_vars=['V'],
+@spaic.NeuronGroup.custom_model(input_vars=['V', 'tau_m', 'dt', 'Isyn[updated]', 'O'], output_vars=['V'],
                                 new_vars_dict={'V':0, 'tau_m':20.0, 'dt':0.1, 'O':0, 'Isyn':0,'Vth':1},
                                 equation_type='iterative')
 def MYLIF1(V, tau_m, dt, Isyn, O):
-    V = (dt/tau_m) * V + Isyn
+    tauM = torch.exp(-dt/tau_m)
+    V = tauM * V + Isyn
     V = V - O * V
     return V
 
@@ -63,7 +64,8 @@ class MYLIF2Model(NeuronModel):
         self._parameter_variables['Vth'] = kwargs.get('v_th', 1)
         self._constant_variables['Vreset'] = kwargs.get('v_reset', 0.0)
 
-        self._tau_variables['tauM'] = kwargs.get('tau_m', 20.0)  # _tau_variables 计算式为 dt/taum
+        self._tau_variables['tauM'] = kwargs.get('tau_m', 20.0)  # _tau_variables 计算式为 torch.exp(-dt / tau_var)
+
 
         self._operations.append(('Vtemp', 'var_linear', 'tauM', 'V', 'Isyn[updated]'))
         self._operations.append(('O', 'threshold', 'Vtemp', 'Vth'))

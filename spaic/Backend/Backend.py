@@ -113,6 +113,7 @@ class Backend(BaseModule, ABC):
         self.basic_operate['view'] = self.view
         self.basic_operate['assign'] = self.assign
         self.basic_operate['unsqueeze'] = self.unsqueeze
+        self.basic_operate['reset'] = self.reset
 
         self.basic_operate['reduce_sum'] = self.reduce_sum
         self.basic_operate['conv_2d'] = self.conv_2d
@@ -1572,7 +1573,11 @@ class Backend(BaseModule, ABC):
         '''
         NotImplementedError()
 
-
+    def reset(self):
+        '''
+            Reset voltage
+        '''
+        NotImplementedError()
 
 
 # class Darwin_Backend(Backend):

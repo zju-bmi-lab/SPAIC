@@ -397,7 +397,7 @@ class Network(Assembly):
             raise ValueError('Wrong Path.')
 
         if '_parameters_dict.pt' in os.listdir('./'):
-            data = torch.load('./_parameters_dict.pt')
+            data = torch.load('./_parameters_dict.pt', map_location=device)
             for key, para in data.items():
                 backend_key = self._backend.check_key(key, self._backend._parameters_dict)
                 if backend_key:
