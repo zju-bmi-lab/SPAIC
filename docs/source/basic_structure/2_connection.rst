@@ -106,6 +106,42 @@
         self.dilation = kwargs.get('dilation', 1)
         self.groups = kwargs.get('groups', 1)
 
+卷积连接的示例1：
+
+.. code-block:: python
+
+        self.connection1 = spaic.Connection(self.input, self.layer1, link_type='conv', in_channels=1, out_channels=4,
+                                              kernel_size=(3, 3),
+                                              init='uniform', init_param={'a':-math.sqrt(1/(9)), 'b':math.sqrt(1/(9))})
+
+        self.connection2 = spaic.Connection(self.layer1, self.layer2, link_type='conv',
+                                              in_channels=4, out_channels=8, kernel_size=(3, 3),
+                                              init='uniform', init_param={'a':-math.sqrt(1/(8*9)), 'b':math.sqrt(1/(8*9))})
+
+        self.connection3 = spaic.Connection(self.layer2, self.layer3, link_type='full',
+                                              syn_type=['flatten', 'basic_synapse'],
+                                              init='kaiming_normal', init_param={'a': math.sqrt(5)})
+
+
+卷积连接的示例2：
+
+.. code-block:: python
+
+        self.conv2 = spaic.Connection(self.layer1, self.layer2, link_type='conv',
+                                        syn_type=['dropout', 'basic_synapse'], in_channels=128, out_channels=256,
+                                        kernel_size=(3, 3), stride=args.stride, padding=args.padding, init='uniform',
+                                        init_param=(-math.sqrt(1/(128*3*3)), math.sqrt(1/(128*9))), bias=args.bias)
+        self.conv3 = spaic.Connection(self.layer2, self.layer3, link_type='conv',
+                                        syn_type=['maxpool', 'dropout', 'basic_synapse'], in_channels=256, out_channels=512,
+                                        kernel_size=(3, 3), stride=args.stride, padding=args.padding,
+                                        pool_stride=2, pool_padding=0, init='uniform',
+                                        init_param=(-math.sqrt(1/(256*9)), math.sqrt(1/(256*9))), bias=args.bias)
+        self.conv4 = spaic.Connection(self.layer3, self.layer4, link_type='conv',
+                                        syn_type=['maxpool', 'dropout', 'basic_synapse'], in_channels=512, out_channels=1024,
+                                        kernel_size=(3, 3), stride=args.stride, padding=args.padding,
+                                        pool_stride=2, pool_padding=0, init='uniform',
+                                        init_param=(-math.sqrt(1/(512*9)), math.sqrt(1/(512*9))), syn_kwargs=[], bias=args.bias)
+
 
 稀疏连接
 ----------------------
