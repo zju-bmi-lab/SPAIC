@@ -11,16 +11,20 @@ Basic Structure
    5_encode_decode
 
 
-基本组成
+Basic components
 ===================
 
+Assembly is the most important basic class in SPAIC. :code:`spaic.assembly` contains three part: Network,\
+NeuronGroup and Node. :code:`spaic.Network` is the basic class of the whole model. :code:`spaic.Neurongroup` \
+contains neurons and :code:`spaic.Node` is the basic class of the input and output nodes.
 
- SPAIC中最重要的基类是Assembly，一个个的Assembly节点最终组成了一个网络。在Assembly中，\
- 包含了Network、NeuronGroup以及Node这三个部分，Network类即为整个网络，NeuronGroup类则包含了各层\
- 的神经元，Node为输入输出的节点。
-
-Assembly (神经集合)
+Assembly
 --------------------------
+It is an abstract class of neural network structure, representing any network structure, and other network modules are \
+subclasses of the Assembly class. The Assembly object has two properties named :code:`_groups` and\
+:code:`_connections`
+
+
 是神经网络结构的抽象类，代表任意网络结构，其它网络模块都是Assembly类的子类。Assembly对象具有名为 :code:`_groups` ,\
 :code:`_connections` 两个dict属性，保存神经集合内部的神经集群以及连接等。同时具有名为 :code:`_supers` , :code:`_input_connections` , \
 :code:`_output_connections` 的list属性，分别代表包含此神经集合的上层神经集合以及与此神经集合进行的连接。作为网络建模的主要接口，包含如下主要建模函数：

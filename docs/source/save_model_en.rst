@@ -25,10 +25,13 @@ of the backend. If :code:`state` is None, this function will decide the saving p
     ...
     Net.state_from_dict('Test1', device)
 
-network_save 与 network_load
+
+network_save and network_load
 ---------------------------------------------------------------------------------------------------------------------------------------
 The network save module with :code:`spaic.Network_saver.network_save` and :code:`spaic.Network_loader.network_load` \
-will save the whole network structure of the model and the weight information separately.
+will save the whole network structure of the model and the weight information separately. This method requires a filename \
+'dir_name' when used, and then the platform will create a new file 'NetData/dir_name/dir_name.json' in the running directory \
+of the current program to save the network structure.
 
 Library中的网络存储模块 :code:`spaic.Network_saver.network_save` 函数与 :code:`spaic.Network_loader.network_load` 函数\
 将会将完整的网络结构以及权重信息分别存储下来，该方式在使用时需要一个文件名dir_name，然后平台会在当前程序的运行目录下新\

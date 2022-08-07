@@ -4,37 +4,39 @@ The main function of the monitor is to monitor the changes of various variables 
 operation. In SPAIC, we have built-in two forms of monitors, namely :code:`StateMonitor` \
 and :code:`SpikeMonitor`.
 
-:code:`StateMonitor` 与 :code:`SpikeMonitor` 的建立方式相同， :code:`StateMonitor` 是神经元及网络连接等的一般状态量\
-的监视，而 :code:`SpikeMonitor` 是针对脉冲发放频率的监视：
+:code:`spaic.StateMonitor` is designed to be used for tracking the state of :code:`Neurons` , \
+:code:`Connections` and :code:`Nodes` . :code:`spaic.SpikeMonitor` is designed to be used for tracking the \
+spike states and calculate the firing frequency.
+
 
 .. code-block:: python
 
     self.state_mon = spaic.StateMonitor(self.layer1, 'V')
     self.spike_mon = spaic.SpikeMonitor(self.layer1, 'O')
 
-在监视器初始化中，我们可以指定如下参数：
+To initialize the monitor, we can specify the following parameters:
 
-- target - 需要监视的对象，对于StateMonitor可以是NeuronGroup、Connection等任何包含变量的网络模块，对于SpikeMonitor一般是NeuronGroup、Encoder等具有脉冲发放的模块
-- var_name - 需要监视的变量名，需要是监视对象具有的变量，比如神经元的膜电压 'V'
-- index - 检测变量的索引值，例如一层神经集群中选择某几个神经元进行记录，可以使用 index=[1,3,4,...]，默认为整个变量全部记录
-- dt - 监视器的采样时间间隔，默认与仿真步长相同
-- get_grad - 是否需要记录梯度，True为需要梯度，False为不需要，默认为False
-- nbatch - 是否需要记录多个Batch的数据，True则会保存多次run的数据，False则每次run覆盖数据，默认为False
+- target - the object to be monitored. For StateMonitor, it can be any network module containing variables such as :code:`NeuronGroup` and :code:`Connection` . For SpikeMonitor, it is generally a module with pulse distribution such as :code:`NeuronGroup` and :code:`Encoder`.
+- var_name - the name of the variable that needs to be monitored, it needs to be a variable that the monitoring object has, such as the neuron's membrane voltage 'V'
+- index - the index value of the detection variable, for example, select a few neurons in a layer of neural clusters to record, you can use index=[1,3,4,…], the default is to record the entire variable
+- dt - the sampling interval of the monitor, defaults to the same as the simulation step size
+- get_grad - whether to record the gradient, True means the gradient is required, False means not required, the default is False
+- nbatch - whether you need to record the data of multiple batches, True will save the data of multiple runs, False will overwrite the data each time run, the default is False
 
-这两个监视器的区别在于，:code:`StateMonitor` 中存储四个参数：
+The difference between the two monitors is that :code:`StateMonitor` has four parameters：
 
-- nbatch_times - 将会存储所有批次的时间步信息，数据的shape结构为(第几批次，第几个时间步)
-- nbatch_values - 将会存储所有批次的目标层的监视参数的情况，数据的shape结构为(第几批次，第几个神经元，第几个时间步，batch中的第几个样本)
-- times - 将会存储当前批次的时间步信息，数据的shape结构为(第几个时间步)
-- values - 将会存储当前批次的目标层的监视参数的情况，数据的shape结构为(本batch中第几个样本，第几个神经元，第几个时间步)
-- grad - 将会存储当前批次的目标变量的梯度情况，数据的shape与values的shape结构相同
+- nbatch_times - logging the time step information of all batches, the shape structure of the data is (number of batches, number of time steps)
+- nbatch_values - logging  the monitoring parameters of the target layer of all batches. The shape structure of the data is (batch, neuron, time step, sample in the batch)
+- times - logging the time step information of the current batch, the shape structure of the data is (number of time steps)
+- values - logging  the monitoring parameters of the target layer of the current batch. The shape structure of the data is (the number of samples in this batch, the number of neurons, the number of time steps)
+- grad - logging the gradient of the target variable of the current batch, the shape of the data is the same as the shape of the values
 
-而 :code:`SpikeMonitor` 中存储着另外四个参数：
+And :code:`SpikeMonitor` has another four parameters：
 
-- spk_index - 存储着当前批次脉冲发放的神经元的编号
-- spk_times - 存储着当前批次脉冲发放的时刻信息
-- time - 存储着当前批次的时间步的信息
-- time_spk_rate - 存储着当前批次的目标层的脉冲发放频率
+- spk_index - logging  the number of the neuron firing the current batch
+- spk_times - logging  the time information of the current batch of pulses
+- time - logging  information about the time step of the current batch
+- time_spk_rate - logging the spike rate of the target layer for the current batch
 
 
 
