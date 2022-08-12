@@ -29,13 +29,13 @@ From GitHub:
 
 II. How to build a spiking neural network
 ==============================================
-In order to facilitate users to understand how to use SPAIC to carry out their own \
-research work, we will use STCA learning algorithm [#f1]_ to train the network to \
-recognize MNIST data set as an example to build a SNN training network.
+In order to facilitate users to understand how to use **SPAIC** to carry out their own \
+research work, we will use **STCA** learning algorithm [#f1]_ to train the network to \
+recognize **MNIST** data set as an example to build a SNN training network.
 
 1. Construct a network class
 ---------------------------------
-The network is the most important part of SPAIC, like the framework of the whole neural \
+``Network`` is the most important part of **SPAIC**, like the framework of the whole neural \
 network, so we need to build a network class first, and then fill this network with other \
 elements, such as neurons and connections. Inherit :code:`spaic.Network` To recreate \
 and instantiate a network class:
@@ -54,14 +54,14 @@ and instantiate a network class:
 When building the framework of :code:`Network`, we need to add neurons and connect these \
 components in it, so that the :code:`Network` will not be an empty framework. The components \
 that can be added include the input and output parts: :code:`Node`; the neurongroup :code:`NeuronGroups`; \
-the synapse connection :code:`connection`; the monitor :code:`monitors` ;\
-the learning algorithm: :code:`learners`. Also, we can add some \
+the synapse connection :code:`connection`; the monitor :code:`monitor` ;\
+the learning algorithm: :code:`learner`. Also, we can add some \
 special components when building some large and complex networks, :code:`Assembly` and :code:`Projection` , \
 which used to let the complex structures more clearly.
 
 2.1 Create Node and Neurongroups
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-For a network that uses STCA algorithm and recognize MNIST dataset, the node we need \
+For a network that uses **STCA** algorithm and recognize **MNIST** dataset, the node we need \
 is a :code:`Node.Encoder` layer as input to encode the input data, a :code:`clif NeuronGroup` \
 layer for training and a :code:`Node.Decoder` layer as output \
 to decode the output data. So, what we need to do is add:
@@ -79,8 +79,8 @@ to decode the output data. So, what we need to do is add:
 2.2 Construct connections
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-In this example, since the network structure is fairly simple, all that is required \
-is a simple full connection connecting the input layer to the training layer.
+In this example, since the network structure is fairly simple, all required \
+is a simple ``full connection`` that connecting the input layer to the training layer.
 
 .. code-block:: python
 
@@ -88,7 +88,7 @@ is a simple full connection connecting the input layer to the training layer.
 
 2.3 Add learning algorithm and optimization algorithm
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-In this example, we use STCA algorithm [#f1]_, it is a BPTT algorithm that use surrogate \
+In this example, we use **STCA** algorithm [#f1]_, it is a **BPTT** algorithm that use surrogate \
 gradient strategy. And we choose :code:`Adam` as our optimizer and set
 
 .. code-block:: python
@@ -109,12 +109,12 @@ voltage and spike output of :code:`layer1` for teaching purposes, i.e.
 
 2.5 Add backend
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Backend is an extremely important part of SPAIC, responsible for the actual simulation \
-of the back-end network.  :code:`backend.dt`  is used to set the time step for network \
+``Backend`` is an extremely important part of **SPAIC**, responsible for the actual simulation \
+of the backend network.  :code:`backend.dt`  is used to set the time step for network \
 simulation, which needs to be set in advance before establishing the network. \
 The selection of different backends and devices also needs to be set up before building \
-the network. In this example, we use pytorch as the backend simulator and build the network \
-with cuda.  Use :code:`0.1ms` as the time step
+the network. In this example, we use **PyTorch** as the backend simulator and build the network \
+with **cuda**.  Use :code:`0.1ms` as the time step
 
 .. code-block:: python
 
@@ -138,19 +138,19 @@ with cuda.  Use :code:`0.1ms` as the time step
        def __init__(self):
            super(TestNet, self).__init__()
 
-           # coding
+           # Encoding
            self.input = spaic.Encoder(num=784, coding_method='poisson')
 
-           # neuron group
+           # NeuronGroup
            self.layer1 = spaic.NeuronGroup(10, neuron_model='clif')
 
-           # decoding
+           # Decoding
            self.output = spaic.Decoder(num=10, dec_target=self.layer1, coding_method='spike_counts')
 
            # Connection
            self.connection1 = spaic.Connection(self.input, self.layer1, link_type='full')
 
-           # Minitor
+           # Monitor
            self.mon_V = spaic.StateMonitor(self.layer1, 'V')
            self.mon_O = spaic.StateMonitor(self.layer1, 'O')
 
@@ -272,7 +272,7 @@ with cuda.  Use :code:`0.1ms` as the time step
 
 4. Training results
 -----------------------
-After training and testing 100 Epochs, we get the following accuracy curve through matplotlib
+After training and testing 100 epochs, we get the following accuracy curve through matplotlib
 
 .. image:: _static/STCA_MNIST_Accuracy.png
     :width: 100%
@@ -296,7 +296,8 @@ Method 2: (store network structure and weights at the same time)
 
 .. note::
 
-   In mode 2, the format of the network structure storage can be :code:`json` or :code:`yaml`, both of which can be read directly without trThe weights of the first and second methods are stored in the tensor format of Pytorch recently.
+   In method 2, the format of the network structure storage can be :code:`json` or :code:`yaml`, both of which can be read directly without transmitted.
+   The weights of the first and second methods are stored in the tensor format of **Pytorch** recently.
 
 Additional: Other ways of constructing networks
 ==========================
@@ -408,12 +409,12 @@ I. 如何安装
 
 II. 如何从零开始构建一个脉冲神经网络
 ====================================
-为了便于用户了解该如何使用SPAIC开展自己的研究工作，我们将以使用STCA学习算法 [#f1]_ 训练识别MNIST数据集\
+为了便于用户了解该如何使用 **SPAIC** 开展自己的研究工作，我们将以使用 **STCA** 学习算法 [#f1]_ 训练识别 **MNIST**数据集\
 的网络作为例子，搭建一个SNN训练网络。
 
 1. 建立一个网络
 ---------------------
-网络是SPAIC中最为重要的组成部分，如同整个神经网络的框架部分，所以我们需要首先先建立一个\
+网络是 **SPAIC** 中最为重要的组成部分，如同整个神经网络的框架部分，所以我们需要首先先建立一个\
 网络，再在这个网络中填充其他的元素，例如神经元和连接。继承 :code:`spaic.Network` 来重新建立一个\
 网络类并实例化：
 
@@ -436,7 +437,7 @@ II. 如何从零开始构建一个脉冲神经网络
 
 2.1 创建并添加节点层与神经元组
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-对于一个使用STCA训练识别MNIST数据集的网络而言，我们需要的节点分别是一个input层用于编码并输\
+对于一个使用 **STCA** 训练识别 **MNIST** 数据集的网络而言，我们需要的节点分别是一个input层用于编码并输\
 入数据，一个 :code:`clif` 神经元层用于训练以及一个输出层用于解码脉冲输出。所以我们所添加的就是：
 
 .. code-block:: python
@@ -459,7 +460,7 @@ II. 如何从零开始构建一个脉冲神经网络
 
 2.3 添加学习算法与优化算法
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-在本示例中，我们采用了STCA学习算法，STCA学习算法 [#f1]_ 是一种采用了替代梯度策略的BPTT类算法。\
+在本示例中，我们采用了 **STCA** 学习算法， **STCA** 学习算法 [#f1]_ 是一种采用了替代梯度策略的BPTT类算法。\
 在优化器上选择 :code:`Adam` 算法并设置
 
 .. code-block:: python
@@ -479,9 +480,9 @@ II. 如何从零开始构建一个脉冲神经网络
 
 2.5 添加backend
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Backend是SPAIC中极为重要的一个部分，负责后端的网络实际模拟。 :code:`backend.dt` 用于\
+``Backend`` 是 **SPAIC** 中极为重要的一个部分，负责后端的网络实际模拟。 :code:`backend.dt` 用于\
 设置网络模拟时的时间步长，需要在建立网络前提前进行设定。不同后端以及设备的选择也需要在搭建网络前设置\
-完成。在本示例，我们采用pytorch作为后端，将网络构建与cuda上，以 :code:`0.1ms` 作为时间步长：
+完成。在本示例，我们采用 **PyTorch** 作为后端，将网络构建与 **cuda** 上，以 :code:`0.1ms` 作为时间步长：
 
 .. code-block:: python
 
@@ -505,19 +506,19 @@ Backend是SPAIC中极为重要的一个部分，负责后端的网络实际模�
        def __init__(self):
            super(TestNet, self).__init__()
 
-           # coding
+           # Encoding
            self.input = spaic.Encoder(num=784, coding_method='poisson')
 
-           # neuron group
+           # NeuronGroup
            self.layer1 = spaic.NeuronGroup(10, neuron_model='clif')
 
-           # decoding
+           # Decoding
            self.output = spaic.Decoder(num=10, dec_target=self.layer1, coding_method='spike_counts')
 
            # Connection
            self.connection1 = spaic.Connection(self.input, self.layer1, link_type='full')
 
-           # Minitor
+           # Monitor
            self.mon_V = spaic.StateMonitor(self.layer1, 'V')
            self.mon_O = spaic.StateMonitor(self.layer1, 'O')
 
@@ -639,7 +640,7 @@ Backend是SPAIC中极为重要的一个部分，负责后端的网络实际模�
 
 4. 训练结果
 --------------
-在训练并测试共100个Epoch后，通过matplotlib我们得到如下的正确率曲线：
+在训练并测试共100个epoch后，通过 **matplotlib** 我们得到如下的正确率曲线：
 
 .. image:: _static/STCA_MNIST_Accuracy.png
     :width: 100%
@@ -664,7 +665,7 @@ Backend是SPAIC中极为重要的一个部分，负责后端的网络实际模�
 .. note::
 
    在方式二中，网络结构存储的格式可以为 :code:`json` 亦或是 :code:`yaml` 格式，这两种格式都是可以直接阅读不需要转译的。\
-   而方式一与方式二这两种方式的权重都以Pytorch的tensor格式存储。
+   而方式一与方式二这两种方式的权重都以 **Pytorch** 的Tensor格式存储。
 
 附：网络的其他构建方式
 ==========================
@@ -752,7 +753,7 @@ Backend是SPAIC中极为重要的一个部分，负责后端的网络实际模�
 
 * :ref:`genindex`
 * :ref:`modindex`
-* :ref:`search`
+
 
 
 

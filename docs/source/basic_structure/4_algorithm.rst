@@ -1,7 +1,7 @@
 算法
 =====================
 
-本章节主要介绍在SPAIC平台中内置的算法，目前我们已经在平台中添加了STCA、STBP、STDP、R-STDP与\
+本章节主要介绍在 **SPAIC** 平台中内置的算法，目前我们已经在平台中添加了STCA、STBP、STDP、R-STDP与\
 Tempotron算法。其中，STCA与STBP都是采用了替代梯度的梯度反传算法，而STDP则是SNN中经典的无监督\
 突触可塑性算法，R-STDP在STDP的基础上添加了 :code:`reward` 机制，更好的适用于强化学习。
 

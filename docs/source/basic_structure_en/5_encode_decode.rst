@@ -131,7 +131,7 @@ Action类是 :code:`Node` 类的子类，主要作用是在执行GYM强化环境
 用户根据自己的需要指定在Action中要解码对象的神经元数量、解码对象名、动作方法、解码对象的变量名及与其方法相关的参数等。
 
 PopulationRate_Action
-------------------
+-----------------------------------
 例如当解码含有5个LIF神经元的NeuronGroup对象的脉冲活动以获得下一步活动时，我们可以这样建立 :code:`PopulationRate_Action` 类实例:
 
 .. code-block:: python

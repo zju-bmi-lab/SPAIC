@@ -9,13 +9,13 @@ whether it is shuffle, etc, for network training.
 :code:`Dataloader` is consists of dataset and sampler, and the initialization parameters \
 are as follows:
 
-- dataset(Dataset): the dataset to be loaded
-- batch_size(int, optional): the number of samples in each batch, the default is 1
-- shuffle(bool, optional): whether reorder the data at the beginning of each epoch, the default is False
-- sampler(Sampler, optional): customize the strategy for taking samples from the dataset
-- batch_sampler(Sampler, optional): Similar to sampler, but only returns the index of one batch
-- collate_fn (callable, optional): A function that composes a list of samples into a mini-batch
-- drop_last (bool, optional):  If set to True, for the last batch, if the number of samples is less than batch_size, it will be thrown away. For example, if batch_size is set to 64, and the dataset has only 100 samples, then the last 36 samples will be trained during training. will be thrown away. If False (default), normal execution will continue, but the final batch_size will be smaller.
+- **dataset(Dataset)** -- the dataset to be loaded
+- **batch_size(int, optional)** -- the number of samples in each batch, the default is 1
+- **shuffle(bool, optional)** -- whether reorder the data at the beginning of each epoch, the default is False
+- **sampler(Sampler, optional)** -- customize the strategy for taking samples from the dataset
+- **batch_sampler(Sampler, optional)** -- Similar to sampler, but only returns the index of one batch
+- **collate_fn(callable, optional)** -- A function that composes a list of samples into a mini-batch
+- **drop_last(bool, optional)** -- If set to True, for the last batch, if the number of samples is less than batch_size, it will be thrown away. For example, if batch_size is set to 64, and the dataset has only 100 samples, then the last 36 samples will be trained during training. will be thrown away. If False (default), normal execution will continue, but the final batch_size will be smaller.
 
 Loading MNIST dataset as example：
 

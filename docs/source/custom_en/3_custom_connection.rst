@@ -4,19 +4,18 @@
 
 Custom synapse or connection model
 =======================================
-本章节主要介绍连接模型的自定义，以便当本平台提供的内置方法无法满足用户需求时，用户可以方便的添加符合自己需求的连接方案。
+This chapter will introduce how to customize connections and synapse.
+
+Customize connection
+----------------------------------
+``Connection`` is the basic structure of neuron network, it contains weight information. Different connection way will generate different \
+spatially structure. To meet users' requirements, **SPAIC** has constructed many common connection methods. If users want to add some \
+personalize connection, can follow the document or the format in :code:`Network.Connection` .
 
 
-连接模型自定义
---------------------------
-连接作为脉冲神经网络最为基本的组成结构之一，包含了网络最为重要的权重信息。不同的连接方法会生成不同的空间连接结构，为了满足用户的\
-大多数应用需求，在本平台中内置了10种最常用的连接模型，包含了全连接，卷积连接，一对一连接，稀疏连接等。与此同时，作为类脑计算平\
-台，本平台中的连接支持仿生连接的形式，即支持反馈连接与连接延迟以及突触连接等具有一定生理特征的连接方式。内置的连接方法可能无法\
-满足用户的任意需求，这时候就需要用户自己添加一些更符合其实验目的的连接模型。\
-定义连接模型的这一步可以依照 :code:`Network.Connection` 文件中的格式进行添加。
-
-连接方法初始化
---------------------------
+Initialize connection method
+---------------------------------------
+Custom connection method neet to inherit :code:`Connection` class and
 自定义的连接方法需继承 :code:`Connection` 类，其初始化方法中的参数名需与 :code:`Connection` 类的一致，若需要传入初始化参数\
 以外的参数，可以通过 :code:`kwargs` 传入，以 :code:`FullConnection` 类初始化函数为例：
 
