@@ -15,117 +15,65 @@ personalize connection, can follow the document or the format in :code:`Network.
 
 Initialize connection method
 ---------------------------------------
-Custom connection method neet to inherit :code:`Connection` class and
-自定义的连接方法需继承 :code:`Connection` 类，其初始化方法中的参数名需与 :code:`Connection` 类的一致，若需要传入初始化参数\
-以外的参数，可以通过 :code:`kwargs` 传入，以 :code:`FullConnection` 类初始化函数为例：
+Custom connection method neet to inherit :code:`Connection` class and modifie the corresponding paramters. Use :code:`FullConnection` as example:
 
 .. code-block:: python
 
-    def __init__(self, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse_connect', 'conv','...'), policies=[],
-                 max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='WgtSum', **kwargs):
-
+    def __init__(self, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse_connect', 'conv','...'),
+                 syn_type=['basic_synapse'], max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='Isyn',
+                 syn_kwargs=None, **kwargs):
         super(FullConnection, self).__init__(pre_assembly=pre_assembly, post_assembly=post_assembly, name=name,
-                                             link_type=link_type, policies=policies, max_delay=max_delay,
+                                             link_type=link_type, syn_type=syn_type, max_delay=max_delay,
                                              sparse_with_mask=sparse_with_mask,
-                                             pre_var_name=pre_var_name, post_var_name=post_var_name, **kwargs)
+                                             pre_var_name=pre_var_name, post_var_name=post_var_name, syn_kwargs=syn_kwargs, **kwargs)
         self.weight = kwargs.get('weight', None)
         self.w_std = kwargs.get('w_std', 0.05)
         self.w_mean = kwargs.get('w_mean', 0.005)
         self.w_max = kwargs.get('w_max', None)
         self.w_min = kwargs.get('w_min', None)
-        self.param_init = kwargs.get('param_init', None)
-        self.is_parameter = kwargs.get('is_parameter', True)
+
+        self.is_parameter = kwargs.get('is_parameter', True) # is_parameter以及is_sparse为后端使用的参数，用于确认该连接是否为可训练的以及是否为稀疏化存储的
         self.is_sparse = kwargs.get('is_sparse', False)
 
-在这个初始化方法中， :code:`FullConnection` 类所额外需要的参数，通过从 :code:`kwargs` 中获取的方式来设定。
+In this initial way, the extra parameters should get from :code:`kwargs` .
 
-定义单元连接函数
---------------------
-单元连接函数主要需要实现连接方法的权值生成、用于后端变量添加的变量代码 :code:`var_code` 以及用于后端基础计算操作\
-的操作代码 :code:`op_code` 的定义，我们以 :code:`FullConnection` 连接方法的 :code:`unit_connect` 实现过程作为\
-示例进行展示：
+Customize synapse model
+----------------------------
+To meet users requirements, **SPAIC** has constructed some common synapse model. But if users want to add some \
+personalized model, they need to define synapse model as the format of :code:`Network.Synapse` .
 
-.. code-block:: python
 
-    def unit_connect(self, pre_group, post_group):
-        # Getting the number of neurons in pre and post neuron group
-        pre_num = pre_group.num
-        post_num = post_group.num
-        link_num = pre_num * post_num
-        shape = (post_num, pre_num)
-        if self.weight is None:
-            # Connection weight
-            weight = self.w_std*np.random.randn(*shape) + self.w_mean
-        else:
-            assert (self.weight.shape == shape), f "The size of the given weight {self.weight.shape} does not correspond to the size of synaptic matrix {shape} "
-            weight = self.weight
-
-        # The name for backend variables
-        input_name = self.get_input_name(pre_group, post_group)
-        weight_name = self.get_link_name(pre_group, post_group, 'weight')
-        target_name = self.get_post_name(post_group, self.post_var_name)
-
-        # The backend variable
-        var_code = (weight_name, shape, weight, self.is_parameter, self.is_sparse, self.param_init)
-
-        # The backend basic operation
-        if self.max_delay > 0 :
-            op_code = [target_name, 'mult_sum_weight', input_name, weight_name]
-        else:
-            op_code = [target_name, 'mat_mult_weight', input_name, weight_name]
-
-        connection_information = (pre_group, post_group, link_num, var_code, op_code)
-        self.unit_connections.append(connection_information)
-
-        pass
-
-在代码的最后，需要添加 :code:`Connection.register('full',FullConnection)` 用于将该连接方法添加至连接方法的库中，\
-以便前端的调用。
-
-突触模型自定义
------------------------
-突触模型是进行神经动力学仿真环节中非常重要的一步，不同的模型与不同的参数都会产生不同的现象。\
-为了应对用户不同的应用需求，SPAIC内置了两种最常用的突触模型（化学突触和电突触），但是偶尔还是会有力所不能及，\
-这时候就需要用户自己添加一些更符合其实验的个性化突触模型。定义突触的这一步可以 :code:`Network.Connection` \
-文件中依照格式进行添加。
-
-定义是否需要使用突触模型、使用哪种突触模型
-------------------------------------------
-如果需要使用突触模型需要提前传入两个参数 :code:`self.synapse` 、 :code:`self.synapse_type` \
-这两个参数分别决定了是否要使用突触模型以及突触种类。这两个参数都是通过 :code:`kwargs` 中获取的方式来改变：
+Define parameters that can be obtained externally
+------------------------------------------------------------
+In the initial part of defining the neuron model, we need to define some parameters that the neuron model \
+can change, which can be changed by passing parameters. For example,  in the first-order decay model of \
+chemical synapses, the original formula can be obtained after transformation:
 
 .. code-block:: python
 
-    self.synapse = kwargs.get('synapse', False)
-    self.synapse_type = kwargs.get('synapse_type', 'chemistry_i_synapse')
+    class First_order_chemical_synapse(SynapseModel):
+        """
+        .. math:: Isyn(t) = weight * e^{-t/tau}
+        """
 
-定义可从外部获取的参数
+In this formula, :code:`self.tau` is changeable, so we can change it by :code:`kwargs` .
+
+.. code-block:: python
+
+    self._syn_tau_variables['tau[link]'] = kwargs.get('tau', 5.0)
+
+Define variables
 --------------------------
-在定义神经元模型的最初部分，我们需要先定义该神经元模型可以变更的一些参数，\
-这些参数可由传参来改变。\
-例如在化学突触模型中，我们将其原本的公式经过变换后可得：
+In the variable definition stage, we need to understand several variable forms of synapses:
 
-.. code-block:: python
+- **_syn_tau_constant_variables** -- Exponential decay constant
+- **_syn_variables** -- Normal variable
 
-    # Chemistry current synapse
-    # I = tauP*I + WgtSum
+To :code:`_syn_tau_constant_variables` , we will transmit it as :code:`value = np.exp(-self.dt / var)` ,
 
-在这个公式中，:code:`self.synapse` 是可变参数，所以我们通过 :code:`kwargs` 中获取的方式来改变：
+When defining variables, initial values need to be set at the same time. After each run of the network, \
+the parameters of neurons will be reset to the initial values set at this point.
 
-.. code-block:: python
-
-    self.tau_p = kwargs.get('tau_p', 12.0)
-
-定义变量
---------------------------
-在定义变量阶段，我们要先了解突触的几个变量形式：
-
-- _syn_tau_constant_variables: 指数衰减常数
-- _syn_variables: 普通变量
-
-对于 :code:`_syn_tau_constant_variables` 我们会进行一个变换 :code:`value = np.exp(-self.dt / var)` ,
-
-在定义变量时，同时需要设定初始值，在网络的每一次运行后，神经元的参数都会被重置为此处设定的初始值。
 
 .. code-block:: python
 
@@ -134,12 +82,14 @@ Custom connection method neet to inherit :code:`Connection` class and
     self._syn_tau_constant_variables[tauP] = self.tau_p
 
 
-定义计算式
---------------------
-计算式是突触模型最为重要的部分，一行一行的计算式决定了各个参数在模拟过程中将会经过一些什么样的变化。
+Define calculation operation
+------------------------------
+The calculation operation is the most important part of the synaptic model. The calculation operation \
+determines how the parameters will undergo some changes during the simulation.
 
-在添加计算式时，有一些需要遵守的规则。首先，每一行只能计算一个特定的计算符，所以需要将原公式\
-进行分解，分解为独立的计算符。目前在平台中内置的计算符可以参考 :code:`backend.basic_operation` :
+There are a few rules to follow when adding computations. First, each row can only evaluate one specific \
+operator, so you need to decompose the original formula into independent operators.  The current built-in \
+operator in the platform can be found in :code:`backend.basic_operation` :
 
 - add, minus, div
 - var_mult, mat_mult, mat_mult_pre, sparse_mat_mult, reshape_mat_mult
@@ -151,12 +101,16 @@ Custom connection method neet to inherit :code:`Connection` class and
 - stack
 - conv_2d, conv_max_pool2d
 
-在使用这些计算符时的格式，我们以化学突触模型中计算化学电流的过程作为示例：
+Use the process of computing chemical current in chemical synapse as an example:
 
 .. code-block:: python
 
-    # I = tauP * I + WgtSum 的公式转化为以下计算式并添加至self.._syn_operations中，I作为计算结果放置在第一位，计算符var_linear放置在第二位
-    # [updated]符号目前代表该数值取的是本轮计算中计算出的新值，临时变量无需添加，
-    self.._syn_operations.append([I, 'var_linear', tauP, I, WgtSum])
-
+    # Isyn = O * weight
+    # The first is the result, conn.post_var_name
+    # Compute operator `mat_mult_weight` at the second index
+    # The third is the factor of the calculation, input_name and weight[link]
+    # '[updated]' means the updated value of current calculation, temporary variables don't need
+    self._syn_operations.append(
+        [conn.post_var_name + '[post]', 'mat_mult_weight', self.input_name,
+         'weight[link]'])
 

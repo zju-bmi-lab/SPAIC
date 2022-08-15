@@ -41,46 +41,30 @@
 在这个初始化方法中， :code:`FullConnection` 类所额外需要的参数，通过从 :code:`kwargs` 中获取的方式来设定。
 
 
-突触模型自定义
+突触模型自定义部分
 -----------------------
 突触模型是进行神经动力学仿真环节中非常重要的一步，不同的模型与不同的参数都会产生不同的现象。\
 为了应对用户不同的应用需求， **SPAIC** 内置了两种最常用的突触模型（化学突触和电突触），但是偶尔还是会有力所不能及，\
 这时候就需要用户自己添加一些更符合其实验的个性化突触模型。定义突触的这一步可以参考 :code:`Network.Synapse` \
 文件依照格式进行添加。
 
-定义是否需要使用突触模型、使用哪种突触模型
-------------------------------------------
-如果需要使用突触模型，则需要在连接中传入具体想要选用的 :code:`self.synapse_type` ，这个参数决定了突触种类。\
-而突触的参数则根据 :code:`synapse_kwargs` 来获取：
-
-.. code-block:: python
-
-    if isinstance(syn_type, list):
-        self.synapse_type = syn_type
-    else:
-        self.synapse_type = [syn_type]
-
-    if syn_kwargs is None:
-        self.syn_kwargs = dict()
-    else:
-        self.syn_kwargs = syn_kwargs
-
 定义可从外部获取的参数
 --------------------------
 在定义神经元模型的最初部分，我们需要先定义该神经元模型可以变更的一些参数，\
-这些参数可由传参来改变。例如在化学突触模型中，我们将其原本的公式经过变换后可得：
+这些参数可由传参来改变。例如在化学突触的一阶衰减模型中，我们将其原本的公式经过变换后可得：
 
 .. code-block:: python
 
-    # Chemistry current synapse
-    # Isyn = O * weight
+    class First_order_chemical_synapse(SynapseModel):
+        """
+        .. math:: Isyn(t) = weight * e^{-t/tau}
+        """
 
-在这个公式中，:code:`self.tau_p` 是可变参数，所以我们通过 :code:`kwargs` 中获取的方式来改变：
+在这个公式中，:code:`self.tau` 是可变参数，所以我们通过 :code:`kwargs` 中获取的方式来改变：
 
 .. code-block:: python
 
-    self.tau_p = kwargs.get('tau_p', 12.0)
-
+    self._syn_tau_variables['tau[link]'] = kwargs.get('tau', 5.0)
 定义变量
 --------------------------
 在定义变量阶段，我们要先了解突触的几个变量形式：
