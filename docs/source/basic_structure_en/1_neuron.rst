@@ -8,17 +8,17 @@ neuron model
 Neuron model is one of the most important component of the model. Different neuron model will have different \
 neuron dynamics. In spiking neuron network, people always convert the change of membrane potential of neuron model \
 into different equation and approximate it by difference equation. Finally, obtain the differential neuron model \
-that can be computed by computer. In SPAIC, we contains most of the common neuron models:
+that can be computed by computer. In **SPAIC** , we contains most of the common neuron models:
 
-- LIF - Leaky Integrate-and-Fire model
-- CLIF - Current Leaky Integrate-and-Fire model
-- GLIF - Generalized Leaky Integrate-and-Fire model
-- aEIF - Adaptive Exponential Integrate-and-Fire model
-- IZH - Izhikevich model
-- HH - Hodgkin-Huxley model
+- **LIF** - Leaky Integrate-and-Fire model
+- **CLIF** - Current Leaky Integrate-and-Fire model
+- **GLIF** - Generalized Leaky Integrate-and-Fire model
+- **aEIF** - Adaptive Exponential Integrate-and-Fire model
+- **IZH** - Izhikevich model
+- **HH** - Hodgkin-Huxley model
 
-In SPAIC, :code:`NeuronGroup` is like nodes of the network model. Like layers in PyTorch, in SPAIC, \
-NeuronGroup is the layer. Users need to specify the neuron numbers, neuron model or other related paramters. \
+In **SPAIC** , :code:`NeuronGroup` is like nodes of the network model. Like layers in **PyTorch** , in **SPAIC** , \
+``NeuronGroup`` is the layer. Users need to specify the neuron numbers, neuron model or other related paramters.
 
 .. code-block:: python
 
@@ -27,40 +27,39 @@ NeuronGroup is the layer. Users need to specify the neuron numbers, neuron model
 
 LIF neuron model
 -----------------------
-For example, we build a layer with 100 LIF neurons:
+For example, we build a layer with 100 **LIF** neurons:
 
 .. code-block:: python
 
     self.layer1 = NeuronGroup(neuron_number=100, neuron_model='lif')
 
 
-A layer with 100 standard LIF neurons has been constructed. While, sometimes we need to specify the \
-LIF neuron to get different neuron dynamics, that we will need to specify some parameters:
+A layer with 100 standard **LIF** neurons has been constructed. While, sometimes we need to specify the **LIF** \
+neuron to get different neuron dynamics, that we will need to specify some parameters:
 
-- tau_p, tau_q - time constants of synapse, default as 4.0 and 1.0
-- tau_m - time constant of neuron membrane potential, default as 6.0
-- v_th - the threshold voltage of a neuron, default as 1.0
-- v_reset - the reset voltage of the neuron, which defaults to 0.0
+- **tau_m** - time constant of neuron membrane potential, default as 6.0
+- **v_th** - the threshold voltage of a neuron, default as 1.0
+- **v_reset** - the reset voltage of the neuron, which defaults to 0.0
 
-If users need to change these parameters, they can enter the parameters when construct NeuronGroups.
+If users need to change these parameters, they can enter the parameters when construct ``NeuronGroups`` .
 
 .. code-block:: python
 
     self.layer2 = NeuronGroup(neuron_number=100, neuron_model='lif',
-                    tau_p=1.0, tau_q=1.0, tau_m=10.0, v_th=10, v_reset=0.2)
+                    tau_m=10.0, v_th=10, v_reset=0.2)
 
 
 CLIF neuron model
 -------------------------
-CLIF(Current Leaky Integrated-and-Fire Model) neuron paramters:
+**CLIF(Current Leaky Integrated-and-Fire Model)** neuron paramters:
 
-- tau_p, tau_q - time constants of synapse, default as 12.0 and 8.0
-- tau_m - time constant of neuron membrane potential, default as 20.0
-- v_th - the threshold voltage of a neuron, default as 1.0
+- **tau_p, tau_q** - time constants of synapse, default as 12.0 and 8.0
+- **tau_m** - time constant of neuron membrane potential, default as 20.0
+- **v_th** - the threshold voltage of a neuron, default as 1.0
 
 GLIF neuron model
 -------------------------
-GLIF(Generalized Leaky Integrate-and-Fire Model) [#f1]_ neuron paramters:
+**GLIF(Generalized Leaky Integrate-and-Fire Model)** [#f1]_ neuron paramters:
 
 - R, C, E_L
 - Theta_inf
@@ -75,7 +74,7 @@ GLIF(Generalized Leaky Integrate-and-Fire Model) [#f1]_ neuron paramters:
 
 aEIF neuron model
 -------------------------
-aEIF(Adaptive Exponential Integrated-and-Fire Model) [#f2]_ neuron paramters:
+**aEIF(Adaptive Exponential Integrated-and-Fire Model)** [#f2]_ neuron paramters:
 
 - tau_p, tau_q, tau_w, tau_m
 - a, b
@@ -84,14 +83,16 @@ aEIF(Adaptive Exponential Integrated-and-Fire Model) [#f2]_ neuron paramters:
 
 IZH neuron model
 --------------------------
-IZH(Izhikevich Model) neuron paramters:
+**IZH(Izhikevich Model)** neuron paramters:
+
 - tau_p, tau_q
 - a, b
 - Vrest, Ureset
 
 HH neuron model
 --------------------------
-HH(Hodgkin-Huxley Model) neuron paramters
+**HH(Hodgkin-Huxley Model)** neuron paramters:
+
 - dt
 - g_NA, g_K, g_L
 - E_NA, E_K, E_L
@@ -109,7 +110,7 @@ HH(Hodgkin-Huxley Model) neuron paramters
 customize
 ----------------
 In the following chapter called  :ref:`my-custom-neuron` , we will talke about how to add custom neuron model \
-into SPAIC with more details.
+into **SPAIC** with more details.
 
 
 

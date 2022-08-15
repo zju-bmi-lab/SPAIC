@@ -5,8 +5,8 @@ Custom Neuron Model
 =======================
 Neuron model is the most important part in neural dynamics simulation. \
 Different models and parameters will produce different phenomena. **SPAIC** includes \
-many common neuron models in order to meet the needs of different applications. However, \
- **SPAIC** is sometimes out of reach and users need to add their own personalized neurons \
+many common neuron models in order to meet the needs of different applications. However, **SPAIC** \
+is sometimes out of reach and users need to add their own personalized neurons \
 that are more appropriate for their experiments. The neuron definition step can follow the \
 the format in :code:`spaic.Neuron` .
 
@@ -29,28 +29,26 @@ after each model run. Some parameters can be change based on the parameters rece
 
 .. code-block:: python
 
-    # LIF model:
-    # I = tauP*I + WgtSum^n[t-1] + b^n                         # sum(w * O^(n-1)[t])
-    # F = tauM * exp(-O^n[t-1] / tauM)
-    # V(t) = V^n[t-1] * F + I
-    # O^(n)[t] = spike_func(V^n(t))
+    """
+    LIF model:
+    # V(t) = tuaM * V^n[t-1] + Isyn[t]   # tauM: constant membrane time (tauM=RmCm)
+    O^n[t] = spike_func(V^n[t-1])
+    """
 
 In the formula of :code:`lif` model, the original formula should be transmitted to the differential equation by users themselves. \
-Then, :code:`tauP` , :code:`tauM` and the threshold :code:`v_th` are changeable, so we get parameters from :code:`kwargs`:
+Then, :code:`tauM` and the threshold :code:`v_th` are changeable, so we get parameters from :code:`kwargs`:
 
 .. code-block:: python
 
     # The complete add code
     self._variables['V'] = 0.0
     self._variables['O'] = 0.0
-    self._variables['WgtSum'] = 0.0
-    self._variables['b'] = 0.0
     self._variables['Isyn'] = 0.0
 
-    self._constant_variables['Vth'] = kwargs.get('v_th', 1.0)
+    self._parameter_variables['Vth'] = kwargs.get('v_th', 1)
+    self._constant_variables['Vreset'] = kwargs.get('v_reset', 0.0)
 
-    self._tau_variables['tauM'] = kwargs.get('tau_m', 10.0)
-    self._tau_variables['tauP'] = kwargs.get('tau_p', 1.0)
+    self._tau_variables['tauM'] = kwargs.get('tau_m', 20.0)
 
 
 
@@ -72,7 +70,6 @@ need to decomposition formula to independent operations. The whole build-in calc
     self._operations.append(('O', 'threshold', 'Vtemp', 'Vth'))
 
     # Used to reset voltage after spike is sent
-    self._operations.append(('Resetting', 'var_mult', 'Vtemp', 'O[updated]'))
-    self._operations.append(('V', 'minus', 'Vtemp', 'Resetting'))
+    self._operations.append(('V', 'reset', 'Vtemp',  'O'))
 
 Also, we need to add :code:`NeuronModel.register("lif", LIFModel)` to combine the name with the model for front-end use.

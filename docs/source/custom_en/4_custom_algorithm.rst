@@ -36,7 +36,7 @@ In **STBP** [#f2]_ learning algorithm, the graident function is:
 
 Synaptic Plasticity Algorithms
 ---------------------------------
-We have constructed two kinds of STDP learning algorithm. The first one is based on the global synaptic plasticity, we call it ``full_online_STDP`` [#f3]_ ,\
+We have constructed two kinds of **STDP** learning algorithm. The first one is based on the global synaptic plasticity, we call it ``full_online_STDP`` [#f3]_ ,\
 another one is based on the nearest synaptic plasticity, we call it ``nearest_online_STDP`` [#f4]_ .
 
 Full Synaptic Plasticity STDP learning algorithm
