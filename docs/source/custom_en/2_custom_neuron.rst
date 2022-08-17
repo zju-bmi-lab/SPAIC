@@ -1,4 +1,4 @@
-.. _my-custom-neuron:
+.. _my-custom-neuron-en:
 
 
 Custom Neuron Model

@@ -6,7 +6,7 @@
 =======================
 神经元模型是进行神经动力学仿真环节中最为重要的一步，不同的模型与不同的参数都会产生不同的现象。\
 为了应对用户不同的应用需求， **SPAIC** 内置了许多最为常用的神经元模型，但是偶尔还是会有力所不能及，\
-这时候就需要用户自己添加一些更符合其实验的个性化神经元。定义神经元的这一步可以依照 :code:`Neuron.Neuron` \
+这时候就需要用户自己添加一些更符合其实验的个性化神经元。定义神经元的这一步可以依照 :class:`spaic.Neuron.Neuron` \
 文件中的格式进行添加。
 
 定义变量以及外部参数
@@ -55,11 +55,11 @@
 计算式是神经元模型最为重要的部分，一行一行的计算式决定了神经元的各个参数在模拟过程中将会经过一些什么样的变化。
 
 在添加计算式时，有一些需要遵守的规则。首先，每一行只能计算一个特定的计算符，所以需要将原公式\
-进行分解，分解为独立的计算符。目前在平台中内置的计算符可以参考 :code:`backend.basic_operation`:
+进行分解，分解为独立的计算符。目前在平台中内置的计算符可以参考 :class:`spaic.backend.backend` 中对各个计算符具体的介绍:
 
-- add, minus, div
-- var_mult, mat_mult, mat_mult_pre, sparse_mat_mult, reshape_mat_mult
-- var_linear, mat_linear
+- add, minus, div -- 简单的加减除的操作
+- var_mult, mat_mult, mat_mult_pre, sparse_mat_mult, reshape_mat_mult  -- 变量乘法，矩阵乘法，对第一个因子进行维度转换的矩阵乘法，稀疏矩阵乘法，对第二个因子进行维度转换的矩阵乘法
+- var_linear, mat_linear -- result=ax+b 变量的一阶线性乘法加和
 - reduce_sum, mult_sum
 - threshold
 - cat

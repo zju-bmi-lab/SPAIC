@@ -42,10 +42,11 @@ another one is based on the nearest synaptic plasticity, we call it ``nearest_on
 Full Synaptic Plasticity STDP learning algorithm
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 The weight update formula of this algorithm [#f2]_ :
-:math:`dw = Apost * (output_spike * input_trace) – Apre * (output_trace * input_spike)`
+:math:`dw = Apost * (output\_spike * input\_trace) – Apre * (output\_trace * input\_spike)`
 :math:`weight = weight + dw`
+
 Weight normalization formula:
-:math:`weight = self.w_norm * weight/sum(torch.abs(weight))`
+:math:`weight = self.w\_norm * weight/sum(torch.abs(weight))`
 
 At first, get the presynaptic and postsynaptic NeuronGroups from :code:`trainable_connection` :
 

@@ -23,14 +23,14 @@ of the backend. If :code:`state` is None, this function will decide the saving p
 
     Net.save_state('Test1', True)
     ...
-    Net.state_from_dict('Test1', device)
+    Net.state_from_dict(filename='Test1', device=device)
 
 
 network_save and network_load
 ---------------------------------------------------------------------------------------------------------------------------------------
 The network save module :code:`spaic.Network_saver.network_save` and :code:`spaic.Network_loader.network_load` in `spaic.Library` \
 will save the whole network structure of the model and the weight information separately. This method requires a filename \
-``'dir_name'`` when used, and then the platform will create a new file ``'NetData/dir_name/dir_name.json'`` in the running directory \
+``filename`` when used, and then the platform will create a new file ``NetData/filename/filename.json`` in the running directory \
 of the current program to save the network structure. At the same time, when using :code:`network_save` , users also can choose the \
 save format between ``json`` or ``yaml`` .
 
@@ -45,7 +45,7 @@ save format between ``json`` or ``yaml`` .
 In :code:`network_save` :
 
 - **Net** -- the specific network object in **SPAIC**
-- **filename** -- filename, network_save will save the **Net** with this name
+- **filename** -- filename, ``network_save`` will save the ``Net`` with this name
 - **trans_format** -- save format, can choose ``json`` or ``yaml`` , default as ``json``
 - **combine** -- this parameters decides whether save the weight and network structure in one file, default as ``False``
 - **save** -- this parameters decides whether save the structure locally, if choose ``True`` , this function will save locally and return the file name. If choose ``False`` , it will only return the structure as a dict.

@@ -21,7 +21,7 @@ Network中预先定义的函数
 
     Net.save_state('Test1', True)
     ...
-    Net.state_from_dict('Test1', device)
+    Net.state_from_dict(filename='Test1', device=device)
 
 
 
@@ -31,7 +31,7 @@ network_save 与 network_load
 ---------------------------------------------------------------------------------------------------------------------------------------
 ``Library`` 中的网络存储模块 :code:`spaic.Network_saver.network_save` 函数与 :code:`spaic.Network_loader.network_load` 函数\
 将会将完整的网络结构以及权重信息分别存储下来，该方式在使用时需要一个文件名 ``filename`` ，然后平台会在用户提供的目录或是默认的当前目录下新\
-建 ``'NetData/dir_name/dir_name.json'`` 用于保存网络结构，权重的存储路径与 :code:`net.save_state` 相同，都会在目标目录下新建 ``NetData`` 文件夹，然后存于\
+建 ``'NetData/filename/filename.json'`` 用于保存网络结构，权重的存储路径与 :code:`net.save_state` 相同，都会在目标目录下新建 ``NetData`` 文件夹，然后存于\
  ``NetData/`` 。其次，用户在使用 :code:`network_save` 时，还可以选择存储的文件格式，是采用 ``json`` 文件的格式或是 ``yaml`` 。
 
 .. code-block:: python
