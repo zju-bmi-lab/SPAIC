@@ -779,143 +779,119 @@ class LIFMModel(NeuronModel):
 
 NeuronModel.register("lifm", LIFMModel)
 
+
 class IZHModel(NeuronModel):
     """
     IZH model:
-    V = V + dt / tauM * (C1 * V * V + C2 * V + C3 - U + PSP)  # tauM=1 此处加tauM是为了添加op时和LIF模型保存一致
-    V = V + dt / tauM * (V* (C1 * V + C2) + C3 - U + PSP)     # 由上式拆分而来
-    U = U + a. * (b. * V - U)
-    PSP = M^n[t] - S^n[t]
-    M^n[t] = tauP * M^n[t-1] + I^n[t-1]        # tauP: decaying time constants of membrane integration
-    S^n[t] = tauQ * S^n[t-1] + I^n[t-1]        # tauQ: decaying time constants of synaptic currents
-    I^n[t] = V0 * Isyn^n[t-1]                # Isyn = sum(w * O^(n-1)[t])
-    O^n[t] = spike_func(V^n[t-1])
+
+    .. math::
+        V = V + dt / tauM * (C1 * V * V + C2 * V + C3 - U + I)  # tauM=1 此处加tauM是为了添加op时和LIF模型保存一致 \\
+        V = V + dt / tauM * (V* (C1 * V + C2) + C3 - U + I)     # 由上式拆分而来 \\
+        U = U + a. * (b. * V - U) \\
+
+        O^n[t] = spike_func(V^n[t-1])
+
+        if V > Vth, \\
+        then V <- C, U <- U + d
+
+    References:
+        Izhikevich, E. M. (2003). Simple model of spiking neurons. IEEE Transactions on neural networks, 14(6), 1569-1572.
     """
 
     def __init__(self, **kwargs):
         super(IZHModel, self).__init__()
-        # initial value for state variables
-        # self.neuron_parameters['tau_p'] = kwargs.get('tau_p', 4.0)
-        # self.neuron_parameters['tau_q'] = kwargs.get('tau_q', 1.0)
-        # self.neuron_parameters['a'] = kwargs.get('a', 0.02)
-        # self.neuron_parameters['b'] = kwargs.get('b', 0.2)
-        # self.neuron_parameters['Vrest'] = kwargs.get('Vrest', -65.0)
-        # self.neuron_parameters['Ureset'] = kwargs.get('Ureset', 8.0)
 
         self._variables['I'] = 0.0
-        self._variables['M'] = 0.0
-        self._variables['S'] = 0.0
         self._variables['O'] = 0.0
-        self._variables['V'] = -65.0  # self.neuron_parameters['c']
-        self._variables['U'] = 1.0  # self.neuron_parameters['b']*self._variables['V']
+        self._variables['V'] = -65.0
+        self._variables['U'] = 1.0
         self._variables['Isyn'] = 0.0  # 1.8
-
-        self._tau_variables['tauP'] = np.asarray(kwargs.get('tau_p', 4.0))
-        self._tau_variables['tauQ'] = np.asarray(kwargs.get('tau_q', 1.0))
-        beta = self._tau_variables['tauP'] / self._tau_variables['tauQ']
-        V0 = (1 / (beta - 1)) * (beta ** (beta / (beta - 1)))
-        self._parameter_variables['V0'] = V0
 
         self._constant_variables['a'] = kwargs.get('a', 0.02)
         self._constant_variables['b'] = kwargs.get('b', 0.2)
         self._parameter_variables['Vth'] = np.asarray(kwargs.get('v_th', 30))# 30.0
-        self._parameter_variables['Vreset'] = np.asarray(kwargs.get('Vrest', -65.0)) - self._parameter_variables['Vth']   # 为了发放后将电压重置为-65
-        self._parameter_variables['Ureset'] = kwargs.get('Ureset', 8.0)  # 8.0
+        self._parameter_variables['Vreset'] = np.asarray(kwargs.get('Vrest', -65.0))
+        self._parameter_variables['d'] = kwargs.get('d', 8.0)  # 8.0
         self._constant_variables['C1'] = 0.04
         self._constant_variables['C2'] = 5
         self._constant_variables['C3'] = 140
 
         self._membrane_variables['tauM'] = 1.0
 
-
-
-        # V = V + dt / tauM * (C1 * V * V + C2 * V + C3 - U + PSP)
-        # V = V + dt / tauM * (V* (C1 * V + C2) + C3 - U + PSP)
+        # V = V + dt / tauM * (C1 * V * V + C2 * V + C3 - U + I)
+        # V = V + dt / tauM * (V* (C1 * V + C2) + C3 - U + I)
         # U = U + dt /tauM * a. * (b. * V - U)
 
-        self._operations.append(('I', 'var_mult', 'V0', 'Isyn'))
-        self._operations.append(('M', 'var_linear', 'tauP', 'M', 'I[updated]'))
-        self._operations.append(('S', 'var_linear', 'tauQ', 'S', 'I[updated]'))
-        self._operations.append(('PSP', 'minus', 'M[updated]', 'S[updated]'))
-
-        self._operations.append(('O', 'threshold', 'V', 'Vth'))
-
-        self._operations.append(('VResetting', 'var_mult', 'Vreset', 'O[updated]'))
-        self._operations.append(('Vtemp', 'add', 'V', 'VResetting'))
-        self._operations.append(('UResetting', 'var_mult', 'Ureset', 'O[updated]'))
-        self._operations.append(('Utemp', 'add', 'U', 'UResetting'))
-
-        self._operations.append(('temp_V1', 'var_linear', 'C1', 'Vtemp', 'C2'))
-        self._operations.append(('temp_V2', 'var_linear', 'temp_V1', 'Vtemp', 'C3'))
-        self._operations.append(('temp_V3', 'minus', 'temp_V2', 'Utemp'))
-        self._operations.append(('temp_V4', 'add', 'temp_V3', 'PSP'))
-        self._operations.append(('V', 'var_linear', 'tauM', 'temp_V4', 'Vtemp'))
+        self._operations.append(('temp_V1', 'var_linear', 'C1', 'V', 'C2'))
+        self._operations.append(('temp_V2', 'var_linear', 'temp_V1', 'V', 'C3'))
+        self._operations.append(('temp_V3', 'minus', 'temp_V2', 'U'))
+        self._operations.append(('temp_V4', 'add', 'temp_V3', 'Isyn[updated]'))
+        self._operations.append(('temp_V', 'var_linear', 'tauM', 'temp_V4', 'V'))
 
         self._operations.append(('temp_U1', 'var_mult', 'b', 'V'))
-        self._operations.append(('temp_U2', 'minus', 'temp_U1', 'Utemp'))
-        self._operations.append(('U', 'var_linear', 'a', 'temp_U2', 'Utemp'))
+        self._operations.append(('temp_U2', 'minus', 'temp_U1', 'U'))
+        self._operations.append(('temp_U', 'var_linear', 'a', 'temp_U2', 'U'))
 
-        # self._operations.append(('V', 'izh_v', 'V', 'U', 'PSP'))
-        # self._operations.append(('U', 'izh_u', 'a', 'b', 'V[updated]', 'U'))
+        self._operations.append(('O', 'threshold', 'temp_V', 'Vth'))
+
+        # if V > Vth,
+        # then V <- C, U <- U + d
+        self._operations.append(('VResetting', 'minus', 'Vreset', 'temp_V'))
+        self._operations.append(('V', 'var_linear', 'O[updated]', 'VResetting', 'temp_V'))
+        self._operations.append(('U', 'var_linear', 'd', 'O[updated]', 'temp_U'))
+
 
 NeuronModel.register("izh", IZHModel)
+
 
 class aEIFModel(NeuronModel):
     """
     aEIF model:
 
-    V = V + dt / tauM * (EL - V + EXP - U + I^n[t])
-    U = U + dt / tauW * (a * (V - EL) - U)
-    EXP = delta_t * delta_t2 * exp(du_th/delta_t2)
-    du = V - EL
-    du_th = V - Vth
-    I^n[t] = V0 * Isyn^n[t-1]
+    .. math::
+        V &= V + dt / tau\_M * (EL - V + EXP - U + I^n[t])
 
-    O^n[t] = spike_func(V^n[t-1])
+        U &= U + dt / tau\_W * (a * (V - EL) - U)
+
+        EXP &= delta\_t * delta\_t2 * exp(dv\_th/delta\_t2)
+
+        dv &= V - EL
+
+        dv\_th &= V - Vth
+
+        O^n[t] &= spike\_func(V^n[t-1])
+
+        V > 20
+
+        V &= EL, U = U + b
+
+    References:
+        Brette, R., & Gerstner, W. (2005). Adaptive exponential integrate-and-fire model as an
+        effective description of neuronal activity. Journal of neurophysiology, 94(5), 3637-3642.
     """
 
     def __init__(self, **kwargs):
         super(aEIFModel, self).__init__()
-        # initial value for state variables
-        # self.neuron_parameters['tau_p']   = kwargs.get('tau_p', 12.0)
-        # self.neuron_parameters['tau_q']   = kwargs.get('tau_q', 4.0)
-        # self.neuron_parameters['tau_w']   = kwargs.get('tau_w', 144)
-        # self.neuron_parameters['tau_m']   = kwargs.get('tau_m', 1.0)
-        # self.neuron_parameters['a']       = kwargs.get('a', 0.05)
-        # self.neuron_parameters['b']       = kwargs.get('b', 0.0805)
-        # self.neuron_parameters['delta_t'] = kwargs.get('delta_t', 30.0)
-        # self.neuron_parameters['delta_t2'] = kwargs.get('delta_t2', 1.0)
-        # self.neuron_parameters['EL']      = kwargs.get('EL', -70.6)
 
         self._variables['I'] = 0.0
         self._variables['I_che'] = 0.0
         self._variables['I_ele'] = 0.0
-        self._variables['M'] = 0.0
-        self._variables['S'] = 0.0
         self._variables['O'] = 0.0
         self._variables['V'] = -70.6
         # self._variables['Vt'] = -70.6
-        self._variables['U'] = 0.0 # self.neuron_parameters['b'] * (-70.6)
+        self._variables['U'] = 0.0  # self.neuron_parameters['b'] * (-70.6)
         self._variables['Isyn'] = 0.0
-
         self._variables['EXP'] = 0.0
-
-        beta = np.asarray(kwargs.get('tau_p', 12.0)) / np.asarray(kwargs.get('tau_q', 4.0))
-        V0 = (1 / (beta - 1)) * (beta ** (beta / (beta - 1)))
-        self._parameter_variables['V0'] = V0
 
         self._constant_variables['EL'] = kwargs.get('EL', -70.6)
         self._constant_variables['a'] = kwargs.get('a', 0.05)
         self._constant_variables['b'] = kwargs.get('b', 0.0805)
         self._parameter_variables['Vth'] = kwargs.get('v_th', -50.4)
-        # self._constant_variables['Ureset'] = -8.0
-        # self._constant_variables['C1'] = 0.6
 
         self._constant_variables['delta_t'] = kwargs.get('delta_t', 30.0) * kwargs.get('delta_t2', 1.0)
         self._constant_variables['delta_t2'] = kwargs.get('delta_t2', 1.0)  # *10
 
         self._membrane_variables['tauM'] = kwargs.get('tau_m', 1.0)
-
         self._membrane_variables['tauW'] = kwargs.get('tau_w', 144)
 
         # V = V + dt / tauM * (EL - V + EXP - U + I ^ n[t])
@@ -924,10 +900,7 @@ class aEIFModel(NeuronModel):
         # du = V - EL
         # du_th = V - Vth
         # I ^ n[t] = V0 * WgtSum ^ n[t - 1]
-        #
         # O ^ n[t] = spike_func(V ^ n[t - 1])
-        self._operations.append(('I', 'var_mult', 'V0', 'Isyn[updated]'))
-        # self._operations.append(('I', 'add', 'I_che[updated]', 'I_ele[updated]'))
 
         self._operations.append(('dv', 'minus', 'V', 'EL'))
         self._operations.append(('dv_th', 'minus', 'V', 'Vth'))
@@ -938,7 +911,7 @@ class aEIFModel(NeuronModel):
 
         self._operations.append(('temp_V1', 'minus', 'EXP[updated]', 'dv'))
         self._operations.append(('temp_V2', 'minus', 'temp_V1', 'U'))
-        self._operations.append(('temp_V3', 'add', 'temp_V2', 'I'))
+        self._operations.append(('temp_V3', 'add', 'temp_V2', 'Isyn[updated]'))
         self._operations.append(('Vt', 'var_linear', 'tauM', 'temp_V3', 'V'))
 
         self._operations.append(('temp_U1', 'var_mult', 'a', 'dv'))

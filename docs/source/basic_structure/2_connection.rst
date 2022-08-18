@@ -39,10 +39,10 @@
 - **weight** - 权重值
 
 在没有给定权重值，也就是用户没有传入 ``weight`` 的情况下，我们会进行权重的随机生成，这个时候就需要\
-借用到 ``w_mean`` 与 ``w_std`` ，根据方差与均值生成随机数之后，若用户设定了 ``w_min`` 与 ``w_max`` 则截取在 ``w_min`` \
+借用到 ``w_mean`` 与 ``w_std`` ，根据标准差与均值生成随机数之后，若用户设定了 ``w_min`` 与 ``w_max`` 则截取在 ``w_min`` \
 与 ``w_max`` 之间的值作为权重，否则则直接将生成的随机数作为权重。
 
-例如在连接 ``conn1_example`` 中，该连接在建立时将会根据均值为1，方差为5生成随机权重，并且将小于0.0的权重归为0.0，\
+例如在连接 ``conn1_example`` 中，该连接在建立时将会根据均值为1，标准差为5生成随机权重，并且将小于0.0的权重归为0.0，\
 将大于2.0的权重归为2.0。
 
 .. code-block:: python
@@ -64,7 +64,7 @@
 
     self.weight = kwargs.get('weight', None) # 权重，如果不给定权重，连接将采取生成随机权重
     self.mask = kwargs.get('mask', None) #
-    self.w_std = kwargs.get('w_std', 0.05) # 权重的方差，用于生成随机权重
+    self.w_std = kwargs.get('w_std', 0.05) # 权重的标准差，用于生成随机权重
     self.w_mean = kwargs.get('w_mean', 0.005) # 权重的均值，用于生成随机权重
     self.w_max = kwargs.get('w_max', None) # 权重的最大值，
     self.w_min = kwargs.get('w_min', None) # 权重的最小值，
@@ -82,7 +82,7 @@
 
 .. code-block:: python
 
-    self.w_std = kwargs.get('w_std', 0.05) # 权重的方差，用于生成随机权重
+    self.w_std = kwargs.get('w_std', 0.05) # 权重的标准差，用于生成随机权重
 
 
 卷积连接
@@ -96,7 +96,7 @@
         self.out_channels = kwargs.get('out_channels', 4)  # 输出通道
         self.in_channels = kwargs.get('in_channels', 1)    # 输入通道
         self.kernel_size = kwargs.get('kernel_size', [3, 3])# 卷积核
-        self.w_std = kwargs.get('w_std', 0.05) # 权重的方差，用于生成随机权重
+        self.w_std = kwargs.get('w_std', 0.05) # 权重的标准差，用于生成随机权重
         self.w_mean = kwargs.get('w_mean', 0.05) # 权重的均值，用于生成随机权重
         weight = kwargs.get('weight', None) # 权重，如果不给定权重，连接将采取生成随机权重
 

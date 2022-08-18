@@ -10,12 +10,12 @@ which causes some concentration of certain ions to change. In computational neur
 form to simulate the physiological synapse that excitatory and inhibitory transmitters are simulated with plus or minus weight.
 
 In **SPAIC** , by default, the synapse use chemical synapse and neurons use 'Isyn' as input. \
-So, we call the basic chemical synapse as :code:`basic_synapse` .
+So, we call the basic chemical synapse as :code:`basic` .
 
 .. code-block:: python
 
     self.connection = spaic.Connection(self.layer1, self.layer2, link_type='full',
-                                        synapse_type=['basic_synapse'],
+                                        syn_type=['basic'],
                                         w_std=0.0, w_mean=0.1)
 
 Gap junction
@@ -27,13 +27,13 @@ voltage of the two neurons closer together).
 
 The calculate form of gap junction: ``Igap = w_gap(Vpre - Vpost)``
 
-If users want to use gap junction, need to set the synapse_type as :code:`electrical_synapse` .
+If users want to use gap junction, need to set the synapse_type as :code:`electrical` .
 
 .. code-block:: python
 
     self.connection = spaic.Connection(self.layer1, self.layer2,
                                               link_type='full', w_std=0.0, w_mean=0.1,
-                                              synapse_type=['electrical_synapse'])
+                                              syn_type=['electrical'])
 
 
 Other synapse

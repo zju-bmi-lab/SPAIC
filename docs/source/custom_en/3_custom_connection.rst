@@ -10,12 +10,12 @@ Customize connection
 ----------------------------------
 ``Connection`` is the basic structure of neuron network, it contains weight information. Different connection way will generate different \
 spatially structure. To meet users' requirements, **SPAIC** has constructed many common connection methods. If users want to add some \
-personalize connection, can follow the document or the format in :code:`Network.Connection` .
+personalize connection, can follow the document or the format in :class:`spaic.Network.Connection`.
 
 
 Initialize connection method
----------------------------------------
-Custom connection method neet to inherit :code:`Connection` class and modifie the corresponding paramters. Use :code:`FullConnection` as example:
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Custom connection method need to inherit :code:`Connection` class and modify the corresponding parameters. Use :code:`FullConnection` as example:
 
 .. code-block:: python
 
@@ -44,7 +44,7 @@ personalized model, they need to define synapse model as the format of :code:`Ne
 
 
 Define parameters that can be obtained externally
-------------------------------------------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 In the initial part of defining the neuron model, we need to define some parameters that the neuron model \
 can change, which can be changed by passing parameters. For example,  in the first-order decay model of \
 chemical synapses, the original formula can be obtained after transformation:
@@ -63,7 +63,7 @@ In this formula, :code:`self.tau` is changeable, so we can change it by :code:`k
     self._syn_tau_variables['tau[link]'] = kwargs.get('tau', 5.0)
 
 Define variables
---------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 In the variable definition stage, we need to understand several variable forms of synapses:
 
 - **_syn_tau_constant_variables** -- Exponential decay constant
@@ -83,7 +83,7 @@ the parameters of neurons will be reset to the initial values set at this point.
 
 
 Define calculation operation
-------------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 The calculation operation is the most important part of the synaptic model. The calculation operation \
 determines how the parameters will undergo some changes during the simulation.
 

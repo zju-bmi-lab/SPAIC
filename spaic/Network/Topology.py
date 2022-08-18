@@ -399,46 +399,45 @@ class SynapseModel(ABC):
             return SynapseModel.synapse_models[model_name]
 
 
-
+        # 'full', FullConnection
+        # 'one_to_one_sparse', one_to_one_sparse
+        # 'one_to_one', one_to_one_mask
+        # 'conv', conv_connect
+        # 'sparse_connect_sparse', sparse_connect_sparse
+        # 'sparse_connect', sparse_connect_mask
+        # 'random_connect_sparse', random_connect_sparse
+        # 'random_connect', random_connect_mask
 class Connection(Projection):
+    r'''Base class for all kinds of connections, including full connection, sparse connection, conv connection.
+    Ten connection methods are provided, as shown below.
+
+        Args:
+            pre_assembly(Assembly): the assembly which needs to be connected.
+            post_assembly(Assembly): the assembly which needs to connect the pre_assembly.
+            link_type(str): the type for connection: full, sparse, conv...
+
+        Attributes:
+            pre_group(groups): the neuron group which need to be connected in the pre_assembly.
+            post_group(groups): the neuron group which need to connect with pre_group neuron.
+            _var_names(list): a list contain variable names.
+
+        Methods:
+            __new__: before build a new connection, do some checks.
+            get_var_names: get variable names.
+            register: register a connection class.
+            build: add the connection variable, variable name and opperation to the backend.
+            get_str:
+            condition_check: check whether the pre_group.type is equal to the post_group.type, only if they are equal, return flag=Ture.
+            connect: connect the preg with postg.
+            get_weight_name: give a name for each connection weight.
+            get_post_name: give a name for each post group.
+            get_input_name: give a name for each input group.
+
+        Examples:
+            when building the network:
+            self.connection1 = spaic.Connection(self.input, self.layer1, link_type='full')
+
     '''
-    Base class for all kinds of connections, including full connection, sparse connection, conv connection,....
-    Ten connection methods are provided, as shown below (key: class):
-        'full', FullConnection
-        'one_to_one_sparse', one_to_one_sparse
-        'one_to_one', one_to_one_mask
-        'conv', conv_connect
-        'sparse_connect_sparse', sparse_connect_sparse
-        'sparse_connect', sparse_connect_mask
-        'random_connect_sparse', random_connect_sparse
-        'random_connect', random_connect_mask
-    Args:
-        pre_assembly(Assembly): the assembly which needs to be connected.
-        post_assembly(Assembly): the assembly which needs to connect the pre_assembly.
-        link_type(str): the type for connection: full, sparse, conv...
-
-    Attributes:
-        pre_group(groups): the neuron group which need to be connected in the pre_assembly.
-        post_group(groups): the neuron group which need to connect with pre_group neuron.
-        _var_names(list): a list contain variable names.
-
-    Methods:
-        __new__: before build a new connection, do some checks.
-        get_var_names: get variable names.
-        register: register a connection class.
-        build: add the connection variable, variable name and opperation to the backend.
-        get_str:
-        condition_check: check whether the pre_group.type is equal to the post_group.type, only if they are equal, return flag=Ture.
-        connect: connect the preg with postg.
-        get_weight_name: give a name for each connection weight.
-        get_post_name: give a name for each post group.
-        get_input_name: give a name for each input group.
-
-    Examples:
-        when building the network:
-        self.connection1 = spaic.Connection(self.input, self.layer1, link_type='full')
-
-        '''
 
     _connection_subclasses = dict()
     _class_label = '<con>'

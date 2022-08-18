@@ -19,25 +19,25 @@ connect parameters
 In the initial parameters of connection, we can see that when we construct connections, :code:`pre_assembly` , \
 :code:`post_assembly` and :code:`link_type` are requisite.
 
-- pre_assembly - presynaptic neuron
-- post_assembly - postsynaptic neuron
-- name - name of the connection, make connections easier to distinguish
-- link_type - link type, 'full connection', 'sparse connection' or 'convolution connection', etc.
-- syn_type - synapse type, it will be further explanation in the synaptic section
-- max_delay - the maximum sypatic delay
-- sparse_with_mask - whether use mask in sparse connection
-- pre_var_name - the signal variable name of presynaptic neuron, default as 'O', means output spike
-- post_var_name - the signal variable name of postsynaptic neuron, default as ``Isyn`` , means synaptic current
-- syn_kwargs - the custom parameters of synapse, it will be further explanation in the synaptic section
-- \**kwargs - some typical parameters are included in ``kwargs`` .
+- **pre_assembly** - presynaptic neuron
+- **post_assembly** - postsynaptic neuron
+- **name** - name of the connection, make connections easier to distinguish
+- **link_type** - link type, 'full connection', 'sparse connection' or 'convolution connection', etc.
+- **syn_type** - synapse type, it will be further explanation in the synaptic section
+- **max_delay** - the maximum sypatic delay
+- **sparse_with_mask** - whether use mask in sparse connection
+- **pre_var_name** - the signal variable name of presynaptic neuron, default as 'O', means output spike
+- **post_var_name** - the signal variable name of postsynaptic neuron, default as ``Isyn`` , means synaptic current
+- **syn_kwargs** - the custom parameters of synapse, it will be further explanation in the synaptic section
+- **\**kwargs** - some typical parameters are included in ``kwargs`` .
 
 Despite these initial parameters, there are still some important parameters about weight:
 
-- w_mean - mean value of weight
-- w_std - standard deviation of weight
-- w_max - maximum value of weight
-- w_min - minimum value of weight
-- weight - weight
+- **w_mean** - mean value of weight
+- **w_std** - standard deviation of weight
+- **w_max** - maximum value of weight
+- **w_min** - minimum value of weight
+- **weight** - weight
 
 **SPAIC** will generate weight randomly if users don't provide weight. :code:`w_mean` and :code:`w_std` will be used \
 to generate the weight. **SPAIC** will clamp the weight if :code:`w_min` or :code:`w_max` is offered.
@@ -118,7 +118,7 @@ Convolution connection example 1:
                                               init='uniform', init_param={'a':-math.sqrt(1/(8*9)), 'b':math.sqrt(1/(8*9))})
 
         self.connection3 = spaic.Connection(self.layer2, self.layer3, link_type='full',
-                                              syn_type=['flatten', 'basic_synapse'],
+                                              syn_type=['flatten', 'basic'],
                                               init='kaiming_normal', init_param={'a': math.sqrt(5)})
 
 

@@ -39,10 +39,11 @@
 全局可塑性STDP学习算法
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 该算法的权重更新公式为 [#f2]_ ：
-:math:`dw = Apost * (output_spike * input_trace) – Apre * (output_trace * input_spike)`
+:math:`dw = Apost * (output\_spike * input\_trace) – Apre * (output\_trace * input\_spike)`
 :math:`weight = weight + dw`
+
 权重归一化公式：
-:math:`weight = self.w_norm * weight/sum(torch.abs(weight))`
+:math:`weight = self.w\_norm * weight/sum(torch.abs(weight))`
 
 首先从 :code:`trainable_connection` 中获取该学习算法训练的突触前神经元组以及突触后神经元组
 

@@ -6,7 +6,7 @@
 =======================
 神经元模型是进行神经动力学仿真环节中最为重要的一步，不同的模型与不同的参数都会产生不同的现象。\
 为了应对用户不同的应用需求， **SPAIC** 内置了许多最为常用的神经元模型，但是偶尔还是会有力所不能及，\
-这时候就需要用户自己添加一些更符合其实验的个性化神经元。定义神经元的这一步可以依照 :code:`Neuron.Neuron` \
+这时候就需要用户自己添加一些更符合其实验的个性化神经元。定义神经元的这一步可以依照 :class:`spaic.Neuron.Neuron` \
 文件中的格式进行添加。
 
 定义变量以及外部参数
@@ -28,27 +28,26 @@
 
 .. code-block:: python
 
-    # LIF model:
-    # I = tauP*I + WgtSum^n[t-1] + b^n                         # sum(w * O^(n-1)[t])
-    # F = tauM * exp(-O^n[t-1] / tauM)
-    # V(t) = V^n[t-1] * F + I
-    # O^(n)[t] = spike_func(V^n(t))
+    """
+    LIF model:
+    # V(t) = tuaM * V^n[t-1] + Isyn[t]   # tauM: constant membrane time (tauM=RmCm)
+    O^n[t] = spike_func(V^n[t-1])
+    """
 
-在这个公式中，:code:`tauP` 、:code:`tauM` 以及阈值 :code:`v_th` 都是可变的参数，所以\
+在这个公式中，:code:`tauM` 以及阈值 :code:`v_th` 都是可变的参数，所以\
 我们通过从 :code:`kwargs` 中获取的方式来改变，完整的变量定义如下：
 
 .. code-block:: python
 
     self._variables['V'] = 0.0
     self._variables['O'] = 0.0
-    self._variables['WgtSum'] = 0.0
-    self._variables['b'] = 0.0
     self._variables['Isyn'] = 0.0
 
-    self._constant_variables['Vth'] = kwargs.get('v_th', 1.0)
+    self._parameter_variables['Vth'] = kwargs.get('v_th', 1)
+    self._constant_variables['Vreset'] = kwargs.get('v_reset', 0.0)
 
-    self._tau_variables['tauM'] = kwargs.get('tau_m', 10.0)
-    self._tau_variables['tauP'] = kwargs.get('tau_p', 1.0)
+    self._tau_variables['tauM'] = kwargs.get('tau_m', 20.0)
+
 
 
 定义计算式
@@ -56,29 +55,17 @@
 计算式是神经元模型最为重要的部分，一行一行的计算式决定了神经元的各个参数在模拟过程中将会经过一些什么样的变化。
 
 在添加计算式时，有一些需要遵守的规则。首先，每一行只能计算一个特定的计算符，所以需要将原公式\
-进行分解，分解为独立的计算符。目前在平台中内置的计算符可以参考 :code:`backend.basic_operation`:
+进行分解，分解为独立的计算符。目前在平台中内置的计算符可以参考 :class:`spaic.backend.backend` 中对各个计算符具体的介绍:
 
-- add, minus, div
-- var_mult, mat_mult, mat_mult_pre, sparse_mat_mult, reshape_mat_mult
-- var_linear, mat_linear
+- add, minus, div -- 简单的加减除的操作
+- var_mult, mat_mult, mat_mult_pre, sparse_mat_mult, reshape_mat_mult  -- 变量乘法，矩阵乘法，对第一个因子进行维度转换的矩阵乘法，稀疏矩阵乘法，对第二个因子进行维度转换的矩阵乘法
+- var_linear, mat_linear -- result=ax+b 变量的一阶线性乘法加和
 - reduce_sum, mult_sum
 - threshold
 - cat
 - exp
 - stack
 - conv_2d, conv_max_pool2d
-
-+------------------------+------------+----------+----------+
-|        函数名      |  功能  | Header 3 | Header 4 |
-+========================+============+==========+==========+
-|         add       | column 2   | column 3 | column 4 |
-+------------------------+------------+----------+----------+
-|         minus     | Cells may span columns.          |
-+------------------------+------------+---------------------+
-| div               | Cells may  | - Table cells       |
-+------------------------+ span rows. | - contain           |
-| var_mult          |            | - body elements.    |
-+------------------------+------------+---------------------+
 
 
 在使用这些计算符时的格式，我们以 :code:`LIF` 模型中计算化学电流的过程作为示例：
@@ -93,8 +80,7 @@
     self._operations.append(('O', 'threshold', 'Vtemp', 'Vth'))
 
     # 此处作用为在脉冲发放之后重置电压V
-    self._operations.append(('Resetting', 'var_mult', 'Vtemp', 'O[updated]'))
-    self._operations.append(('V', 'minus', 'Vtemp', 'Resetting'))
+    self._operations.append(('V', 'reset', 'Vtemp',  'O'))
 
 
 在代码的最后，需要添加 :code:`NeuronModel.register("lif", LIFModel)` 用于将该神经元模型添加至神经元模型的库中，以便前端的调用。

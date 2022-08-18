@@ -373,8 +373,8 @@ User manual:
 =================
 
 .. toctree::
-   :maxdepth: 2
-   :titlesonly:
+   :maxdepth: 1
+   :caption: Tutorials
 
    basic_structure_en/0_index
    input_output_en
@@ -736,8 +736,8 @@ II. 如何从零开始构建一个脉冲神经网络
 =================
 
 .. toctree::
-   :maxdepth: 2
-   :titlesonly:
+   :maxdepth: 1
+   :caption: 教程
 
    basic_structure/0_index
    input_output

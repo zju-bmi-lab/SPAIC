@@ -36,16 +36,17 @@ In **STBP** [#f2]_ learning algorithm, the graident function is:
 
 Synaptic Plasticity Algorithms
 ---------------------------------
-We have constructed two kinds of STDP learning algorithm. The first one is based on the global synaptic plasticity, we call it ``full_online_STDP`` [#f3]_ ,\
+We have constructed two kinds of **STDP** learning algorithm. The first one is based on the global synaptic plasticity, we call it ``full_online_STDP`` [#f3]_ ,\
 another one is based on the nearest synaptic plasticity, we call it ``nearest_online_STDP`` [#f4]_ .
 
 Full Synaptic Plasticity STDP learning algorithm
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 The weight update formula of this algorithm [#f2]_ :
-:math:`dw = Apost * (output_spike * input_trace) – Apre * (output_trace * input_spike)`
+:math:`dw = Apost * (output\_spike * input\_trace) – Apre * (output\_trace * input\_spike)`
 :math:`weight = weight + dw`
+
 Weight normalization formula:
-:math:`weight = self.w_norm * weight/sum(torch.abs(weight))`
+:math:`weight = self.w\_norm * weight/sum(torch.abs(weight))`
 
 At first, get the presynaptic and postsynaptic NeuronGroups from :code:`trainable_connection` :
 
