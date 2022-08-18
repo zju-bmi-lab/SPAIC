@@ -23,6 +23,8 @@ SingleSpikeToBinary ('sstb')
 如果输入数据是记录了神经元发放时间的向量，并且一个神经元对应一个神经发放，我们可以使用 :code:`SingleSpikeToBinary` 将发放时间转换为二进制矩阵，\
 如图所示，其中发放时间转化为时间窗口的索引。
 
+.. image:: ../_static/sstb.png
+
 例如，将该输入样本的发放时间[0.9,0.5,0.2,0.7,0.1]转换为二进制矩阵。
 
 .. code-block:: python
