@@ -9,7 +9,7 @@ The spaic platform simulation training platform is a network construction, forwa
 Dependency packages: pytorch, numpy
 
 Tutorial documentation for the SPAIC:  https://spaic.readthedocs.io/en/latest/index.html
-
+<img src="./docs/source/_static/SPAIC-POSTER.png" style="zoom: 70%;" />
 
 
 # Front-end Network Modeling Components and functions
