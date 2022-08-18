@@ -87,12 +87,12 @@ aEIF neuron model
     If V > 20: \\
     then V &= EL, U = U + b
 
-- **tau_m** - 膜电容与泄漏电导系数，tau_m = g_L/C
-- **tau_w** - 自适应时间常量
-- **a.** - 阈下自适应系数
-- **b.** - 脉冲激发自适应系数
-- **delta_t, delta_t2** - 速率因子
-- **EL** - 泄漏反转电位
+- **tau_m** - membrane capacitance and leak conductance,tau_m = g_L/C
+- **tau_w** - adaptation time constant
+- **a.** - subthreshold adaptation
+- **b.** - spike-triggered adaptation
+- **delta_t, delta_t2** - slope factor
+- **EL** - leak reversal potential
 
 
 IZH neuron model

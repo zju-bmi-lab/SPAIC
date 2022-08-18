@@ -10,7 +10,7 @@ Customize connection
 ----------------------------------
 ``Connection`` is the basic structure of neuron network, it contains weight information. Different connection way will generate different \
 spatially structure. To meet users' requirements, **SPAIC** has constructed many common connection methods. If users want to add some \
-personalize connection, can follow the document or the format in :code:`Network.Connection` .
+personalize connection, can follow the document or the format in :class:`spaic.Network.Connection`.
 
 
 Initialize connection method

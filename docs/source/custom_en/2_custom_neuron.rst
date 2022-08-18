@@ -57,7 +57,7 @@ Define calculation
 Compute operation is the most important part of Neuron Model. These operations decide the change of elements during simulation. \
 When add compute operations, there are some rules to follow. At first, every operation can only do one compute process, so users \
 need to decomposition formula to independent operations. The whole build-in calculate operator can be found in \
-:code:`backend.basic_operation` , and here is the example about :code:`LIF` model:
+ :class:`spaic.backend.backend` , and here is the example about :code:`LIF` model:
 
 .. code-block:: python
 
