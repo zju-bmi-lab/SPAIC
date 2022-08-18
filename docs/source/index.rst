@@ -59,7 +59,7 @@ the learning algorithm: :code:`learner`. Also, we can add some \
 special components when building some large and complex networks, :code:`Assembly` and :code:`Projection` , \
 which used to let the complex structures more clearly.
 
-2.1 Create Node and Neurongroups
+2.1 Create Node and NeuronGroups
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 For a network that uses **STCA** algorithm and recognize **MNIST** dataset, the node we need \
 is a :code:`Node.Encoder` layer as input to encode the input data, a :code:`clif NeuronGroup` \
@@ -104,7 +104,7 @@ voltage and spike output of :code:`layer1` for teaching purposes, i.e.
 .. code-block:: python
 
    self.mon_V = spaic.StateMonitor(self.layer1, 'V')
-   self.mon_O = spaic.StateMonitor(self.layer1, 'O')
+   self.spk_O = spaic.SpikeMonitor(self.layer1, 'O')
 
 
 2.5 Add backend
@@ -152,7 +152,7 @@ with **cuda**.  Use :code:`0.1ms` as the time step
 
            # Monitor
            self.mon_V = spaic.StateMonitor(self.layer1, 'V')
-           self.mon_O = spaic.StateMonitor(self.layer1, 'O')
+           self.spk_O = spaic.SpikeMonitor(self.layer1, 'O')
 
            # Learner
            self.learner = spaic.Learner(trainable=self, algorithm='STCA')
@@ -277,6 +277,26 @@ After training and testing 100 epochs, we get the following accuracy curve throu
 .. image:: _static/STCA_MNIST_Accuracy.png
     :width: 100%
 
+
+.. code-block:: python
+
+   from matplotlib import pyplot as plt
+   plt.subplot(2, 1, 1)
+   plt.plot(acces)
+   plt.title('Train Accuracy')
+   plt.ylabel('Acc')
+   plt.xlabel('epoch')
+
+   plt.subplot(2, 1, 2)
+   plt.plot(test_accuracy)
+   plt.title('Test Accuracy')
+   plt.ylabel('Acc')
+   plt.xlabel('epoch')
+
+   plt.show()
+
+
+
 5. Save model
 -------------------
 After the training is completed, we can store the weight information through the built-in function :code:`Network.save_state`, \
@@ -384,6 +404,13 @@ User manual:
    monitor_en
 
 
+Contact us:
+==============================================
+Chaofei Hong: hongchf@zhejainglab.com \
+Mengwen Yuan: yuanmw@zhejianglab.com \
+Mengxiao Zhang: mxzhang@zhejianglab.com
+
+
 .. _index_cn:
 
 欢迎来到SPAIC的文档网站!
@@ -461,7 +488,7 @@ II. 如何从零开始构建一个脉冲神经网络
 2.3 添加学习算法与优化算法
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 在本示例中，我们采用了 **STCA** 学习算法， **STCA** 学习算法 [#f1]_ 是一种采用了替代梯度策略的BPTT类算法。\
-在优化器上选择 :code:`Adam` 算法并设置
+优化器则选择 :code:`Adam` 算法并设置学习率为0.001。
 
 .. code-block:: python
 
@@ -475,14 +502,14 @@ II. 如何从零开始构建一个脉冲神经网络
 .. code-block:: python
 
    self.mon_V = spaic.StateMonitor(self.layer1, 'V')
-   self.mon_O = spaic.StateMonitor(self.layer1, 'O')
+   self.spk_O = spaic.SpikeMonitor(self.layer1, 'O')
 
 
 2.5 添加backend
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-``Backend`` 是 **SPAIC** 中极为重要的一个部分，负责后端的网络实际模拟。 :code:`backend.dt` 用于\
-设置网络模拟时的时间步长，需要在建立网络前提前进行设定。不同后端以及设备的选择也需要在搭建网络前设置\
-完成。在本示例，我们采用 **PyTorch** 作为后端，将网络构建与 **cuda** 上，以 :code:`0.1ms` 作为时间步长：
+``Backend`` 是 **SPAIC** 中极为重要的一个部分，负责后端网络的实际模拟。 :code:`backend.dt` 用于\
+设置网络模拟的时间步长，需要在建立网络前提前进行设定。不同后端以及设备的选择也需要在搭建网络前设置\
+完成。在本示例，我们采用 **PyTorch** 作为后端，将网络构建于 **cuda** 上，以 :code:`0.1ms` 作为时间步长：
 
 .. code-block:: python
 
@@ -520,7 +547,7 @@ II. 如何从零开始构建一个脉冲神经网络
 
            # Monitor
            self.mon_V = spaic.StateMonitor(self.layer1, 'V')
-           self.mon_O = spaic.StateMonitor(self.layer1, 'O')
+           self.spk_O = spaic.SpikeMonitor(self.layer1, 'O')
 
            # Learner
            self.learner = spaic.Learner(trainable=self, algorithm='STCA')
@@ -640,10 +667,28 @@ II. 如何从零开始构建一个脉冲神经网络
 
 4. 训练结果
 --------------
-在训练并测试共100个epoch后，通过 **matplotlib** 我们得到如下的正确率曲线：
+在训练并测试共100个epoch后，通过 **matplotlib** 我们得到如下的准确率曲线：
 
 .. image:: _static/STCA_MNIST_Accuracy.png
     :width: 100%
+
+.. code-block:: python
+
+   from matplotlib import pyplot as plt
+   plt.subplot(2, 1, 1)
+   plt.plot(acces)
+   plt.title('Train Accuracy')
+   plt.ylabel('Acc')
+   plt.xlabel('epoch')
+
+   plt.subplot(2, 1, 2)
+   plt.plot(test_accuracy)
+   plt.title('Test Accuracy')
+   plt.ylabel('Acc')
+   plt.xlabel('epoch')
+
+   plt.show()
+
 
 5. 保存网络
 -------------------
@@ -746,6 +791,12 @@ II. 如何从零开始构建一个脉冲神经网络
    custom/0_index
    monitor
 
+
+联系我们：
+==============================================
+洪朝飞：hongchf@zhejianglab.com \
+袁孟雯：yuanmw@zhejianglab.com \
+张梦骁：mxzhang@zhejianglab.com
 
 
 文档索引

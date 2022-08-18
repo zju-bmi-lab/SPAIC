@@ -12,7 +12,7 @@
 .. code-block:: python
 
     def __init__(self, pre_assembly: Assembly, post_assembly: Assembly, name=None,
-            link_type=('full', 'sparse_connect', 'conv', '...'), syn_type=['basic_synapse'],
+            link_type=('full', 'sparse_connect', 'conv', '...'), syn_type=['basic'],
             max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='Isyn',
             syn_kwargs=None, **kwargs):
 
@@ -118,7 +118,7 @@
                                               init='uniform', init_param={'a':-math.sqrt(1/(8*9)), 'b':math.sqrt(1/(8*9))})
 
         self.connection3 = spaic.Connection(self.layer2, self.layer3, link_type='full',
-                                              syn_type=['flatten', 'basic_synapse'],
+                                              syn_type=['flatten', 'basic'],
                                               init='kaiming_normal', init_param={'a': math.sqrt(5)})
 
 
@@ -127,16 +127,16 @@
 .. code-block:: python
 
         self.conv2 = spaic.Connection(self.layer1, self.layer2, link_type='conv',
-                                        syn_type=['dropout', 'basic_synapse'], in_channels=128, out_channels=256,
+                                        syn_type=['dropout', 'basic'], in_channels=128, out_channels=256,
                                         kernel_size=(3, 3), stride=args.stride, padding=args.padding, init='uniform',
                                         init_param=(-math.sqrt(1/(128*3*3)), math.sqrt(1/(128*9))), bias=args.bias)
         self.conv3 = spaic.Connection(self.layer2, self.layer3, link_type='conv',
-                                        syn_type=['maxpool', 'dropout', 'basic_synapse'], in_channels=256, out_channels=512,
+                                        syn_type=['maxpool', 'dropout', 'basic'], in_channels=256, out_channels=512,
                                         kernel_size=(3, 3), stride=args.stride, padding=args.padding,
                                         pool_stride=2, pool_padding=0, init='uniform',
                                         init_param=(-math.sqrt(1/(256*9)), math.sqrt(1/(256*9))), bias=args.bias)
         self.conv4 = spaic.Connection(self.layer3, self.layer4, link_type='conv',
-                                        syn_type=['maxpool', 'dropout', 'basic_synapse'], in_channels=512, out_channels=1024,
+                                        syn_type=['maxpool', 'dropout', 'basic'], in_channels=512, out_channels=1024,
                                         kernel_size=(3, 3), stride=args.stride, padding=args.padding,
                                         pool_stride=2, pool_padding=0, init='uniform',
                                         init_param=(-math.sqrt(1/(512*9)), math.sqrt(1/(512*9))), syn_kwargs=[], bias=args.bias)

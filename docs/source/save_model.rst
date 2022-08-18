@@ -5,12 +5,12 @@
 
 Network中预先定义的函数
 ---------------------------------------------------------
-采用 ``Network`` 中预定义的 :code:`save_state` 与 :code:`state_from_dict` 函数将权重直接进行存储。
+采用 ``Network`` 中预定义的 :code:`save_state` 与 :code:`state_from_dict` 函数将权重直接进行存取。
 
 :code:`save_state` 函数可选的参数有 :code:`filename` 、\
 :code:`direct` 以及 :code:`save` 。用户如果直接调用 :code:`save_state` 函数时，将会以默认的随机名称 :code:`autoname` 将后端中的权重变量直接存储于当前目录下的\
-``'./autoname/parameters'`` 文件夹下的 ``'_parameters_dict.pt'`` 文件中。而启用 :code:`filename` 时，将会以用户给予的 :code:`filename` 替换 :code:`autoname` 。
-而启用 :code:`direct` 参数则用于指定存储的目录。 :code:`save`参数默认为 ``True`` ，为启用保存，若为 ``False`` ，则该函数会直接返回后端中存储的权重信息。
+``'./autoname/parameters'`` 文件夹下的 ``'_parameters_dict.pt'`` 文件中。启用 :code:`filename` 时，将会以用户给予的 :code:`filename` 替换 :code:`autoname` 。
+启用 :code:`direct` 参数则用于指定存储的目录。 :code:`save` 参数默认为 ``True`` ，即启用保存，若为 ``False`` ，则该函数会直接返回后端中存储的权重信息。
 
 :code:`state_from_dict` 函数的参数与 :code:`save_state` 类似，不同点在于多了 :code:`state` 与 :code:`device` 参数而少了 :code:`save` 参数。 \
 :code:`state` 参数如果传入参数，则该函数会直接使用传入的参数来替代后端的权重参数，在该参数为None的情况下，则会根据 :code:`filename` 与 :code:`direct` 来决定文件\
@@ -24,15 +24,12 @@ Network中预先定义的函数
     Net.state_from_dict(filename='Test1', device=device)
 
 
-
-
-
 network_save 与 network_load
 ---------------------------------------------------------------------------------------------------------------------------------------
 ``Library`` 中的网络存储模块 :code:`spaic.Network_saver.network_save` 函数与 :code:`spaic.Network_loader.network_load` 函数\
 将会将完整的网络结构以及权重信息分别存储下来，该方式在使用时需要一个文件名 ``filename`` ，然后平台会在用户提供的目录或是默认的当前目录下新\
-建 ``'NetData/filename/filename.json'`` 用于保存网络结构，权重的存储路径与 :code:`net.save_state` 相同，都会在目标目录下新建 ``NetData`` 文件夹，然后存于\
- ``NetData/`` 。其次，用户在使用 :code:`network_save` 时，还可以选择存储的文件格式，是采用 ``json`` 文件的格式或是 ``yaml`` 。
+建 ``'filename/filename.json'`` 用于保存网络结构，权重的存储路径与 :code:`net.save_state` 相同，都会在目标目录下进行存储。 \
+其次，用户在使用 :code:`network_save` 时，还可以选择存储的文件格式， ``json`` 或是 ``yaml`` 。
 
 .. code-block:: python
 
@@ -50,7 +47,7 @@ network_save 与 network_load
 - **combine** -- 该参数制定了权重是否与网络结构存储在一起，默认为 ``False`` ，分开存储网络结构与权重信息。
 - **save** -- 该参数决定了平台是否会将网络结构存储下来，若为 ``True`` ，则最后会返回存储的名称以及网络信息，若为 ``False`` ，则不会存储网络，仅仅只会将网络结构以字典的形式返回
 
-下面，我举例说明保存下来的网络结构中各个参数所代表的意义：
+下面，举例说明保存下来的网络结构中各个参数所代表的意义：
 
 .. code-block:: python
 

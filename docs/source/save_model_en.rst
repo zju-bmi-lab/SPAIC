@@ -5,7 +5,7 @@ This section will describe two ways of saving network information in detail.
 
 pre-defined function in Network
 ---------------------------------------------------------
-Use pre-defined functions :code:`save_state` and :code:`state_from_dict` of ``spaic.Network`` to save the weight of the model directly.
+Use pre-defined functions :code:`save_state` and :code:`state_from_dict` of ``spaic.Network`` to save or load the weight of the model directly.
 
 The optional parameters are :code:`filename` , :code:`direct` and :code:`save`. If users use :code:`save_state` without \
 giving any parameters, the function will use default name :code:`autoname` with random number as the direct name and save \
@@ -30,7 +30,7 @@ network_save and network_load
 ---------------------------------------------------------------------------------------------------------------------------------------
 The network save module :code:`spaic.Network_saver.network_save` and :code:`spaic.Network_loader.network_load` in `spaic.Library` \
 will save the whole network structure of the model and the weight information separately. This method requires a filename \
-``filename`` when used, and then the platform will create a new file ``NetData/filename/filename.json`` in the running directory \
+``filename`` when used, and then the platform will create a new file ``./filename/filename.json`` in the running directory \
 of the current program to save the network structure. At the same time, when using :code:`network_save` , users also can choose the \
 save format between ``json`` or ``yaml`` .
 

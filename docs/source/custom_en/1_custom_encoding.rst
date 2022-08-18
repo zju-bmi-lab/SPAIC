@@ -2,18 +2,18 @@
 
 Custom encoding or decoding
 =================================
-This chapter will introduce how to customize :code:`Encoder`, :code:`Generator`, :code:`Decoder`, :code:`Action` and :code:`Reward`.
+This chapter will introduce how to customize :code:`Encoder` , :code:`Generator` , :code:`Decoder` , :code:`Action` and :code:`Reward` .
 
 Customize Encoder
 ---------------------------
 Encoder is used to transmit the input data to temporal spiking data. It is one of the important step in building spiking \
 neural network. Different encoding method will generate different data. To meet most of the application situation, **SPAIC** \
-has already provided some common encoding methods. And customize encoding method can add as the format in :code:`Neuron.Encoders` file.
+has already provided some common encoding methods. And customize encoding method can add as the format in :class:`spaic.Neuron.Encoders` .
 
 Initialize Encoder
---------------------------
-The user-defined encoding method should inherit the class :code:`Encoder`, and the parameter name in the initialization method
-should be the same as that of the class :code:`Encoder`. Other parameters can be passed in by **kwargs**.
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The user-defined encoding method should inherit the class :code:`Encoder` , and the parameter name in the initialization method \
+should be the same as that of the class :code:`Encoder` . Other parameters can be passed in by **kwargs** . \
 Take :code:`PoissonEncoding` class initialization function as an example:
 
 .. code-block:: python
@@ -26,15 +26,15 @@ Take :code:`PoissonEncoding` class initialization function as an example:
 
 
 In this initialization method, **unit_conversion** is the required parameter for the :code:`PoissonEncoding` class,
-which can get from **kwargs**.
+which can get from **kwargs** .
 
 Define Encoder Function
------------------------------------
-The encoding function is the implementation part of the encoding method.
-Because the platform supports multiple backends (:code:`Pytorch`, :code:`TensorFlow` etc.), different backends
-support different data types and data operations.
-Therefore, the corresponding coding function needs to be implemented in the front-end coding method for different computing
-back-end.
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The encoding function is the implementation part of the encoding method. \
+Because the platform supports multiple backends ( :code:`Pytorch` , :code:`TensorFlow` etc.), different backends \
+support different data types and data operations. \
+Therefore, the corresponding coding function needs to be implemented in the front-end coding method for different computing \
+back-end. \
 We take the implementation of :code:`torch_coding` for :code:`PoissonEncoding` as an example:
 
 .. code-block:: python
@@ -50,19 +50,19 @@ We take the implementation of :code:`torch_coding` for :code:`PoissonEncoding` a
         spikes = torch.rand(spk_shape, device=device).le(source * self.unit_conversion*self.dt).float()
         return spikes
 
-At the end of this code, don't forget add :code:`Encoder.register("poisson", PoissonEncoding)` to add the usage linked to
+At the end of this code, don't forget add :code:`Encoder.register("poisson", PoissonEncoding)` to add the usage linked to \
 this function.
 
 Customize Generator
 --------------------------
-Generator can be used to generate specific distributed spike trains or some special current mode.
-**SPAIC** has already provided some common generating methods.
-And customize generating method can add as the format in :code:`Neuron.Generators` file.
+Generator can be used to generate specific distributed spike trains or some special current mode. **SPAIC** \
+has already provided some common generating methods. \
+And customize generating method can add as the format in :class:`spaic.Neuron.Generators` file.
 
 Initialize Generator
---------------------------
-The user-defined generating method should inherit the class :code:`Generator`, and the parameter name in the initialization method
-should be the same as that of the class :code:`Generator`. Other parameters can be passed in by **kwargs**.
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The user-defined generating method should inherit the class :code:`Generator` , and the parameter name in the initialization method \
+should be the same as that of the class :code:`Generator` . Other parameters can be passed in by **kwargs** . \
 Take :code:`CC_Generator` class initialization function as an example:
 
 .. code-block:: python
@@ -75,12 +75,12 @@ Take :code:`CC_Generator` class initialization function as an example:
 
 
 Define Generator Function
---------------------------------
-A coding function is the implementation part of a generating method.
-Because the platform supports multiple backends (:code:`Pytorch`, :code:`TensorFlow` etc.), different backends
-support different data types and data operations.
-Therefore, the corresponding coding function needs to be implemented in the front-end coding method for different computing
-back-end.
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+A coding function is the implementation part of a generating method. \
+Because the platform supports multiple backends ( :code:`Pytorch` , :code:`TensorFlow` etc.), different backends \
+support different data types and data operations. \
+Therefore, the corresponding coding function needs to be implemented in the front-end coding method for different computing \
+back-end. \
 We take the implementation of :code:`torch_coding` for :code:`CC_Generator` as an example:
 
 .. code-block:: python
@@ -97,18 +97,18 @@ We take the implementation of :code:`torch_coding` for :code:`CC_Generator` as a
         spikes = source * torch.ones(spk_shape, device=device)
         return spikes
 
- :code:`Generator.register('cc_generator', CC_Generator)` also needed here for front-end use.
+:code:`Generator.register('cc_generator', CC_Generator)` also needed here for front-end use.
 
 Customize Decoder
 --------------------------
-Decoder is used to convert the output spikes or voltages to a numerical signal.
-**SPAIC** has already provided some common decoding methods.
-And decoding method can add as the format in :code:`Neuron.Decoders` file.
+Decoder is used to convert the output spikes or voltages to a numerical signal. **SPAIC** \
+has already provided some common decoding methods. \
+And decoding method can add as the format in :class:`spaic.Neuron.Decoders` file.
 
 Initialize Decoder
--------------------------
-The user-defined decoding method should inherit the class :code:`Decoder`, and the parameter name in the initialization method
-should be the same as that of the class :code:`Decoder`. Other parameters can be passed in by **kwargs**.
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The user-defined decoding method should inherit the class :code:`Decoder`, and the parameter name in the initialization method \
+should be the same as that of the class :code:`Decoder`. Other parameters can be passed in by **kwargs** . \
 Take :code:`Spike_Counts` class initialization function as an example:
 
 .. code-block:: python
@@ -119,16 +119,16 @@ Take :code:`Spike_Counts` class initialization function as an example:
                                       **kwargs)
         self.pop_size = kwargs.get('pop_size', 1)
 
-In this initialization method, **pop_size** is the required parameter for the :code:`Spike_Counts` class,
-which can get from **kwargs**.
+In this initialization method, **pop_size** is the required parameter for the :code:`Spike_Counts` class, \
+which can get from **kwargs** .
 
 Define Decoder Function
-----------------------------------
-A coding function is the implementation part of a decoding method.
-Because the platform supports multiple backends (:code:`Pytorch`, :code:`TensorFlow` etc.), different backends
-support different data types and data operations.
-Therefore, the corresponding coding function needs to be implemented in the front-end coding method for different computing
-back-end.
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+A coding function is the implementation part of a decoding method. \
+Because the platform supports multiple backends ( :code:`Pytorch` , :code:`TensorFlow` etc.), different backends \
+support different data types and data operations. \
+Therefore, the corresponding coding function needs to be implemented in the front-end coding method for different computing \
+back-end. \
 We take the implementation of :code:`torch_coding` for :code:`Spike_Counts` as an example:
 
 .. code-block:: python
@@ -153,14 +153,14 @@ We take the implementation of :code:`torch_coding` for :code:`Spike_Counts` as a
 
 Customize Reward
 --------------------------
-Reward is used to convert the activity of the target object into reward signal.
-**SPAIC** has already provided some common reward methods.
-And reward method can add as the format in :code:`Neuron.Rewards` file.
+Reward is used to convert the activity of the target object into reward signal. **SPAIC** \
+has already provided some common reward methods. \
+And reward method can add as the format in :class:`spaic.Neuron.Rewards` file.
 
 Initialize Reward
--------------------------
-The user-defined reward method should inherit the class :code:`Reward`, and the parameter name in the initialization method
-should be the same as that of the class :code:`Reward`. Other parameters can be passed in by **kwargs**.
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The user-defined reward method should inherit the class :code:`Reward` , and the parameter name in the initialization method \
+should be the same as that of the class :code:`Reward` . Other parameters can be passed in by **kwargs** . \
 Take :code:`Global_Reward` class initialization function as an example:
 
 .. code-block:: python
@@ -171,16 +171,16 @@ Take :code:`Global_Reward` class initialization function as an example:
         self.reward_signal = kwargs.get('reward_signal', 1)
         self.punish_signal = kwargs.get('punish_signal', -1)
 
-In this initialization method, **pop_size**, **reward_signal**, **punish_signal** are required parameters for the :code:`Global_Reward` class,
-which can get from **kwargs**.
+In this initialization method, **pop_size** , **reward_signal** , **punish_signal** are required parameters for the :code:`Global_Reward` class, \
+which can get from **kwargs** .
 
 Define Reward Function
-----------------------------------
-A coding function is the implementation part of a reward method.
-Because the platform supports multiple backends (:code:`Pytorch`, :code:`TensorFlow` etc.), different backends
-support different data types and data operations.
-Therefore, the corresponding coding function needs to be implemented in the front-end coding method for different computing
-back-end.
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+A coding function is the implementation part of a reward method. \
+Because the platform supports multiple backends ( :code:`Pytorch` , :code:`TensorFlow` etc.), different backends \
+support different data types and data operations. \
+Therefore, the corresponding coding function needs to be implemented in the front-end coding method for different computing \
+back-end. \
 We take the implementation of :code:`torch_coding` for :code:`Global_Reward` as an example:
 
 .. code-block:: python
@@ -208,14 +208,14 @@ We take the implementation of :code:`torch_coding` for :code:`Global_Reward` as 
 
 Customize Action
 --------------------------
-Action is used to convert the activity of the target object into next action.
-**SPAIC** has already provided some common action methods.
-And action method can add as the format in :code:`Neuron.Actions` file.
+Action is used to convert the activity of the target object into next action. **SPAIC** \
+has already provided some common action methods. \
+And action method can add as the format in :class:`spaic.Neuron.Actions` file.
 
 Initialize Action
--------------------------
-The user-defined action method should inherit the class :code:`Action`, and the parameter name in the initialization method
-should be the same as that of the class :code:`Action`. Other parameters can be passed in by **kwargs**.
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The user-defined action method should inherit the class :code:`Action` , and the parameter name in the initialization method \
+should be the same as that of the class :code:`Action` . Other parameters can be passed in by **kwargs** . \
 Take :code:`Softmax_Action` class initialization function as an example:
 
 .. code-block:: python
@@ -224,12 +224,12 @@ Take :code:`Softmax_Action` class initialization function as an example:
         super(Softmax_Action, self).__init__(shape, num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
 
 Define Action Function
-----------------------------------
-A coding function is the implementation part of a action method.
-Because the platform supports multiple backends (:code:`Pytorch`, :code:`TensorFlow` etc.), different backends
-support different data types and data operations.
-Therefore, the corresponding coding function needs to be implemented in the front-end coding method for different computing
-back-end.
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+A coding function is the implementation part of a action method. \
+Because the platform supports multiple backends ( :code:`Pytorch` , :code:`TensorFlow` etc.), different backends \
+support different data types and data operations. \
+Therefore, the corresponding coding function needs to be implemented in the front-end coding method for different computing \
+back-end. \
 We take the implementation of :code:`torch_coding` for :code:`Softmax_Action` as an example:
 
 .. code-block:: python

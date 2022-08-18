@@ -399,17 +399,18 @@ class SynapseModel(ABC):
             return SynapseModel.synapse_models[model_name]
 
 
-        # 'full', FullConnection
-        # 'one_to_one_sparse', one_to_one_sparse
-        # 'one_to_one', one_to_one_mask
-        # 'conv', conv_connect
-        # 'sparse_connect_sparse', sparse_connect_sparse
-        # 'sparse_connect', sparse_connect_mask
-        # 'random_connect_sparse', random_connect_sparse
-        # 'random_connect', random_connect_mask
+
 class Connection(Projection):
     r'''Base class for all kinds of connections, including full connection, sparse connection, conv connection.
     Ten connection methods are provided, as shown below.
+        'full', FullConnection
+        'one_to_one_sparse', one_to_one_sparse
+        'one_to_one', one_to_one_mask
+        'conv', conv_connect
+        'sparse_connect_sparse', sparse_connect_sparse
+        'sparse_connect', sparse_connect_mask
+        'random_connect_sparse', random_connect_sparse
+        'random_connect', random_connect_mask
 
         Args:
             pre_assembly(Assembly): the assembly which needs to be connected.

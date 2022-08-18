@@ -39,7 +39,7 @@ LIF神经元
 
 - **tau_m** - 神经元膜电位的时间常量，默认为6.0
 - **v_th** - 神经元的阈值电压，默认为1.0
-- **v_reset** - 神经元的重置电压，默认为0.0，因为平台内置的 **LIF** 模型的电压稳定点为0.0
+- **v_reset** - 神经元的重置电压，默认为0.0
 
 如果用户需要调整这些变量，可以在建立 ``NeuronGroup`` 的时候输入想改变的参数即可：
 
@@ -51,6 +51,8 @@ LIF神经元
 
 这样，一个自定义参数的LIF神经元就建好了。
 
+.. image:: ../_static/LIF_Appearance.png
+
 CLIF神经元
 -------------------------
 **CLIF(Current Leaky Integrated-and-Fire Model)** 神经元的参数:
@@ -58,6 +60,8 @@ CLIF神经元
 - **tau_p, tau_q** - 突触的时间常量，默认为12.0和8.0
 - **tau_m** - 神经元膜电位的时间常量，默认为20.0
 - **v_th** - 神经元的阈值电压，默认为1.0
+
+.. image:: ../_static/CLIF_Appearance.png
 
 GLIF神经元
 -------------------------
@@ -96,6 +100,8 @@ aEIF神经元
 - **delta_t, delta_t2** - 速率因子
 - **EL** - 泄漏反转电位
 
+.. image:: ../_static/AEIF_Appearance.png
+
 IZH神经元
 --------------------------
 **IZH(Izhikevich Model)** [#f3]_  神经元公式以及参数:
@@ -112,6 +118,8 @@ IZH神经元
 - **C1, C2, C3**
 - **a, b, d**
 - **Vreset** - 电压重置位
+
+.. image:: ../_static/IZH_Appearance.png
 
 HH神经元
 --------------------------
@@ -156,6 +164,7 @@ HH神经元
 - **m, n, h**
 - **V, vth**
 
+.. image:: ../_static/HH_Appearance.png
 
 自定义
 ----------------

@@ -49,6 +49,8 @@ If users need to change these parameters, they can enter the parameters when con
                     tau_m=10.0, v_th=10, v_reset=0.2)
 
 
+.. image:: ../_static/LIF_Appearance.png
+
 CLIF neuron model
 -------------------------
 **CLIF(Current Leaky Integrated-and-Fire Model)** neuron paramters:
@@ -56,6 +58,8 @@ CLIF neuron model
 - **tau_p, tau_q** - time constants of synapse, default as 12.0 and 8.0
 - **tau_m** - time constant of neuron membrane potential, default as 20.0
 - **v_th** - the threshold voltage of a neuron, default as 1.0
+
+.. image:: ../_static/CLIF_Appearance.png
 
 GLIF neuron model
 -------------------------
@@ -94,6 +98,7 @@ aEIF neuron model
 - **delta_t, delta_t2** - slope factor
 - **EL** - leak reversal potential
 
+.. image:: ../_static/AEIF_Appearance.png
 
 IZH neuron model
 --------------------------
@@ -111,6 +116,9 @@ IZH neuron model
 - **C1, C2, C3**
 - **a, b, d**
 - **Vreset** - Voltage Reset
+
+.. image:: ../_static/IZH_Appearance.png
+
 
 HH neuron model
 --------------------------
@@ -154,6 +162,8 @@ HH neuron model
 - **Vreset**
 - **m, n, h**
 - **V, vth**
+
+.. image:: ../_static/HH_Appearance.png
 
 customize
 ----------------

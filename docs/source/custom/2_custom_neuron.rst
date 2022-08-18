@@ -19,8 +19,8 @@
 - **_parameter_variables** -- 参数变量
 - **_constant_variables** -- 固定变量
 
-对于 :code:`_tau_variables` 我们会进行一个变换 :code:`tau_var = np.exp(-dt/tau_var)`,
-对于 :code:`_membrane_variables` 我们会进行一个变换 :code:`membrane_tau_var = dt/membrane_tau_var`,
+对于 :code:`_tau_variables` 会进行变换 :code:`tau_var = np.exp(-dt/tau_var)`,
+对于 :code:`_membrane_variables` 会进行变换 :code:`membrane_tau_var = dt/membrane_tau_var`,
 
 在定义变量时，同时需要设定初始值，在网络的每一次运行后，神经元的参数都会被重置为此处设定的初始值。\
 在定义神经元模型的最初部分，我们需要先定义该神经元模型可以变更的一些参数，这些参数可由传参来改变。\
@@ -59,9 +59,8 @@
 
 - add, minus, div -- 简单的加减除的操作
 - var_mult, mat_mult, mat_mult_pre, sparse_mat_mult, reshape_mat_mult  -- 变量乘法，矩阵乘法，对第一个因子进行维度转换的矩阵乘法，稀疏矩阵乘法，对第二个因子进行维度转换的矩阵乘法
-- var_linear, mat_linear -- result=ax+b 变量的一阶线性乘法加和
-- reduce_sum, mult_sum
-- threshold
+- var_linear, mat_linear -- result=ax+b 变量的一阶线性乘法加和与矩阵的一阶线性乘法加和
+- threshold -- 阈值函数
 - cat
 - exp
 - stack
@@ -83,4 +82,4 @@
     self._operations.append(('V', 'reset', 'Vtemp',  'O'))
 
 
-在代码的最后，需要添加 :code:`NeuronModel.register("lif", LIFModel)` 用于将该神经元模型添加至神经元模型的库中，以便前端的调用。
+在最后，需要添加 :code:`NeuronModel.register("lif", LIFModel)` 用于将该神经元模型添加至神经元模型的库中。
