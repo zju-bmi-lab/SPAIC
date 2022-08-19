@@ -27,12 +27,17 @@ In **SPAIC** , :code:`NeuronGroup` is like nodes of the network model. Like laye
 
 LIF neuron model
 -----------------------
+**LIF(Leaky Integrated-and-Fire Model)** neuron formula and paramters:
+
+.. math::
+    V = tua\_m * V + I \\
+    O = spike\_func(V^n[t])
+
 For example, we build a layer with 100 **LIF** neurons:
 
 .. code-block:: python
 
     self.layer1 = NeuronGroup(neuron_number=100, neuron_model='lif')
-
 
 A layer with 100 standard **LIF** neurons has been constructed. While, sometimes we need to specify the **LIF** \
 neuron to get different neuron dynamics, that we will need to specify some parameters:
@@ -53,7 +58,15 @@ If users need to change these parameters, they can enter the parameters when con
 
 CLIF neuron model
 -------------------------
-**CLIF(Current Leaky Integrated-and-Fire Model)** neuron paramters:
+**CLIF(Current Leaky Integrated-and-Fire Model)** neuron formula and paramters:
+
+.. math::
+    V(t) = M(t) − S(t) − E(t) \\
+    I = V0 * I \\
+    M = tau\_p * M + I \\
+    S = tau\_q * S + I \\
+    E = tau\_p * E + Vth * O \\
+    O = spike\_func(V^n[t])
 
 - **tau_p, tau_q** - time constants of synapse, default as 12.0 and 8.0
 - **tau_m** - time constant of neuron membrane potential, default as 20.0
@@ -81,21 +94,21 @@ aEIF neuron model
 **aEIF(Adaptive Exponential Integrated-and-Fire Model)** [#f2]_ neuron model and parameters:
 
 .. math::
-    V &= V + dt / tauM * (EL - V + EXP - U + I^n[t]) \\
-    U &= U + dt / tauW * (a * (V - EL) - U) \\
-    EXP &= delta\_t * delta\_t2 * exp(dv\_th/delta\_t2) \\
+    V &= V + dt / C * (gL * (EL - V + EXP) - w + I^n[t]) \\
+    w &= w + dt / tau\_w * (a * (V - EL) - w) \\
+    EXP &= delta\_t * exp(dv\_th/delta\_t) \\
     dv &= V - EL \\
     dv\_th &= V - Vth \\
     O^n[t] &= spike\_func(V^n[t-1]) \\
 
     If V > 20: \\
-    then V &= EL, U = U + b
+    then V &= EL, w = w + b
 
-- **tau_m** - membrane capacitance and leak conductance,tau_m = g_L/C
+- **C, gL** - membrane capacitance and leak conductance
 - **tau_w** - adaptation time constant
 - **a.** - subthreshold adaptation
 - **b.** - spike-triggered adaptation
-- **delta_t, delta_t2** - slope factor
+- **delta_t** - slope factor
 - **EL** - leak reversal potential
 
 .. image:: ../_static/AEIF_Appearance.png
@@ -173,7 +186,7 @@ into **SPAIC** with more details.
 
 
 
-.. [#f1] **GLIF model** : Mihalaş S, Niebur E. A generalized linear integrate-and-fire neural model produces diverse spiking behaviors. Neural Comput. 2009 Mar;21(3):704-18.` doi:10.1162/neco.2008.12-07-680. <https://doi.org/10.1162/neco.2008.12-07-680>`_ . PMID: 18928368; PMCID: PMC2954058.
+.. [#f1] **GLIF model** : Teeter, C., Iyer, R., Menon, V., Gouwens, N., Feng, D., Berg, J., ... & Mihalas, S. (2018). Generalized leaky integrate-and-fire models classify multiple neuron types. Nature communications, 9(1), 1-15.
 .. [#f2] **AEIF model** : Brette, Romain & Gerstner, Wulfram. (2005). Adaptive Exponential Integrate-And-Fire Model As An Effective Description Of Neuronal Activity. Journal of neurophysiology. 94. 3637-42.` doi:10.1152/jn.00686.2005. <https://doi.org/10.1152/jn.00686.2005>`_
 .. [#f3] **IZH model** : Izhikevich, E. M. (2003). Simple model of spiking neurons. IEEE Transactions on neural networks, 14(6), 1569-1572.
 .. [#f4] **HH model** : Hodgkin, A. L., & Huxley, A. F. (1952). A quantitative description of membrane current and its application to conduction and excitation in nerve. The Journal of physiology, 117(4), 500.

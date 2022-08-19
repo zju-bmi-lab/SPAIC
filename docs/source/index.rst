@@ -8,8 +8,8 @@
 Welcome to SPAIC's documentation!
 #################################################
 
-`SPAIC <https://github.com/ZhejianglabNCRC/SPAIC>`_ is a brain-inspired computing \
-framework for combining neuroscience with machine learning.
+`SPAIC <https://github.com/ZhejianglabNCRC/SPAIC>`_ (spike based artificial intelligence computing) \
+is a brain-inspired computing framework for combining neuroscience with machine learning.
 
 * :ref:`中文首页(Chinese homepage) <index_cn>`
 
@@ -118,13 +118,18 @@ with **cuda**.  Use :code:`0.1ms` as the time step
 
 .. code-block:: python
 
-   if torch.cuda.is_available():
-       device = 'cuda'
-   else:
-       device = 'cpu'
-   backend = spaic.Torch_Backend(device)
-   backend.dt = 0.1
-   self.set_backend(backend)
+      # Method 1:
+      if torch.cuda.is_available():
+          device = 'cuda'
+      else:
+          device = 'cpu'
+      backend = spaic.Torch_Backend(device)
+      backend.dt = 0.1
+      self.set_backend(backend)
+
+      # Method 2:
+      self.set_backend('PyTorch', 'cuda')
+      self.set_backend_dt(0.2)
 
 2.6 Overall network structure
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -274,10 +279,6 @@ with **cuda**.  Use :code:`0.1ms` as the time step
 -----------------------
 After training and testing 100 epochs, we get the following accuracy curve through matplotlib
 
-.. image:: _static/STCA_MNIST_Accuracy.png
-    :width: 100%
-
-
 .. code-block:: python
 
    from matplotlib import pyplot as plt
@@ -296,10 +297,13 @@ After training and testing 100 epochs, we get the following accuracy curve throu
    plt.show()
 
 
+.. image:: _static/STCA_MNIST_Accuracy.png
+    :width: 100%
+
 
 5. Save model
 -------------------
-After the training is completed, we can store the weight information through the built-in function :code:`Network.save_state`, \
+After the training is completed, we can store the weight information through the built-in function :code:`Network.save_state` , \
 or use :code:`spaic.Network_saver.network_save` to store the overall network structure and weight.
 
 Method 1: (only store weights)
@@ -316,7 +320,7 @@ Method 2: (store network structure and weights at the same time)
 
 .. note::
 
-   In method 2, the format of the network structure storage can be :code:`json` or :code:`yaml`, both of which can be read directly without transmitted.
+   In method 2, the format of the network structure storage can be :code:`json` or :code:`yaml` , both of which can be read directly without transmitted.
    The weights of the first and second methods are stored in the tensor format of **Pytorch** recently.
 
 Additional: Other ways of constructing networks
@@ -406,8 +410,10 @@ User manual:
 
 Contact us:
 ==============================================
-Chaofei Hong: hongchf@zhejainglab.com \
-Mengwen Yuan: yuanmw@zhejianglab.com \
+Chaofei Hong: hongchf@zhejainglab.com
+
+Mengwen Yuan: yuanmw@zhejianglab.com
+
 Mengxiao Zhang: mxzhang@zhejianglab.com
 
 
@@ -416,7 +422,8 @@ Mengxiao Zhang: mxzhang@zhejianglab.com
 欢迎来到SPAIC的文档网站!
 #################################################
 
-`SPAIC <https://github.com/ZhejianglabNCRC/SPAIC>`_ 是一个用于结合神经科学与机器学习的类脑计算框架。\
+`SPAIC <https://github.com/ZhejianglabNCRC/SPAIC>`_ (spike based artificial intelligence computing) \
+是一个用于结合神经科学与机器学习的类脑计算框架。
 
 * :ref:`Homepage in English <index_en>`
 
@@ -513,13 +520,18 @@ II. 如何从零开始构建一个脉冲神经网络
 
 .. code-block:: python
 
-   if torch.cuda.is_available():
-       device = 'cuda'
-   else:
-       device = 'cpu'
-   backend = spaic.Torch_Backend(device)
-   backend.dt = 0.1
-   self.set_backend(backend)
+   # 方式一：
+      if torch.cuda.is_available():
+          device = 'cuda'
+      else:
+          device = 'cpu'
+      backend = spaic.Torch_Backend(device)
+      backend.dt = 0.1
+      self.set_backend(backend)
+
+   # 方式二：
+      self.set_backend('PyTorch', 'cuda')
+      self.set_backend_dt(0.2)
 
 2.6 整体网络结构
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -669,9 +681,6 @@ II. 如何从零开始构建一个脉冲神经网络
 --------------
 在训练并测试共100个epoch后，通过 **matplotlib** 我们得到如下的准确率曲线：
 
-.. image:: _static/STCA_MNIST_Accuracy.png
-    :width: 100%
-
 .. code-block:: python
 
    from matplotlib import pyplot as plt
@@ -688,6 +697,10 @@ II. 如何从零开始构建一个脉冲神经网络
    plt.xlabel('epoch')
 
    plt.show()
+
+
+.. image:: _static/STCA_MNIST_Accuracy.png
+    :width: 100%
 
 
 5. 保存网络
@@ -794,8 +807,10 @@ II. 如何从零开始构建一个脉冲神经网络
 
 联系我们：
 ==============================================
-洪朝飞：hongchf@zhejianglab.com \
-袁孟雯：yuanmw@zhejianglab.com \
+洪朝飞：hongchf@zhejianglab.com
+
+袁孟雯：yuanmw@zhejianglab.com
+
 张梦骁：mxzhang@zhejianglab.com
 
 

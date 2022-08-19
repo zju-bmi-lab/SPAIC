@@ -27,6 +27,13 @@
 
 LIF神经元
 ------------------
+**LIF(Leaky Integrated-and-Fire Model)** 神经元的公式以及参数：
+
+.. math::
+    V = tua\_m * V + I \\
+    O = spike\_func(V^n[t])
+
+
 以建立一层含有100个 **LIF** 神经元的layer为例:
 
 .. code-block:: python
@@ -55,7 +62,16 @@ LIF神经元
 
 CLIF神经元
 -------------------------
-**CLIF(Current Leaky Integrated-and-Fire Model)** 神经元的参数:
+**CLIF(Current Leaky Integrated-and-Fire Model)** 神经元公式以及参数:
+
+.. math::
+    V(t) = M(t) − S(t) − E(t) \\
+    I = V0 * I \\
+    M = tau\_p * M + I \\
+    S = tau\_q * S + I \\
+    E = tau\_p * E + Vth * O \\
+    O = spike\_func(V^n[t])
+
 
 - **tau_p, tau_q** - 突触的时间常量，默认为12.0和8.0
 - **tau_m** - 神经元膜电位的时间常量，默认为20.0
@@ -83,21 +99,21 @@ aEIF神经元
 **aEIF(Adaptive Exponential Integrated-and-Fire Model)** [#f2]_ 神经元公式以及参数:
 
 .. math::
-    V &= V + dt / tauM * (EL - V + EXP - U + I^n[t]) \\
-    U &= U + dt / tauW * (a * (V - EL) - U) \\
-    EXP &= delta\_t * delta\_t2 * exp(dv\_th/delta\_t2) \\
+    V &= V + dt / C * (gL * (EL - V + EXP) - w + I^n[t]) \\
+    w &= w + dt / tau\_w * (a * (V - EL) - w) \\
+    EXP &= delta\_t * exp(dv\_th/delta\_t) \\
     dv &= V - EL \\
     dv\_th &= V - Vth \\
     O^n[t] &= spike\_func(V^n[t-1]) \\
 
     If V > 20: \\
-    then V &= EL, U = U + b
+    then V &= EL, w = w + b
 
-- **tau_m** - 膜电容与泄漏电导系数，tau_m = g_L/C
+- **C, gL** - 膜电容与泄漏电导系数
 - **tau_w** - 自适应时间常量
 - **a.** - 阈下自适应系数
 - **b.** - 脉冲激发自适应系数
-- **delta_t, delta_t2** - 速率因子
+- **delta_t** - 速率因子
 - **EL** - 泄漏反转电位
 
 .. image:: ../_static/AEIF_Appearance.png
@@ -173,7 +189,7 @@ HH神经元
 
 
 
-.. [#f1] **GLIF model** : Mihalaş S, Niebur E. A generalized linear integrate-and-fire neural model produces diverse spiking behaviors. Neural Comput. 2009 Mar;21(3):704-18.` doi:10.1162/neco.2008.12-07-680. <https://doi.org/10.1162/neco.2008.12-07-680>`_ . PMID: 18928368; PMCID: PMC2954058.
+.. [#f1] **GLIF model** : Teeter, C., Iyer, R., Menon, V., Gouwens, N., Feng, D., Berg, J., ... & Mihalas, S. (2018). Generalized leaky integrate-and-fire models classify multiple neuron types. Nature communications, 9(1), 1-15.
 .. [#f2] **AEIF model** : Brette, Romain & Gerstner, Wulfram. (2005). Adaptive Exponential Integrate-And-Fire Model As An Effective Description Of Neuronal Activity. Journal of neurophysiology. 94. 3637-42.` doi:10.1152/jn.00686.2005. <https://doi.org/10.1152/jn.00686.2005>`_
 .. [#f3] **IZH model** : Izhikevich, E. M. (2003). Simple model of spiking neurons. IEEE Transactions on neural networks, 14(6), 1569-1572.
 .. [#f4] **HH model** : Hodgkin, A. L., & Huxley, A. F. (1952). A quantitative description of membrane current and its application to conduction and excitation in nerve. The Journal of physiology, 117(4), 500.
