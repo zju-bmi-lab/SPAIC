@@ -11,9 +11,11 @@ The most import part of surrogate gradient algorithms is that use custom gradien
 backpropagation gradient. Here we use **STCA** and **STBP** as examples to show how to use custom gradient formula.
 
 In **STCA** [#f1]_ learning algorithm, the graident function is:
+
 :math:`h(V)=\frac{1}{\alpha}sign(|V-\theta|<\alpha)`
 
 In **STBP** [#f2]_ learning algorithm, the graident function is:
+
 :math:`h_4(V)=\frac{1}{\sqrt{2\pi a_4}} e^{-\frac{(V-V_th)^2)}{2a_4}}`
 
 
@@ -57,9 +59,10 @@ Full Synaptic Plasticity STDP learning algorithm
 The weight update formula and weight normalization formula of this algorithm [#f2]_ :
 
 .. math::
-    dw = Apost * (output\_spike * input\_trace) – Apre * (output\_trace * input\_spike)
-    weight = weight + dw
-    weight = self.w\_norm * weight/sum(torch.abs(weight))
+
+    dw &= Apost * (output\_spike * input\_trace) – Apre * (output\_trace * input\_spike) \\
+    weight &= weight + dw \\
+    weight &= self.w\_norm * weight/sum(torch.abs(weight))
 
 At first, get the presynaptic and postsynaptic NeuronGroups from :code:`trainable_connection` :
 

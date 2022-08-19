@@ -11,9 +11,9 @@ spike states and calculate the firing frequency.
 
 .. code-block:: python
 
-    self.mon_V = snnflow.StateMonitor(self.layer1, 'V')
-    self.mon_O = snnflow.StateMonitor(self.input, 'O')
-    self.spk_O = snnflow.SpikeMonitor(self.layer1, 'O')
+    self.mon_V = spaic.StateMonitor(self.layer1, 'V')
+    self.mon_O = spaic.StateMonitor(self.input, 'O')
+    self.spk_O = spaic.SpikeMonitor(self.layer1, 'O')
 
 
 To initialize the monitor, we can specify the following parameters:
