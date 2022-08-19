@@ -9,9 +9,11 @@
 别举例。两个不同算法，在平台上以 **PyTorch** 后端进行实现时，仅有的差别在于，
 
  **STCA** 算法 [#f1]_ 中，梯度函数为:
+
 :math:`h(V)=\frac{1}{\alpha}sign(|V-\theta|<\alpha)`
 
 而 **STBP** 算法 [#f2]_ 中我们选取的梯度函数为:
+
 :math:`h_4(V)=\frac{1}{\sqrt{2\pi a_4}} e^{-\frac{(V-V_th)^2)}{2a_4}}`
 
 
@@ -55,8 +57,9 @@
 该算法的权重更新公式 [#f2]_ 以及权重归一化公式：
 
 .. math::
-    dw &= Apost * (output\_spike * input\_trace) – Apre * (output\_trace * input\_spike)
-    weight &= weight + dw
+
+    dw &= Apost * (output\_spike * input\_trace) – Apre * (output\_trace * input\_spike) \\
+    weight &= weight + dw \\
     weight &= self.w\_norm * weight/sum(torch.abs(weight))
 
 首先从 :code:`trainable_connection` 中获取该学习算法训练的突触前神经元组以及突触后神经元组

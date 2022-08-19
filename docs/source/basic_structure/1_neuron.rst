@@ -30,8 +30,8 @@ LIF神经元
 **LIF(Leaky Integrated-and-Fire Model)** 神经元的公式以及参数：
 
 .. math::
-    V = tua\_m * V + I \\
-    O = spike\_func(V^n[t])
+    V &= tua\_m * V + I \\
+    O &= spike\_func(V^n)
 
 
 以建立一层含有100个 **LIF** 神经元的layer为例:
@@ -65,12 +65,13 @@ CLIF神经元
 **CLIF(Current Leaky Integrated-and-Fire Model)** 神经元公式以及参数:
 
 .. math::
-    V(t) = M(t) − S(t) − E(t) \\
-    I = V0 * I \\
-    M = tau\_p * M + I \\
-    S = tau\_q * S + I \\
-    E = tau\_p * E + Vth * O \\
-    O = spike\_func(V^n[t])
+
+    V(t) &= M(t) - S(t) - E(t) \\
+    I &= V0 * I \\
+    M &= tau\_p * M + I \\
+    S &= tau\_q * S + I \\
+    E &= tau\_p * E + Vth * O \\
+    O &= spike\_func(V^n)
 
 
 - **tau_p, tau_q** - 突触的时间常量，默认为12.0和8.0
@@ -104,7 +105,7 @@ aEIF神经元
     EXP &= delta\_t * exp(dv\_th/delta\_t) \\
     dv &= V - EL \\
     dv\_th &= V - Vth \\
-    O^n[t] &= spike\_func(V^n[t-1]) \\
+    O &= spike\_func(V^n)
 
     If V > 20: \\
     then V &= EL, w = w + b
@@ -126,7 +127,8 @@ IZH神经元
     V &= V + dt / tau\_M * (C1 * V * V + C2 * V + C3 - U + I)  \\
     V &= V + dt / tau\_M * (V* (C1 * V + C2) + C3 - U + I) \\
     U &= U + a. * (b. * V - U) \\
-    O^n[t] &= spike\_func(V^n[t-1]) \\
+    O &= spike\_func(V^n)
+
     if V &> Vth, \\
     then V &= Vreset, U = U + d
 
@@ -142,6 +144,7 @@ HH神经元
 **HH(Hodgkin-Huxley Model)**  [#f4]_ 神经元模型及参数:
 
 .. math::
+
     V &= V + dt/tau\_v * (I - Ik) \\
     Ik &= NA + K + L \\
     NA &= g\_NA * m^3 * h * (V - V_NA) \\
@@ -162,9 +165,9 @@ HH神经元
     alpha\_n &= 0.01 * (-V + 10) / (exp((-V+10)/10) - 1) \\
     beta\_n &= 0.125 * exp(-V/80) \\
     alpha\_h &= 0.07 * exp(-V/20) \\
-    beta\_h &= 1/(exp((-V+30)/10) + 1) \\
+    beta\_h &= 1/(exp((-V+30)/10) + 1)
 
-    O^n[t] &= spike\_func(V^n[t-1])
+    O &= spike\_func(V^n)
 
 
 - **dt**

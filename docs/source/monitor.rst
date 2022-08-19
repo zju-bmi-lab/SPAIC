@@ -9,9 +9,9 @@
 
 .. code-block:: python
 
-    self.mon_V = snnflow.StateMonitor(self.layer1, 'V')
-    self.mon_O = snnflow.StateMonitor(self.input, 'O')
-    self.spk_O = snnflow.SpikeMonitor(self.layer1, 'O')
+    self.mon_V = spaic.StateMonitor(self.layer1, 'V')
+    self.mon_O = spaic.StateMonitor(self.input, 'O')
+    self.spk_O = spaic.SpikeMonitor(self.layer1, 'O')
 
 在监视器初始化中，我们可以指定如下参数：
 

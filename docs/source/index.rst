@@ -45,7 +45,7 @@ and instantiate a network class:
    class SampleNet(spaic.Network):
       def __init__(self):
          super(SampleNet, self).__init__()
-            ……
+            ......
 
    Net = SampleNet()
 
@@ -457,7 +457,7 @@ II. 如何从零开始构建一个脉冲神经网络
    class SampleNet(spaic.Network):
       def __init__(self):
          super(SampleNet, self).__init__()
-            ……
+            ......
 
    Net = SampleNet()
 

@@ -783,16 +783,14 @@ NeuronModel.register("lifm", LIFMModel)
 class IZHModel(NeuronModel):
     """
     IZH model:
-
-    .. math::
-        V = V + dt / tauM * (C1 * V * V + C2 * V + C3 - U + I)  # tauM=1 此处加tauM是为了添加op时和LIF模型保存一致 \\
-        V = V + dt / tauM * (V* (C1 * V + C2) + C3 - U + I)     # 由上式拆分而来 \\
-        U = U + a. * (b. * V - U) \\
-
-        O^n[t] = spike_func(V^n[t-1])
-
-        if V > Vth, \\
-        then V <- C, U <- U + d
+    V = V + dt / tauM * (C1 * V * V + C2 * V + C3 - U + PSP)  # tauM=1 此处加tauM是为了添加op时和LIF模型保存一致
+    V = V + dt / tauM * (V* (C1 * V + C2) + C3 - U + PSP)     # 由上式拆分而来
+    U = U + a. * (b. * V - U)
+    PSP = M^n[t] - S^n[t]
+    M^n[t] = tauP * M^n[t-1] + I^n[t-1]        # tauP: decaying time constants of membrane integration
+    S^n[t] = tauQ * S^n[t-1] + I^n[t-1]        # tauQ: decaying time constants of synaptic currents
+    I^n[t] = V0 * Isyn^n[t-1]                # Isyn = sum(w * O^(n-1)[t])
+    O^n[t] = spike_func(V^n[t-1])
 
     References:
         Izhikevich, E. M. (2003). Simple model of spiking neurons. IEEE Transactions on neural networks, 14(6), 1569-1572.
@@ -848,22 +846,14 @@ class aEIFModel(NeuronModel):
     """
     aEIF model:
 
-    .. math::
-        V &= V + dt / tau\_M * (EL - V + EXP - U + I^n[t])
+    V = V + dt / tauM * (EL - V + EXP - U + I^n[t])
+    U = U + dt / tauW * (a * (V - EL) - U)
+    EXP = delta_t * delta_t2 * exp(du_th/delta_t2)
+    du = V - EL
+    du_th = V - Vth
+    I^n[t] = V0 * Isyn^n[t-1]
 
-        U &= U + dt / tau\_W * (a * (V - EL) - U)
-
-        EXP &= delta\_t * delta\_t2 * exp(dv\_th/delta\_t2)
-
-        dv &= V - EL
-
-        dv\_th &= V - Vth
-
-        O^n[t] &= spike\_func(V^n[t-1])
-
-        V > 20
-
-        V &= EL, U = U + b
+    O^n[t] = spike_func(V^n[t-1])
 
     References:
         Brette, R., & Gerstner, W. (2005). Adaptive exponential integrate-and-fire model as an
