@@ -27,7 +27,7 @@ In **SPAIC** , :code:`NeuronGroup` is like nodes of the network model. Like laye
 
 LIF neuron model
 -----------------------
-**LIF(Leaky Integrated-and-Fire Model)** neuron formula and paramters:
+**LIF(Leaky Integrated-and-Fire Model)** neuron formula and parameters:
 
 .. math::
     V &= tua\_m * V + I \\
@@ -58,7 +58,7 @@ If users need to change these parameters, they can enter the parameters when con
 
 CLIF neuron model
 -------------------------
-**CLIF(Current Leaky Integrated-and-Fire Model)** neuron formula and paramters:
+**CLIF(Current Leaky Integrated-and-Fire Model)** neuron formula and parameters:
 
 .. math::
     V(t) &= M(t) - S(t) - E(t) \\
@@ -76,7 +76,7 @@ CLIF neuron model
 
 GLIF neuron model
 -------------------------
-**GLIF(Generalized Leaky Integrate-and-Fire Model)** [#f1]_ neuron paramters:
+**GLIF(Generalized Leaky Integrate-and-Fire Model)** [#f1]_ neuron parameters:
 
 - R, C, E_L
 - Theta_inf
