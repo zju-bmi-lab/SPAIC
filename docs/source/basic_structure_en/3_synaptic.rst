@@ -1,42 +1,47 @@
 Synapse
 ===========
 
-本章节将会主要提及脉冲神经网络中使用的不同的突触模型，主要分为化学突触与电突触两种。
+This chapter will introduce synaptic models in **SPAIC** .
 
-化学突触
----------------
-化学突触是突触的正常表现形式，神经元与神经元之间通过突触递质进行信息传递，从而导致了某些\
-离子浓度的上升亦或是下降。在计算神经科学中我们将生理上的突触转化为权重，从而使得兴奋递质\
-与抑制性递质转化为正负权值的形式来作用到神经元上。
+Chemical Synapse
+---------------------
+``Chemical synapse`` is a common form of synapse, information transmitted between neurons by synaptic transmitters, \
+which causes some concentration of certain ions to change. In computational neuroscience, we use weight and calculate \
+form to simulate the physiological synapse that excitatory and inhibitory transmitters are simulated with plus or minus weight.
 
-在SPAIC中，我们的连接默认使用化学突触的形式进行连接，神经元模型中也默认接收到的电流\
-来自于化学突触传递的电流。
+In **SPAIC** , by default, the synapse use chemical synapse and neurons use 'Isyn' as input. \
+So, we call the basic chemical synapse as :code:`basic` .
 
 .. code-block:: python
 
-    self.connection = spaic.Connection(self.layer1, self.layer2,
-                                              link_type='full', w_std=0.0, w_mean=0.1)
+    self.connection = spaic.Connection(self.layer1, self.layer2, link_type='full',
+                                        syn_type=['basic'],
+                                        w_std=0.0, w_mean=0.1)
 
-电突触(Gap junction)
+Gap Junction
 ---------------------------------
-电突触，也就是我们常称之为Gap junction的一种突触形式，其原理是由于突触前与突出后神经元\
-相隔距离尤其地近，以至于产生了带电的离子互相交换。电突触的特点是，首先是突触后神经元受到的\
-刺激的程度总是等于或是小于突触前神经元，也就是突触的权值总是小于或等于1的。其次，另外一种\
-特点在于通常情况下电突触是双向的（即突触的作用同时作用在突触前神经元以及突触后神经元，使得\
-双方的电压不断接近）
+``Gap junction`` , another common form of synapse. The presynaptic and postsynaptic neurons are so closely that \
+charged ions exchange with each other. The characteristic of gap junction is that they are usually bidirection \
+(i.e. the action of the synapse acts on both the presynaptic neuron and the postsynaptic neuron, bringing the \
+voltage of the two neurons closer together).
 
-电突触的数学公式为
+The calculate form of gap junction: ``Igap = w_gap(Vpre - Vpost)``
 
-若要使用电突触，则需要在连接的参数中设置突触的启用、突触类型为电突触并且使用支持电突触的后\
-端神经元模型：
+If users want to use gap junction, need to set the synapse_type as :code:`electrical` .
 
 .. code-block:: python
 
     self.connection = spaic.Connection(self.layer1, self.layer2,
                                               link_type='full', w_std=0.0, w_mean=0.1,
-                                              synapse=True, synapse_type='electrical_synapse')
+                                              syn_type=['electrical'])
 
 
-如何在启用突触后选取对应的神经元模型
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Other Synapse
+-----------------------
+In ``Synapse`` , we also construct some other synapse, including pooling and flatten.
 
+- **Max pooling** -- :code:`maxpool`
+- **Average pooling** -- :code:`avgpool`
+- **Flatten** -- :code:`flatten`
+- **Dropout** --  :code:`dropout`
+- **Direct pass** -- :code:`directpass` , choose this synapse will let output equal to the input, which means the output :code:`Isyn` will equal to the output value of presynapse neurons.

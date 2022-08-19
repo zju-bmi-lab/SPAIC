@@ -1,42 +1,41 @@
 .. _my-custom-encoding:
 
-
-
 Custom encoding or decoding
 =================================
-本章节主要介绍编码器、生成器、解码器、奖励器以及动作器的自定义，以便当本平台提供的内置方法无法满足用户需求时，\
-用户可以方便的添加符合自己需求的编解码方案。
+This chapter will introduce how to customize :code:`Encoder` , :code:`Generator` , :code:`Decoder` , :code:`Action` and :code:`Reward` .
 
-编码器自定义
---------------------------
-编码是将输入的数据转化为脉冲神经网络可用的时序脉冲数据，是搭建神经网络要考虑的重要一步，\
-不同的编码方法会生成不同的时序脉冲数据，为了满足用户的大多数应用需求，在本平台中内置了6种最常用的编码方法，\
-内置的编码方法可能无法满足用户的任意需求，这时候就需要用户自己添加一些更符合其实验目的的编码方案。\
-定义编码方案的这一步可以依照 :code:`Neuron.Encoders` 文件中的格式进行添加。
+Customize Encoder
+---------------------------
+Encoder is used to transmit the input data to temporal spiking data. It is one of the important step in building spiking \
+neural network. Different encoding method will generate different data. To meet most of the application situation, **SPAIC** \
+has already provided some common encoding methods. And customize encoding method can add as the format in :class:`spaic.Neuron.Encoders` .
 
-编码方法初始化
---------------------------
-自定义的编码方法需继承 :code:`Encoder` 类，其初始化方法中的参数名需与 :code:`Encoder` 类的一致，若需要传入初始化参数以外的参数，\
-可以通过 :code:`kwargs` 传入，以 :code:`PoissonEncoding` 类初始化函数为例：
+Initialize Encoder
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The user-defined encoding method should inherit the class :code:`Encoder` , and the parameter name in the initialization method \
+should be the same as that of the class :code:`Encoder` . Other parameters can be passed in by **kwargs** . \
+Take :code:`PoissonEncoding` class initialization function as an example:
 
 .. code-block:: python
 
-    def __init__(self, shape=None, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'),
+    def __init__(self, shape=None, num=None, dec_target=None, dt=None, coding_method='poisson',
              coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
         super(PoissonEncoding, self).__init__(shape, num, dec_target, dt, coding_method, coding_var_name, node_type,
                                           **kwargs)
-        self.unit_conversion = kwargs.get('unit_conversion', 0.1)
+        self.unit_conversion = kwargs.get('unit_conversion', 1.0)
 
-在这个初始化方法中，:code:`unit_conversion` 是 :code:`PoissonEncoding` 类所需要的参数，我们通过从 :code:`kwargs` 中获取的\
-方式来设定。
 
-定义编码函数
---------------------
-编码函数是编码方法的实现部分，因为平台支持多后端（ :code:`pytorch` 、 :code:`TensorFlow` 以及 :code:`numpy` ），不同的后端\
-支持的数据类型不同，相关的数据操作也不同，所以针对不同的计算后端需要在前端编码方法中实现对应的编码函数，根据平台支持的后端，\
-内置的编码方法主要实现了三种编码函数，分别是 :code:`torch_coding` 、 :code:`tensorflow_coding` 以及 :code:`numpy_coding` ，\
-用户可以根据想要使用的后端实现其中任意一种编码函数。我们以 :code:`PoissonEncoding` 编码方法的 :code:`torch_coding` 实现过程作为\
-示例进行展示：
+In this initialization method, **unit_conversion** is the required parameter for the :code:`PoissonEncoding` class,
+which can get from **kwargs** .
+
+Define Encoder Function
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The encoding function is the implementation part of the encoding method. \
+Because the platform supports multiple backends ( :code:`Pytorch` , :code:`TensorFlow` etc.), different backends \
+support different data types and data operations. \
+Therefore, the corresponding coding function needs to be implemented in the front-end coding method for different computing \
+back-end. \
+We take the implementation of :code:`torch_coding` for :code:`PoissonEncoding` as an example:
 
 .. code-block:: python
 
@@ -45,101 +44,97 @@ Custom encoding or decoding
         # For full connection, the shape of source is [batch_size, num]
         # For convolution connection, the shape of source is [batch_size] + shape
         if source.__class__.__name__ == 'ndarray':
-            source = torch.tensor(source, device=device, dtype=torch.float32)
-        shape = source.shape
+            source = torch.tensor(source, device=device, dtype=self._backend.data_type)
         # The shape of the encoded spike trains.
-        spk_shape = [self.time_step] + list(shape)
-        spikes = torch.rand(spk_shape, device=device).le(source * self.unit_conversion).float()
+        spk_shape = [self.time_step] + list(self.shape)
+        spikes = torch.rand(spk_shape, device=device).le(source * self.unit_conversion*self.dt).float()
         return spikes
 
+At the end of this code, don't forget add :code:`Encoder.register("poisson", PoissonEncoding)` to add the usage linked to \
+this function.
 
-在代码的最后，需要添加 :code:`Encoder.register("poisson", PoissonEncoding)` 用于将该编码方法添加至编码方法的库中，\
-以便前端的调用。
-
-生成器自定义
+Customize Generator
 --------------------------
-生成器可用于生成服从特定分布的时空脉冲数据或者一些特殊的电流模式，在平台中内置了2种最常用的生成器方法，\
-内置的生成器方法可能无法满足用户的任意需求，这时候就需要用户自己添加一些更符合其实验目的的生成器方案。\
-定义生成器方案的这一步可以依照 :code:`Neuron.Generators` 文件中的格式进行添加。
+Generator can be used to generate specific distributed spike trains or some special current mode. **SPAIC** \
+has already provided some common generating methods. \
+And customize generating method can add as the format in :class:`spaic.Neuron.Generators` file.
 
-生成器方法初始化
---------------------------
-自定义的生成器方法需继承 :code:`Generator` 类，其初始化方法中的参数名需与 :code:`Generator` 类的一致，若需要传入初始化参数以外的参数，\
-可以通过 :code:`kwargs` 传入，以恒定电流生成器 :code:`CC_Generator` 类的初始化函数为例：
+Initialize Generator
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The user-defined generating method should inherit the class :code:`Generator` , and the parameter name in the initialization method \
+should be the same as that of the class :code:`Generator` . Other parameters can be passed in by **kwargs** . \
+Take :code:`CC_Generator` class initialization function as an example:
 
 .. code-block:: python
 
     def __init__(self, shape=None, num=None, dec_target=None,  dt=None,
-                 coding_method=('poisson_generator', 'cc_generator', '...'),
-                 coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
+                 coding_method='cc_generator', coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
         super(CC_Generator, self).__init__(shape, num, dec_target, dt, coding_method, coding_var_name, node_type,
                                        **kwargs)
-        self.num = num
 
-在这个初始化方法中，
 
-定义生成器函数
---------------------
-生成函数是生成方法的实现部分，因为平台支持多后端（ :code:`pytorch` 、 :code:`TensorFlow` 以及 :code:`numpy` ），不同的后端\
-支持的数据类型不同，相关的数据操作也不同，所以针对不同的计算后端需要在前端生成方法中实现对应的生成函数，根据平台支持的后端，\
-内置的生成方法主要实现了三种生成函数，分别是 :code:`torch_coding` 、 :code:`tensorflow_coding` 以及 :code:`numpy_coding` ，\
-用户可以根据想要使用的后端实现其中任意一种生成函数。我们以 :code:`CC_Generator` 生成方法的 :code:`torch_coding` 实现过程作为\
-示例进行展示：
+
+Define Generator Function
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+A coding function is the implementation part of a generating method. \
+Because the platform supports multiple backends ( :code:`Pytorch` , :code:`TensorFlow` etc.), different backends \
+support different data types and data operations. \
+Therefore, the corresponding coding function needs to be implemented in the front-end coding method for different computing \
+back-end. \
+We take the implementation of :code:`torch_coding` for :code:`CC_Generator` as an example:
 
 .. code-block:: python
 
-    def torch_coding(self, source, device):
+      def torch_coding(self, source, device):
+
+        if not (source >= 0).all():
+            import warnings
+            warnings.warn('Input current shall be non-negative')
         if source.__class__.__name__ == 'ndarray':
-            source = torch.tensor(source, dtype=torch.float, device=device)
+            source = torch.tensor(source, dtype=self._backend.data_type, device=device)
 
-        if source.ndim == 0:
-            batch = 1
-        else:
-            batch = source.shape[0]
-
-        shape = [batch, self.num]
-        spk_shape = [self.time_step] + list(shape)
+        spk_shape = [self.time_step] + list(self.shape)
         spikes = source * torch.ones(spk_shape, device=device)
         return spikes
 
+:code:`Generator.register('cc_generator', CC_Generator)` also needed here for front-end use.
 
-在代码的最后，需要添加 :code:`Generator.register('cc_generator', CC_Generator)` 用于将该生成器方法添加至生成器方法的库中，\
-以便前端的调用。
-
-解码器自定义
+Customize Decoder
 --------------------------
-解码是将输出的脉冲信号进行一定程度的取舍和转换，为了满足用户的大多数应用需求，平台中内置了5种常用的解码方法，\
-内置的解码方法可能无法满足用户的任意需求，这时候就需要用户自己添加一些更符合其实验目的的解码方案。\
-定义解码方案的这一步可以依照 :code:`Neuron.Decoders` 文件中的格式进行添加。
+Decoder is used to convert the output spikes or voltages to a numerical signal. **SPAIC** \
+has already provided some common decoding methods. \
+And decoding method can add as the format in :class:`spaic.Neuron.Decoders` file.
 
-解码方法初始化
---------------------------
-自定义的解码方法需继承 :code:`Decoder` 类，其初始化方法中的参数名需与 :code:`Decoder` 类的一致，若需要传入初始化参数以外的参数，\
-可以通过 :code:`kwargs` 传入，以 :code:`Spike_Counts` 类的初始化函数为例：
+Initialize Decoder
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The user-defined decoding method should inherit the class :code:`Decoder`, and the parameter name in the initialization method \
+should be the same as that of the class :code:`Decoder`. Other parameters can be passed in by **kwargs** . \
+Take :code:`Spike_Counts` class initialization function as an example:
 
 .. code-block:: python
 
-    def __init__(self, shape=None, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'),
+    def __init__(self, shape=None, num=None, dec_target=None, dt=None, coding_method='spike_counts',
             coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
         super(Spike_Counts, self).__init__(shape, num, dec_target, dt, coding_method, coding_var_name, node_type,
                                       **kwargs)
         self.pop_size = kwargs.get('pop_size', 1)
 
-在这个初始化方法中，:code:`pop_size` 是 :code:`Spike_Counts` 类实现群体脉冲数解码所需要的参数，我们通过从 :code:`kwargs` 中\
-获取的方式来设定。
+In this initialization method, **pop_size** is the required parameter for the :code:`Spike_Counts` class, \
+which can get from **kwargs** .
 
-定义解码函数
---------------------
-解码函数是解码方法的实现部分，因为平台支持多后端（ :code:`pytorch` 、 :code:`TensorFlow` 以及 :code:`numpy` ），不同的后端\
-支持的数据类型不同，相关的数据操作也不同，所以针对不同的计算后端需要在前端解码方法中实现对应的解码函数，根据平台支持的后端，\
-内置的解码方法主要实现了三种解码函数，分别是 :code:`torch_coding` 、 :code:`tensorflow_coding` 以及 :code:`numpy_coding` ，\
-用户可以根据想要使用的后端实现其中任意一种解码函数。我们以 :code:`Spike_Counts` 解码方法的 :code:`torch_coding` 实现过程作为\
-示例进行展示：
+Define Decoder Function
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+A coding function is the implementation part of a decoding method. \
+Because the platform supports multiple backends ( :code:`Pytorch` , :code:`TensorFlow` etc.), different backends \
+support different data types and data operations. \
+Therefore, the corresponding coding function needs to be implemented in the front-end coding method for different computing \
+back-end. \
+We take the implementation of :code:`torch_coding` for :code:`Spike_Counts` as an example:
 
 .. code-block:: python
 
     def torch_coding(self, record, target, device):
-        # record is the activities of the NeuronGroup to be decoded
+        # record is the activity of the NeuronGroup to be decoded
         # the shape of record is (time_step, batch_size, n_neurons)
         # target is the label of the sample
         spike_rate = record.sum(0).to(device=device)
@@ -153,6 +148,100 @@ Custom encoding or decoding
         pop_spikes = torch.stack(pop_spikes_temp, dim=-1)
         return pop_spikes
 
+:code:`Decoder.register('spike_counts', Spike_Counts)` also needed here for front-end use.
 
-在代码的最后，需要添加 :code:`Decoder.register('spike_counts', Spike_Counts)` 用于将该解码方法添加至解码方法的库中，\
-以便前端的调用。
+
+Customize Reward
+--------------------------
+Reward is used to convert the activity of the target object into reward signal. **SPAIC** \
+has already provided some common reward methods. \
+And reward method can add as the format in :class:`spaic.Neuron.Rewards` file.
+
+Initialize Reward
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The user-defined reward method should inherit the class :code:`Reward` , and the parameter name in the initialization method \
+should be the same as that of the class :code:`Reward` . Other parameters can be passed in by **kwargs** . \
+Take :code:`Global_Reward` class initialization function as an example:
+
+.. code-block:: python
+
+    def __init__(self,shape=None, num=None, dec_target=None, dt=None, coding_method='global_reward', coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
+        super(Global_Reward, self).__init__(shape, num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
+        self.pop_size = kwargs.get('pop_size', 1)
+        self.reward_signal = kwargs.get('reward_signal', 1)
+        self.punish_signal = kwargs.get('punish_signal', -1)
+
+In this initialization method, **pop_size** , **reward_signal** , **punish_signal** are required parameters for the :code:`Global_Reward` class, \
+which can get from **kwargs** .
+
+Define Reward Function
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+A coding function is the implementation part of a reward method. \
+Because the platform supports multiple backends ( :code:`Pytorch` , :code:`TensorFlow` etc.), different backends \
+support different data types and data operations. \
+Therefore, the corresponding coding function needs to be implemented in the front-end coding method for different computing \
+back-end. \
+We take the implementation of :code:`torch_coding` for :code:`Global_Reward` as an example:
+
+.. code-block:: python
+
+    def torch_coding(self, record, target, device):
+        # the shape of record is (time_step, batch_size, n_neurons)
+        spike_rate = record.sum(0)
+        pop_num = int(self.num / self.pop_size)
+        pop_spikes_temp = (
+            [
+                spike_rate[:, (i * self.pop_size): (i * self.pop_size) + self.pop_size].sum(dim=1)
+                for i in range(pop_num)
+            ]
+        )
+        pop_spikes = torch.stack(pop_spikes_temp, dim=-1)
+        predict = torch.argmax(pop_spikes, dim=1)  # return the indices of the maximum values of a tensor across columns.
+        reward = self.punish_signal * torch.ones(predict.shape, device=device)
+        flag = torch.tensor([predict[i] == target[i] for i in range(predict.size(0))])
+        reward[flag] = self.reward_signal
+        if len(reward) > 1:
+            reward = reward.mean()
+        return reward
+
+:code:`Reward.register('global_reward', Global_Reward)` also needed here for front-end use.
+
+Customize Action
+--------------------------
+Action is used to convert the activity of the target object into next action. **SPAIC** \
+has already provided some common action methods. \
+And action method can add as the format in :class:`spaic.Neuron.Actions` file.
+
+Initialize Action
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The user-defined action method should inherit the class :code:`Action` , and the parameter name in the initialization method \
+should be the same as that of the class :code:`Action` . Other parameters can be passed in by **kwargs** . \
+Take :code:`Softmax_Action` class initialization function as an example:
+
+.. code-block:: python
+
+    def __init__(self, shape=None, num=None, dec_target=None, dt=None, coding_method='softmax_action', coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
+        super(Softmax_Action, self).__init__(shape, num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
+
+Define Action Function
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+A coding function is the implementation part of a action method. \
+Because the platform supports multiple backends ( :code:`Pytorch` , :code:`TensorFlow` etc.), different backends \
+support different data types and data operations. \
+Therefore, the corresponding coding function needs to be implemented in the front-end coding method for different computing \
+back-end. \
+We take the implementation of :code:`torch_coding` for :code:`Softmax_Action` as an example:
+
+.. code-block:: python
+
+    def torch_coding(self, record, target, device):
+        # the shape of record is (time_step, batch_size, n_neurons)
+        assert (
+            record.shape[2] == self.num
+        ), "Output layer size is not equal to the size of the action space."
+        spikes = torch.sum(record, dim=0)
+        probabilities = torch.softmax(spikes, dim=0)
+        return torch.multinomial(probabilities, num_samples=1).item()
+
+
+:code:`Action.register('softmax_action', Softmax_Action)` also needed here for front-end use.

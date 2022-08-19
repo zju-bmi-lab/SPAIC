@@ -2,9 +2,10 @@
 
 Custom
 **********************
-尽管平台已经包含了各类丰富的模型，目前常用的编解码、神经元、连接形式都已实现，\
-但是在研究的过程中我们时常有更多的不同的需求，在这个章节中我们将会介绍如何在SPAIC\
-平台上自定义添加各类模块。
+Although the platform already contains various kinds of models, and the commonly used codec, \
+neuron and connection forms have been realized, we often have more and different requirements in \
+the process of research. In this chapter, we will introduce how to add various types of modules \
+on the **SPAIC** platform.
 
 .. toctree::
    :maxdepth: 1

@@ -13,10 +13,10 @@
 大多数应用需求，在本平台中内置了10种最常用的连接模型，包含了全连接，卷积连接，一对一连接，稀疏连接等。与此同时，作为类脑计算平\
 台，本平台中的连接支持仿生连接的形式，即支持反馈连接与连接延迟以及突触连接等具有一定生理特征的连接方式。内置的连接方法可能无法\
 满足用户的任意需求，这时候就需要用户自己添加一些更符合其实验目的的连接模型。\
-定义连接模型的这一步可以依照 :code:`Network.Connection` 文件中的格式进行添加。
+定义连接模型的这一步可以依照 :class:`spaic.Network.Connection` 文件中的格式进行添加。
 
 连接方法初始化
---------------------------
+^^^^^^^^^^^^^^^^^^^^^
 自定义的连接方法需继承 :code:`Connection` 类，其初始化方法中的参数名需与 :code:`Connection` 类的一致，若需要传入初始化参数\
 以外的参数，可以通过 :code:`kwargs` 传入，以 :code:`FullConnection` 类初始化函数为例：
 
@@ -41,53 +41,36 @@
 在这个初始化方法中， :code:`FullConnection` 类所额外需要的参数，通过从 :code:`kwargs` 中获取的方式来设定。
 
 
-突触模型自定义
+突触模型自定义部分
 -----------------------
 突触模型是进行神经动力学仿真环节中非常重要的一步，不同的模型与不同的参数都会产生不同的现象。\
-为了应对用户不同的应用需求，SPAIC内置了两种最常用的突触模型（化学突触和电突触），但是偶尔还是会有力所不能及，\
+为了应对用户不同的应用需求， **SPAIC** 内置了两种最常用的突触模型（化学突触和电突触），但是偶尔还是会有力所不能及，\
 这时候就需要用户自己添加一些更符合其实验的个性化突触模型。定义突触的这一步可以参考 :code:`Network.Synapse` \
 文件依照格式进行添加。
 
-定义是否需要使用突触模型、使用哪种突触模型
-------------------------------------------
-如果需要使用突触模型，则需要在连接中传入具体想要选用的 :code:`self.synapse_type` ，这个参数决定了突触种类。\
-而突触的参数则根据 :code:`synapse_kwargs` 来获取：
-
-.. code-block:: python
-
-    if isinstance(syn_type, list):
-        self.synapse_type = syn_type
-    else:
-        self.synapse_type = [syn_type]
-
-    if syn_kwargs is None:
-        self.syn_kwargs = dict()
-    else:
-        self.syn_kwargs = syn_kwargs
-
 定义可从外部获取的参数
---------------------------
+^^^^^^^^^^^^^^^^^^^^^
 在定义神经元模型的最初部分，我们需要先定义该神经元模型可以变更的一些参数，\
-这些参数可由传参来改变。\
-例如在化学突触模型中，我们将其原本的公式经过变换后可得：
+这些参数可由传参来改变。例如在化学突触的一阶衰减模型中，我们将其原本的公式经过变换后可得：
 
 .. code-block:: python
 
-    # Chemistry current synapse
-    # Isyn = O * weight
+    class First_order_chemical_synapse(SynapseModel):
+        """
+        .. math:: Isyn(t) = weight * e^{-t/tau}
+        """
 
-在这个公式中，:code:`self.tau_p` 是可变参数，所以我们通过 :code:`kwargs` 中获取的方式来改变：
+在这个公式中，:code:`self.tau` 是可变参数，所以我们通过 :code:`kwargs` 中获取的方式来改变：
 
 .. code-block:: python
 
-    self.tau_p = kwargs.get('tau_p', 12.0)
-
+    self._syn_tau_variables['tau[link]'] = kwargs.get('tau', 5.0)
 定义变量
---------------------------
+^^^^^^^^^^^^^^^^^^^^^
 在定义变量阶段，我们要先了解突触的几个变量形式：
 
-- _syn_tau_constant_variables: 指数衰减常数
-- _syn_variables: 普通变量
+- **_syn_tau_constant_variables** -- 指数衰减常数
+- **_syn_variables** -- 普通变量
 
 对于 :code:`_syn_tau_constant_variables` 我们会进行一个变换 :code:`value = np.exp(-self.dt / var)` ,
 
@@ -101,7 +84,7 @@
 
 
 定义计算式
---------------------
+^^^^^^^^^^^^^^^^^^^^^
 计算式是突触模型最为重要的部分，一行一行的计算式决定了各个参数在模拟过程中将会经过一些什么样的变化。
 
 在添加计算式时，有一些需要遵守的规则。首先，每一行只能计算一个特定的计算符，所以需要将原公式\

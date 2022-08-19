@@ -5,20 +5,33 @@
 Custom algorithm
 ===========================
 
-替代梯度算法
----------------------------
-替代梯度算法最重要的过程即为使用用户自己的梯度函数替代计算图中原有的梯度函数，此处我们以STCA算法与\
-STBP算法的差别举例。两个不同算法，在平台上以Pytorch后端进行实现时，仅有的差别在于，
+Surrogate Gradient Algorithms
+--------------------------------------
+The most import part of surrogate gradient algorithms is that use custom gradient function to replace the original \
+backpropagation gradient. Here we use **STCA** and **STBP** as examples to show how to use custom gradient formula.
 
-STCA算法 [#f1]_ 中，梯度函数为:
+In **STCA** [#f1]_ learning algorithm, the graident function is:
 :math:`h(V)=\frac{1}{\alpha}sign(|V-\theta|<\alpha)`
 
-而STBP算法 [#f2]_ 中我们选取的梯度函数为:
+In **STBP** [#f2]_ learning algorithm, the graident function is:
 :math:`h_4(V)=\frac{1}{\sqrt{2\pi a_4}} e^{-\frac{(V-V_th)^2)}{2a_4}}`
 
 
 
 .. code-block:: python
+
+    @staticmethod
+    def forward(
+            ctx,
+            input,
+            thresh,
+            alpha
+    ):
+        ctx.thresh = thresh
+        ctx.alpha = alpha
+        ctx.save_for_backward(input)
+        output = input.gt(thresh).float()
+        return output
 
     @staticmethod
     def backward(
@@ -27,41 +40,43 @@ STCA算法 [#f1]_ 中，梯度函数为:
         ):
         input, = ctx.saved_tensors
         grad_input = grad_output.clone()
-        temp = abs(input - ctx.thresh) < ctx.alpha  # 根据STCA，采用了sign函数
-        # temp = torch.exp(-(input - ctx.thresh) ** 2 / (2 * ctx.alpha)) \  # 根据STBP所用反传函数
+        temp = abs(input - ctx.thresh) < ctx.alpha  # According to STCA learning algorithm
+        # temp = torch.exp(-(input - ctx.thresh) ** 2 / (2 * ctx.alpha)) \  # According to STBP learning algorithm
         #                  / (2 * math.pi * ctx.alpha)
         result = grad_input * temp.float()
         return result, None, None
 
 
-突触可塑性算法
----------------------------
-在我们平台上实现了两种STDP学习算法，一种是在线STDP学习算法 [#f3]_ ，一种是传统STDP学习算法 [#f4]_ 。
+Synaptic Plasticity Algorithms
+---------------------------------
+We have constructed two kinds of **STDP** learning algorithm. The first one is based on the global synaptic plasticity, we call it ``full_online_STDP`` [#f3]_ ,\
+another one is based on the nearest synaptic plasticity, we call it ``nearest_online_STDP`` [#f4]_ .
 
-在线STDP学习算法
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-该算法的权重更新公式为 [#f2]_ ：
-:math:`dw = Apost * (output_spike * input_trace) – Apre * (output_trace * input_spike)`
-:math:`weight = weight + dw`
-权重归一化公式：
-:math:`weight = self.w_norm * weight/sum(torch.abs(weight))`
+Full Synaptic Plasticity STDP learning algorithm
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The weight update formula and weight normalization formula of this algorithm [#f2]_ :
 
-首先从 :code:`trainable_connection` 中获取该学习算法训练的突触前神经元组以及突触后神经元组
+.. math::
+    dw = Apost * (output\_spike * input\_trace) – Apre * (output\_trace * input\_spike)
+    weight = weight + dw
+    weight = self.w\_norm * weight/sum(torch.abs(weight))
 
-.. code-block:: python
-
-  preg = conn.pre_assembly
-  postg = conn.post_assembly
-
-之后获取学习算法需要的参数在后端的名称，例如：输入脉冲，输出脉冲，连接权重引用了 :code:`Connection` 中的获取名字的函数
+At first, get the presynaptic and postsynaptic NeuronGroups from :code:`trainable_connection` :
 
 .. code-block:: python
 
-  pre_name = conn.get_input_name(preg, postg)
-  post_name = conn.get_target_output_name(postg)
-  weight_name = conn.get_weight_name(preg, postg)
+    preg = conn.pre_assembly
+    postg = conn.post_assembly
 
-再将算法需要用到的参数添加到后端
+Then, get parameters ID, such as input spike, output spike and weight name:
+
+.. code-block:: python
+
+    pre_name = conn.get_input_name(preg, postg)
+    post_name = conn.get_group_name(postg, 'O')
+    weight_name = conn.get_link_name(preg, postg, 'weight')
+
+Add necessary parameters to ``Backend`` :
 
 .. code-block:: python
 
@@ -69,40 +84,31 @@ STCA算法 [#f1]_ 中，梯度函数为:
     backend.add_variable(output_trace_name, backend._variables[post_name].shape, value=0.0)
     backend.add_variable(dw_name, backend._variables[weight_name].shape, value=0.0)
 
-之后将运算公式添加进后端
+Append calculate formula to ``Backend`` :
 
 .. code-block:: python
 
-   #dw = Apost * (output_spike * input_trace) – Apre * (output_trace * input_spike)
-   backend.add_operation(['input_trace_s', 'var_mult', input_trace_name, 'trace_decay'])
-   backend.add_operation(['input_temp', 'minus', 'spike', pre_name])
-   backend.add_operation([input_trace_name, 'var_linear', 'input_temp', 'input_trace_s', pre_name])
+    backend.add_operation(['input_trace_temp', 'var_mult', input_trace_name, 'trace_decay'])
+    backend.add_operation([input_trace_name, 'add', pre_name, 'input_trace_temp'])
 
-   backend.add_operation(['output_trace_s', 'var_mult', output_trace_name, 'trace_decay'])
-   backend.add_operation(['output_temp', 'minus', 'spike', post_name])
-   backend.add_operation([output_trace_name, 'var_linear', 'output_temp', 'output_trace_s', post_name])
+    backend.add_operation(['output_trace_temp', 'var_mult', output_trace_name, 'trace_decay'])
+    backend.add_operation([output_trace_name, 'add', post_name, 'output_trace_temp'])
 
-   backend.add_operation(['pre_post_temp', 'mat_mult_pre', post_name, input_trace_name+'[updated]'])
-   backend.add_operation(['pre_post', 'var_mult', 'Apost', 'pre_post_temp'])
-   backend.add_operation(['post_pre_temp', 'mat_mult_pre', output_trace_name+'[updated]', pre_name])
-   backend.add_operation(['post_pre', 'var_mult', 'Apre', 'post_pre_temp'])
-   backend.add_operation([dw_name, 'minus', 'pre_post', 'post_pre'])
+    backend.add_operation(['pre_post_temp', 'mat_mult_pre', post_name, input_trace_name+'[updated]'])
+    backend.add_operation(['pre_post', 'var_mult', 'Apost', 'pre_post_temp'])
+    backend.add_operation(['post_pre_temp', 'mat_mult_pre', output_trace_name+'[updated]', pre_name])
+    backend.add_operation(['post_pre', 'var_mult', 'Apre', 'post_pre_temp'])
+    backend.add_operation([dw_name, 'minus', 'pre_post', 'post_pre'])
+    backend.add_operation([weight_name, self.full_online_stdp_weightupdate, dw_name, weight_name])
 
-之后将更新权重的函数添加进后端
-
-.. code-block:: python
-
-   backend.register_standalone(None, self.nearest_online_stdp_weightupdate, [dw_name, weight_name])
-
-
-权重更新代码：
+Weight update part:
 
 .. code-block:: python
 
     with torch.no_grad():
         weight.add_(dw)
 
-权重归一化代码：
+Weight normalization part:
 
 .. code-block:: python
 

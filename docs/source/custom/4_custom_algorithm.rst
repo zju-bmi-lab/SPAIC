@@ -5,18 +5,32 @@
 
 替代梯度算法
 ---------------------------
-替代梯度算法最重要的过程即为使用用户自己的梯度函数替代计算图中原有的梯度函数，此处我们以STCA算法与\
-STBP算法的差别举例。两个不同算法，在平台上以Pytorch后端进行实现时，仅有的差别在于，
+替代梯度算法最重要的过程即为使用用户自己的梯度函数替代计算图中原有的梯度函数，此处我们以 **STCA** 算法与 **STBP** 算法的差 \
+别举例。两个不同算法，在平台上以 **PyTorch** 后端进行实现时，仅有的差别在于，
 
-STCA算法 [#f1]_ 中，梯度函数为:
+ **STCA** 算法 [#f1]_ 中，梯度函数为:
 :math:`h(V)=\frac{1}{\alpha}sign(|V-\theta|<\alpha)`
 
-而STBP算法 [#f2]_ 中我们选取的梯度函数为:
+而 **STBP** 算法 [#f2]_ 中我们选取的梯度函数为:
 :math:`h_4(V)=\frac{1}{\sqrt{2\pi a_4}} e^{-\frac{(V-V_th)^2)}{2a_4}}`
 
 
 
 .. code-block:: python
+
+    @staticmethod
+    def forward(
+            ctx,
+            input,
+            thresh,
+            alpha
+    ):
+        ctx.thresh = thresh
+        ctx.alpha = alpha
+        ctx.save_for_backward(input)
+        output = input.gt(thresh).float()
+        return output
+
 
     @staticmethod
     def backward(
@@ -34,15 +48,16 @@ STCA算法 [#f1]_ 中，梯度函数为:
 
 突触可塑性算法
 ---------------------------
-在我们平台上实现了两种STDP学习算法，一种是基于全局突触可塑性的STDP学习算法 [#f3]_ ，一种是基于最邻近突触可塑性的STDP学习算法 [#f4]_ 。
+在我们平台上实现了两种 **STDP** 学习算法，一种是基于全局突触可塑性的 **STDP** 学习算法 [#f3]_ ，一种是基于最邻近突触可塑性的 **STDP** 学习算法 [#f4]_ 。
 
-全局可塑性STDP学习算法
+全局突触可塑性STDP学习算法
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-该算法的权重更新公式为 [#f2]_ ：
-:math:`dw = Apost * (output_spike * input_trace) – Apre * (output_trace * input_spike)`
-:math:`weight = weight + dw`
-权重归一化公式：
-:math:`weight = self.w_norm * weight/sum(torch.abs(weight))`
+该算法的权重更新公式 [#f2]_ 以及权重归一化公式：
+
+.. math::
+    dw &= Apost * (output\_spike * input\_trace) – Apre * (output\_trace * input\_spike)
+    weight &= weight + dw
+    weight &= self.w\_norm * weight/sum(torch.abs(weight))
 
 首先从 :code:`trainable_connection` 中获取该学习算法训练的突触前神经元组以及突触后神经元组
 
