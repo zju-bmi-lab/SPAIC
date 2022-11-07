@@ -39,28 +39,42 @@ class Poisson_Generator(Generator):
         self.batch = kwargs.get('batch', 1)
 
     def torch_coding(self, source, device):
-        # assert source.size == self.num, "The dimension of input data should be consistent with the number of input neurons."
+
         if source.size != self.num:
             import warnings
             warnings.warn("The dimension of input data should be consistent with the number of input neurons.")
         if source.__class__.__name__ == 'ndarray':
             source = torch.tensor(source, device=device)
+        self.inp_source = source
+        #
+        # # if source.ndim == 0:
+        # #     batch = 1
+        # # else:
+        # #     batch = source.shape[SAS0]
+        #
+        # # shape = [self.batch, self.nu]
+        # spk_shape = [self.time_step] + list(self.shape)
+        # spikes = self.weight*torch.rand(spk_shape, device=device).le(source*self.unit_conversion).float()
+        # if self.start_time is not None:
+        #     start_time_step = int(self.start_time/self.dt)
+        #     spikes[:start_time_step, ...] = 0.0
+        # if self.end_time is not None:
+        #     end_time_step = int(self.end_time/self.dt)
+        #     spikes[end_time_step:, ...] = 0.0
+        return None
 
-        # if source.ndim == 0:
-        #     batch = 1
-        # else:
-        #     batch = source.shape[0]
+    def next_stage(self):
+        if self.new_input:
+            self.get_input()
+            self.new_input = False
 
-        # shape = [self.batch, self.nu]
-        spk_shape = [self.time_step] + list(self.shape)
-        spikes = self.weight*torch.rand(spk_shape, device=device).le(source*self.unit_conversion).float()
-        if self.start_time is not None:
-            start_time_step = int(self.start_time/self.dt)
-            spikes[:start_time_step, ...] = 0.0
-        if self.end_time is not None:
-            end_time_step = int(self.end_time/self.dt)
-            spikes[end_time_step:, ...] = 0.0
-        return spikes
+        if (self.start_time is None or self.start_time< self.index*self.dt) \
+            and (self.end_time is None or self.end_time> self.index*self.dt):
+            spikes = self.weight*torch.rand(self.shape, device=self._backend.device).le(
+                self.inp_source*self.unit_conversion)
+            return spikes.type(self._backend.data_type)
+        else:
+            return torch.zeros(0).type(self._backend.data_type)
 
 Generator.register('poisson_generator', Poisson_Generator)
 
@@ -99,7 +113,7 @@ class Poisson_Generator2(Generator):
         spikes = torch.rand(spk_shape, device=device).le(source * self.dt).float()
         times = torch.zeros_like(spikes)
         spikes = torch.stack([spikes, times],dim=2)
-        return spikes
+        return spikes.type(self._backend.data_type)
 
 Generator.register('poisson_generator2', Poisson_Generator2)
 
@@ -115,7 +129,6 @@ class CC_Generator(Generator):
                  coding_method=('poisson_generator', 'cc_generator', '...'),
                  coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
         super(CC_Generator, self).__init__(shape, num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
-        self.num = num
 
     def torch_coding(self, source, device):
         # assert (source >= 0).all(), "Input rate must be non-negative"
@@ -123,17 +136,11 @@ class CC_Generator(Generator):
             import warnings
             warnings.warn('Input rate shall be non-negative')
         if source.__class__.__name__ == 'ndarray':
-            source = torch.tensor(source, dtype=torch.float, device=device)
+            source = torch.tensor(source, dtype=self._backend.data_type, device=device)
 
-        # if source.ndim == 0:
-        #     batch = 1
-        # else:
-        #     batch = source.shape[0]
-        #
-        # shape = [batch, self.num]
         spk_shape = [self.time_step] + list(self.shape)
         spikes = source * torch.ones(spk_shape, device=device)
-        return spikes
+        return spikes.type(self._backend.data_type)
 
 Generator.register('cc_generator', CC_Generator)
 Generator.register('constant_current', CC_Generator)

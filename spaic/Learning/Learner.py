@@ -70,20 +70,27 @@ class Learner(BaseModule, ABC):
 
         self.name = None
         self.optim_name = None
+        self.optim = None
         self.lr_schedule_name = None
-        self.prefered_backend = None
+        self.gradient_based = True
+        self.prefered_backend = ['pytorch']
         self.trainable_groups = OrderedDict()
         self.trainable_connections = OrderedDict()
         self.trainable_nodes = OrderedDict()
         self.trainable_modules = OrderedDict()
+        self.trainable_others = OrderedDict()
         self.init_trainable = trainable
+        self.training_param_name = []
+        self.param_run_update = kwargs.get("param_run_update", False)
 
         self.pathway_groups = OrderedDict()
         self.pathway_connections = OrderedDict()
         self.pathway_nodes = OrderedDict()
         self.pathway_modules = OrderedDict()
+        self.pathway_others = OrderedDict()
         self.init_pathway = pathway
         self._operations = []
+        self._active = True
 
 
     def add_trainable(self, trainable: list):
@@ -115,6 +122,9 @@ class Learner(BaseModule, ABC):
                     trainable.append(sub_t)
                 for sub_t in target.get_connections():
                     trainable.append(sub_t)
+            elif isinstance(target, BaseModule):
+                self.trainable_others[target.id] = target
+
 
     def add_pathway(self, pathway: list):
         '''
@@ -145,7 +155,8 @@ class Learner(BaseModule, ABC):
                     pathway.append(sub_t)
                 for sub_t in target.get_connections():
                     pathway.append(sub_t)
-
+            elif isinstance(target, BaseModule):
+                self.pathway_others[target.id] = target
 
     def build(self, backend):
         '''
@@ -155,6 +166,8 @@ class Learner(BaseModule, ABC):
         '''
         if self.init_trainable is not None:  # If user has given the 'trainable' parameter.
             self.add_trainable(self.init_trainable)
+        if self.init_pathway is not None:
+            self.add_pathway(self.init_pathway)
 
         if backend.backend_name in self.prefered_backend:
             self._backend = backend
@@ -164,21 +177,62 @@ class Learner(BaseModule, ABC):
                 "the backend %s is not supported by the learning rule %s" % (backend.backend_name, self.name))
         if self.optim_name is not None:
             self.build_optimizer()
+        else:
+            self.get_param()
+
         if self.lr_schedule_name is not None:
             self.build_lr_shedule()
 
-    def __new__(cls, trainable=None, algorithm=('STCA', 'STBP', 'RSTDP', '...'), **kwargs):
+        # set all trainable or pathway compontents to requires_grad=Ture
+        if self.gradient_based:
+            for node in self.trainable_nodes.values():
+                for op in node._ops:
+                    op.requires_grad = True
+            for group in self.trainable_groups.values():
+                for op in group._ops:
+                    op.requires_grad = True
+            for con in self.trainable_connections.values():
+                for op in con._ops:
+                    op.requires_grad = True
+            for other in self.trainable_others.values():
+                for op in other._ops:
+                    op.requires_grad = True
+            for mod in self.trainable_modules.values():
+                mod.module.requires_grad_()
+
+            for node in self.pathway_nodes.values():
+                for op in node._ops:
+                    op.requires_grad = True
+            for group in self.pathway_groups.values():
+                for op in group._ops:
+                    op.requires_grad = True
+            for con in self.pathway_connections.values():
+                for op in con._ops:
+                    op.requires_grad = True
+            for other in self.pathway_others.values():
+                for op in other._ops:
+                    op.requires_grad = True
+            for mod in self.pathway_modules.values():
+                mod.module.requires_grad_()
+
+
+    def __new__(cls, trainable=None, pathway=None, algorithm=('STCA', 'STBP', 'RSTDP', '...'), **kwargs):
         if cls is not Learner:
             return super().__new__(cls)
 
-        algorithm = algorithm.lower()
-
-        if algorithm in cls.learning_algorithms:
-            return cls.learning_algorithms[algorithm](trainable=trainable, **kwargs)
-
+        if algorithm == ('STCA', 'STBP', 'RSTDP', '...'):
+            return super().__new__(cls)
+        elif algorithm.lower() in cls.learning_algorithms:
+            return cls.learning_algorithms[algorithm.lower()](trainable=trainable, pathway=None, **kwargs)
         else:
             raise ValueError("No algorithm %s in algorithm list" % algorithm)
 
+    def active(self):
+        self._active = True
+        #TODO: setting all learnerable and pathway into gradient = True
+    def active(self):
+        self._active = False
+        #TODO: setting all learnerable and pathway into gradient = Fasle
 
     def set_optimizer(self, optim_name, optim_lr, **kwargs):
         self.optim_lr = optim_lr
@@ -209,10 +263,16 @@ class Learner(BaseModule, ABC):
         for key, group in self.trainable_groups.items():
             for name in group._var_names:
                 var_name.append(name)
-
+        self.training_param_name = []
         for key, value in self._backend._parameters_dict.items():
             if key in var_name:
+                value.requires_grad = True
                 param.append(value)
+                self.training_param_name.append(key)
+            else:
+                value.requires_grad =False
+
+
         for mod in self.trainable_modules.values():
             param.extend(mod.parameters)
 
@@ -232,8 +292,17 @@ class Learner(BaseModule, ABC):
         self.shedule = Learner.lr_schedule_dict[self.lr_schedule_name](self.optim, **self.lr_schedule_para)
 
     def optim_step(self):
+        if self.param_run_update:
+            with torch.no_grad():
+                for key, value in self._backend._parameters_dict.items():
+                    if key in self.training_param_name:
+                        varialbe_value = self._backend._variables[key]
+                        if varialbe_value is not value:
+                            value.data = varialbe_value.data
+                            self._backend._variables[key] = value
 
-        self.optim.step()
+        if self.optim is not None:
+            self.optim.step()
 
     def optim_zero_grad(self):
 

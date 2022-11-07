@@ -11,8 +11,10 @@ spike states and calculate the firing frequency.
 
 .. code-block:: python
 
-    self.state_mon = spaic.StateMonitor(self.layer1, 'V')
-    self.spike_mon = spaic.SpikeMonitor(self.layer1, 'O')
+    self.mon_V = spaic.StateMonitor(self.layer1, 'V')
+    self.mon_O = spaic.StateMonitor(self.input, 'O')
+    self.spk_O = spaic.SpikeMonitor(self.layer1, 'O')
+
 
 To initialize the monitor, we can specify the following parameters:
 
@@ -23,7 +25,7 @@ To initialize the monitor, we can specify the following parameters:
 - **get_grad** -- whether to record the gradient, True means the gradient is required, False means not required, the default is False
 - **nbatch** -- whether you need to record the data of multiple batches, True will save the data of multiple runs, False will overwrite the data each time run, the default is False
 
-The difference between the two monitors is that :code:`StateMonitor` has four parameters：
+The difference between the two monitors is that :code:`StateMonitor` has five property：
 
 - **nbatch_times** -- logging the time step information of all batches, the shape structure of the data is (number of batches, number of time steps)
 - **nbatch_values** -- logging  the monitoring parameters of the target layer of all batches. The shape structure of the data is (batch, neuron, time step, sample in the batch)
@@ -31,7 +33,7 @@ The difference between the two monitors is that :code:`StateMonitor` has four pa
 - **values** -- logging  the monitoring parameters of the target layer of the current batch. The shape structure of the data is (the number of samples in this batch, the number of neurons, the number of time steps)
 - **grad** -- logging the gradient of the target variable of the current batch, the shape of the data is the same as the shape of the values
 
-And :code:`SpikeMonitor` has another four parameters：
+And :code:`SpikeMonitor` has another four property：
 
 - **spk_index** -- logging  the number of the neuron firing the current batch
 - **spk_times** -- logging  the time information of the current batch of pulses
@@ -39,6 +41,36 @@ And :code:`SpikeMonitor` has another four parameters：
 - **time_spk_rate** -- logging the spike rate of the target layer for the current batch
 
 
+Example code:
+
+.. code-block:: python
+
+    time_line = Net.mon_V.times  # Take the time indices of layer1
+    value_line = Net.mon_V.values[0][0]  # Take the voltage change records of the first neuron of layer 1 in this batch in the whole time window
+    input_line = Net.mon_O.values[0][0]  # Take the spike records of the first neuron of input layer in this batch in the whole time window
+
+    # Since nbatch setted False when initialized, only have one batch
+    output_line_index = Net.spk_O.spk_index[0] + 1.2  # Take the spike index of this layer, since only have one neuron, add 1.2 to beautify the visualization appearance
+    output_line_time = Net.spk_O.spk_times[0]  # Take the spike time index of this layer
+
+    plt.subplot(2, 1, 1)
+    plt.title('Monitor Example Appearance')
+    plt.plot(time_line, value_line, label='V')
+    plt.scatter(output_line_time, output_line_index, s=40, c='r', label='Spike')
+
+    plt.ylabel("Membrane potential")
+    plt.ylim((-0.1, 1.5))
+    plt.legend()
+    plt.subplot(2, 1, 2)
+    plt.plot(time_line, input_line, label='input spike')
+    plt.xlabel("time")
+    plt.ylabel("Current")
+    plt.legend()
+
+
+Result:
+
+    .. image:: _static/monitor_VO_Appearance.png
 
 
 

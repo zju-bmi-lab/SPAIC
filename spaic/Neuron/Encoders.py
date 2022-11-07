@@ -23,7 +23,7 @@ class NullEncoder(Encoder):
 
     def torch_coding(self, source, device):
         # assert (source >= 0).all(), "Inputs must be non-negative"
-        # Note: the shape of encoded date should be (batch, time_step, shape)
+        # Note: the shape of source should be (batch, time_step, shape)
         if source.__class__.__name__ == 'ndarray':
             source = torch.tensor(source, device=device, dtype=torch.float32)
         return source.transpose(1, 0)
@@ -33,7 +33,7 @@ Encoder.register('null', NullEncoder)
 class SigleSpikeToBinary(Encoder):
     '''
         Transform the spike train (each neuron firing one spike) into a binary matrix
-        The source is the encoded time value in the range of [0,time]. The shape of encoded source should be [time_step, batch_size, neuron_shape].
+        The source is the encoded time value in the range of [0,time]. The shape of encoded source should be [batch_size, shape].
     '''
 
     def __init__(self, shape=None, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'),
@@ -42,8 +42,8 @@ class SigleSpikeToBinary(Encoder):
 
     def torch_coding(self, source, device):
         assert (source >= 0).all(), "Inputs must be non-negative"
-        # if source.__class__.__name__ == 'ndarray':
-        #     source = torch.tensor(source, device=device, dtype=torch.float32)
+        if source.__class__.__name__ == 'ndarray':
+            source = torch.tensor(source, device=device, dtype=torch.float32)
         shape = list(source.shape)
         spk_shape = [self.time_step] + shape
 
@@ -152,7 +152,7 @@ class PoissonEncoding(Encoder):
         time: encoding window ms
         dt: time step
     """
-    def __init__(self, shape=None, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'),
+    def __init__(self, shape=None, num=None, dec_target=None, dt=None, coding_method='poisson',
                  coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
         super(PoissonEncoding, self).__init__(shape, num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
         self.unit_conversion = kwargs.get('unit_conversion', 1.0)
@@ -166,21 +166,32 @@ class PoissonEncoding(Encoder):
         spikes = np.random.rand(*spk_shape).__le__(source * self.dt).astype(float)
         return spikes
 
+
     def torch_coding(self, source, device):
         # assert (source >= 0).all(), "Inputs must be non-negative"
         if source.__class__.__name__ == 'ndarray':
             source = torch.tensor(source, device=device, dtype=self._backend.data_type)
-        # shape = source.shape
-        # source_temp = source.view(shape[0], -1)
-        spk_shape = [self.time_step] + list(self.shape)
-        if self.single_test:
-            spikes = torch.rand([self.time_step,1,self.shape[-1]], device=device).le(source * self.unit_conversion * self.dt).float()
-        else:
-            spikes = torch.rand(spk_shape, device=device).le(source * self.unit_conversion*self.dt).float()
+        self.device = device
+        self.source = source
 
-        if self.end_time is not None:
-            spikes[int(self.end_time/self.dt):,...] = 0.0
-        return spikes
+        if self.single_test:
+            spikes = torch.rand([self.time_step, 1, self.shape[-1]], device=device).le(source * self.unit_conversion * self.dt)
+            return spikes.type(self._backend.data_type)
+        else:
+            return None
+
+
+    def next_stage(self):
+        if self.new_input:
+            self.get_input()
+            self.new_input = False
+
+        # self.index += 1
+        if self.end_time is not None and self.time > self.end_time:
+            return torch.zeros(self.source.shape, device=self.device).type(self._backend.data_type)
+        else:
+            return torch.rand(self.source.shape, device=self.device).le(self.source * self.unit_conversion * self.dt).type(self._backend.data_type)
+
 
 Encoder.register('poisson', PoissonEncoding)
 
@@ -284,8 +295,8 @@ class Constant_Current(Encoder):
             elif source.dim == 3:
                 source = source*(bn_mean/torch.mean(source, dim=(1,2)))
 
-        shape = list(source.shape)
-        spk_shape = [self.time_step] + shape
+
+        spk_shape = [self.time_step] + list(self.shape)
         spikes = source.unsqueeze(0)*torch.ones(spk_shape, device=device, dtype=self._backend.data_type)*self.amp
         return spikes
 Encoder.register('constant_current', Constant_Current)
@@ -317,7 +328,7 @@ class UniformEncoding(Encoder):
         period_timestep = torch.ceil(self.amp*max_time*(self.bias+amax-source)/((self.bias+amax-amin)*self.dt)).unsqueeze(0)
         period_timestep = period_timestep + source.eq(amin)*10*max_time/self.dt
         time_step = torch.arange(self.time_step, device=device).expand((source_size, self.time_step)).t().view(spk_shape) + 1
-        spikes = torch.fmod(time_step, period_timestep).eq(0).float()
-        return spikes
+        spikes = torch.fmod(time_step, period_timestep).eq(0)
+        return spikes.type(self._backend.data_type)
 
 Encoder.register('uniform', UniformEncoding)

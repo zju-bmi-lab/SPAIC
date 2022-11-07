@@ -2,11 +2,11 @@ Connection
 ================
 
 This chapter will introduce :code:`spaic.Connection` and how to use different connections in **SPAIC** . \
-As the most basic components of spiking neuron network, connections contains the most important weight information of \
+As the most basic component of spiking neuron network, :code:`spaic.Connection` contains the most important weight information of \
 the model. At the same time, as a brain-inspired platform, **SPAIC** supports bionic link which means supports feedback \
 connections, synaptic delay or other connections with physiological properties.
 
-connect parameters
+Connect Parameters
 ------------------------------
 
 .. code-block:: python
@@ -26,7 +26,7 @@ In the initial parameters of connection, we can see that when we construct conne
 - **syn_type** - synapse type, it will be further explanation in the synaptic section
 - **max_delay** - the maximum sypatic delay
 - **sparse_with_mask** - whether use mask in sparse connection
-- **pre_var_name** - the signal variable name of presynaptic neuron, default as 'O', means output spike
+- **pre_var_name** - the signal variable name of presynaptic neuron, default as ``O`` , means output spike
 - **post_var_name** - the signal variable name of postsynaptic neuron, default as ``Isyn`` , means synaptic current
 - **syn_kwargs** - the custom parameters of synapse, it will be further explanation in the synaptic section
 - **\**kwargs** - some typical parameters are included in ``kwargs`` .
@@ -50,7 +50,7 @@ and clip weights between 0 and 2.
     self.conn1_example = spaic.Connection(self.layer1, self.layer2, link_type='full',
                                     w_mean=1.0, w_std=5.0, w_min=0.0, w_max=2.0)
 
-full connection
+Full Connection
 ---------------------
 ``Full connection`` is one of the basic connection type.
 
@@ -69,7 +69,7 @@ Important key parameters of full connection:
     self.w_max = kwargs.get('w_max', None) # maximum value of weight
     self.w_min = kwargs.get('w_min', None) # minimum value of weight
 
-one to one connection
+One-to-one Connection
 --------------------------------
 There are two kinds of one to one connection in **SPAIC**, the basic ``one_to_one`` and the sparse ``one_to_one_sparse``
 
@@ -85,7 +85,7 @@ Important key parameters of one to one connection:
     self.w_std = kwargs.get('w_std', 0.05) # standard deviation of weight, used to generate weight
 
 
-convolution connection
+Convolution Connection
 --------------------------------
 Common ``convolution connection``, pooling method can choose :code:`avgpool` or :code:`maxpool` in synapse type.
 
@@ -142,11 +142,11 @@ Convolution connection example 2:
                                         init_param=(-math.sqrt(1/(512*9)), math.sqrt(1/(512*9))), syn_kwargs=[], bias=args.bias)
 
 
-sparse connection
+Sparse Connection
 ----------------------
 Common ``sparse connection``, set the density of connection with parameter :code:`density` .
 
-random connection
+Random Connection
 ---------------------------
 Common ``random connection``, set the connection probability with parameter :code:`probability` .
 

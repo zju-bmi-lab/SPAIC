@@ -9,14 +9,14 @@ The spaic platform simulation training platform is a network construction, forwa
 Dependency packages: pytorch, numpy
 
 Tutorial documentation for the SPAIC:  https://spaic.readthedocs.io/en/latest/index.html
-
+<img src="./docs/source/_static/SPAIC-POSTER.png" style="zoom: 80%;" />
 
 
 # Front-end Network Modeling Components and functions
 
 ​	The platform mainly builds the network through five types of structural modules such as Assembly, Connection, NeuronGroup, Node, and Network. The specific functions are described as follows, and the modeling structure relationship is shown in the following figure.
 
-<img src="./docs/source/_static/front-end network components.png" style="zoom: 67%;" />
+<img src="./docs/source/_static/front-end network components.png" style="zoom: 80%;" />
 
 
 

@@ -58,9 +58,9 @@ class TestNet(SPAIC.Network):
         # coding
         self.input = SPAIC.Encoder(num=784, coding_method='constant_current', input_norm=True, amp=0.5)#,unit_conversion=1.0)
         # neuron group
-        self.layer1 = SPAIC.NeuronGroup(400, neuron_model='complex', tau_m=20.0, tau_r=100.0)
-        self.layer2 = SPAIC.NeuronGroup(300, neuron_model='complex')
-        self.layer3 = SPAIC.NeuronGroup(10, neuron_model='complex')
+        self.layer1 = SPAIC.NeuronGroup(400, model='complex', tau_m=20.0, tau_r=100.0)
+        self.layer2 = SPAIC.NeuronGroup(300, model='complex')
+        self.layer3 = SPAIC.NeuronGroup(10, model='complex')
         # decoding
         # self.output = SPAIC.Decoder(num=10, dec_target=self.layer3, coding_method='complex_count')
         self.output = SPAIC.Decoder(num=10, dec_target=self.layer3, coding_method='complex_phase')

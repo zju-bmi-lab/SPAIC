@@ -14,7 +14,7 @@ plasticity. **R-STDP** has a reward on **STDP** that suitable for reinforcement 
 
 In the sample code, we use **STCA** learning algorithm, users need to use :code:`trainable` to specify the training target. \
 :code:`self` represent the whole network. If user doesn't want to train the whole network, can specify the target such as \
-:code:`self.layer1` or :code:`[self.layer`, self.layer2]` . And the last :code:`alpha=0.5` is a parameters of STCA learning \
+:code:`self.layer1` or :code:`[self.layer1, self.layer2]` . And the last :code:`alpha=0.5` is a parameters of STCA learning \
 algorithm. In **SPAIC**, all the parameters of algorithms should be provided at the end of the function.
 
 In the sample code, we also use :code:`Adam` optimization algorithm and :code:`StepLR` learning rate scheduler. **SPAIC** \

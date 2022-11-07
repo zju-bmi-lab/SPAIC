@@ -46,11 +46,10 @@ Node (节点)
 Network (网络)
 --------------------------
 :code:`spaic.Network` 在 **SPAIC** 中处于模型的最顶层，许多其他的模块，例如 :code:`NeuronGroup` 以及 \
-:code:`Connection` 都需要被包含于 ``Network`` 中。 ``spaic.Network``也负责训练、模拟以及一些数据交互的过程。 \
+:code:`Connection` 都需要被包含于 ``Network`` 中。 ``spaic.Network`` 也负责训练、模拟以及一些数据交互的过程。 \
 :code:`spaic.Network` 支持的一些常用的交互函数如下:
 
-    - **set_runtime** -- 设置仿真时间
-    - **run** -- 进行一次仿真
+    - **run(rum_time)** -- 运行网络，run_time为网络仿真时间窗
     - **save_state** -- 保存网络权重
     - **state_from_dict** -- 读取网络权重
 

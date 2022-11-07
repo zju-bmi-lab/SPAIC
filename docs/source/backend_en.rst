@@ -18,12 +18,11 @@ The functions available to users in :code:`Backend` are:
 add_variable
 ------------------
 When using :code:`add_variable` , the parameters that must be added are  :code:`name` 与 :code:`shape` , \
-and the optional parameters are :code:`value`, :code:`is_parameter`, :code:`is_sparse`, :code:`init`, \
- :code:`min` and :code:`max`.
+and the optional parameters are :code:`value` , :code:`is_parameter` , :code:`is_sparse` , :code:`init`, \
+ :code:`min` and :code:`max` .
 
 :code:`name` decodes the :code:`key` when save on the backend，and :code:`shape` decides the shape, :code:`value` represent the value，\
-:code:`init` decides the value that everytime the variable initialized, :code:`is_parameter` decides whether this variable is trainable or not, \
-if the value of :code:`is_parameter` is :code:`true`, means it can be added.
+:code:`init` decides the value that everytime the variable initialized, :code:`is_parameter` decides whether this variable is trainable or not.
 
 
 add_operation

@@ -3,7 +3,7 @@ Synapse
 
 This chapter will introduce synaptic models in **SPAIC** .
 
-Chemical synapse
+Chemical Synapse
 ---------------------
 ``Chemical synapse`` is a common form of synapse, information transmitted between neurons by synaptic transmitters, \
 which causes some concentration of certain ions to change. In computational neuroscience, we use weight and calculate \
@@ -18,7 +18,7 @@ So, we call the basic chemical synapse as :code:`basic` .
                                         syn_type=['basic'],
                                         w_std=0.0, w_mean=0.1)
 
-Gap junction
+Gap Junction
 ---------------------------------
 ``Gap junction`` , another common form of synapse. The presynaptic and postsynaptic neurons are so closely that \
 charged ions exchange with each other. The characteristic of gap junction is that they are usually bidirection \
@@ -36,12 +36,12 @@ If users want to use gap junction, need to set the synapse_type as :code:`electr
                                               syn_type=['electrical'])
 
 
-Other synapse
+Other Synapse
 -----------------------
 In ``Synapse`` , we also construct some other synapse, including pooling and flatten.
 
-- **Max pooling** -- :code:`maxpool_synapse`
-- **Average pooling** -- :code:`avgpool_synapse`
+- **Max pooling** -- :code:`maxpool`
+- **Average pooling** -- :code:`avgpool`
 - **Flatten** -- :code:`flatten`
 - **Dropout** --  :code:`dropout`
 - **Direct pass** -- :code:`directpass` , choose this synapse will let output equal to the input, which means the output :code:`Isyn` will equal to the output value of presynapse neurons.

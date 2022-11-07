@@ -15,6 +15,7 @@ from spaic.Network.Assembly import Assembly
 from collections import OrderedDict
 from warnings import warn
 import spaic
+# from ..Backend.Backend import Op
 
 class Network(Assembly):
 
@@ -25,7 +26,7 @@ class Network(Assembly):
         self._monitors = OrderedDict()
         self._learners = OrderedDict()
         self._pipline = None
-        self._backend = None
+        self._backend: spaic.Backend = None
         pass
 
     # --------- Frontend code ----------
@@ -61,6 +62,10 @@ class Network(Assembly):
             self.all_Wparams.append(value)
         return self.all_Wparams
 
+    def add_learner(self, name, learner):
+        assert isinstance(learner, spaic.Learner)
+        self.__setattr__(name, learner)
+
     # TODO: 这里的setattr是否有必要要，是否可以全部放到Assembly里？
     def __setattr__(self, name, value):
         from ..Monitor.Monitor import Monitor
@@ -85,7 +90,7 @@ class Network(Assembly):
 
         # build 试运行时，假设一个runtime
         if self._backend.runtime is None:
-            self._backend.runtime = 1.0
+            self._backend.runtime = 10*self._backend.dt
 
         all_groups = self.get_groups()
         for asb in all_groups:
@@ -100,19 +105,21 @@ class Network(Assembly):
             con.set_id()
 
             #----根据连接，对每个神经元建立input_connection和output_connection
-            con.pre_assembly.register_connection(con, True)
-            con.post_assembly.register_connection(con, False)
+            con.pre.register_connection(con, True)
+            con.post.register_connection(con, False)
 
 
-        # if strategy == 1:
-        #     # 采取单纯的从头递归地build，一旦出现环路会陷入死循环，可以避开固有延迟的问题
-        #     self.forward_build(all_groups, all_connections)
         if strategy == 1:
-            # 采取策略性构建，但是目前存在两个问题：
-            #   1. 网络中存在Assembly块时会出现bug，尚未修复
-            #   2. Connection所使用的input_spike为上一步的，需要添加[updated]，目前暂不使用所以未添加
-            #   该构建方式可以较大程度上避开固有延迟的问题
-            self.strategy_build(self.get_groups(False))
+            # 采取单纯的从头递归地build，一旦出现环路会陷入死循环，可以避开固有延迟的问题,
+            # Use directly build strategy to avoid inherent delay. But cannot be used on models with loop, will fall in an endless loop.
+            # Unfortunately,
+            self.forward_build(all_groups, all_connections)
+        # elif strategy == 2:
+        #     # 采取策略性构建，但是目前存在两个问题：
+        #     #   1. 网络中存在Assembly块时会出现bug，尚未修复
+        #     #   2. Connection所使用的input_spike为上一步的，需要添加[updated]，目前暂不使用所以未添加
+        #     #   该构建方式可以较大程度上避开固有延迟的问题
+        #     self.strategy_build(self.get_groups(False))
         else:
             # 原本的构建方式，首先构建连接，每个连接都是用上一轮神经元的输出脉冲，从而存在固有延迟的问题
             # 但是可以避开环路的问题。
@@ -140,127 +147,137 @@ class Network(Assembly):
 
         pass
 
-    # def forward_build(self, all_groups=None, all_connections=None):
-    #     builded_groups = []
-    #     builded_connections = []
-    #     for group in all_groups:
-    #         if (group._class_label == '<nod>') and ('predict' not in dir(group)):
-    #             group.build(self._backend)
-    #             builded_groups.append(group)
-    #             all_groups.remove(group)
-    #     while all_groups or all_connections:
-    #         for conn in all_connections:
-    #             if conn.pre_assembly in builded_groups: # 如果连接的突触前神经元已经build，则可以build
-    #                 conn.build(self._backend)
-    #                 builded_connections.append(conn)
-    #                 all_connections.remove(conn)
-    #         for group in all_groups:
-    #             can_build = 1
-    #             if not all_connections:
-    #                 group.build(self._backend)
-    #                 builded_groups.append(group)
-    #                 all_groups.remove(group)
-    #             else:
-    #                 for conn in all_connections:
-    #                     if group == conn.post_assembly:
-    #                         can_build = 0
-    #                         break
-    #                 if can_build:
-    #                     group.build(self._backend)
-    #                     builded_groups.append(group)
-    #                     all_groups.remove(group)
-
-    def strategy_build(self, all_groups=None):
+    def forward_build(self, all_groups=None, all_connections=None):
         builded_groups = []
-        unbuild_groups = {}
-        output_groups = []
-        level = 0
-        from ..Neuron.Node import Encoder, Decoder, Generator
-        # ===================从input开始按深度构建计算图==============
+        builded_connections = []
         for group in all_groups:
-            if isinstance(group, Encoder) or isinstance(group, Generator):
-                # 如果是input节点，则开始深度构建计算图
+            if (group._class_label == '<nod>') and ('predict' not in dir(group)):
                 group.build(self._backend)
                 builded_groups.append(group)
-                # all_groups.remove(group)
-                for conn in group._output_connections:
-                    builded_groups, unbuild_groups = self.deep_build_conn(conn, builded_groups,
-                                                                          unbuild_groups, level)
-            elif isinstance(group, Decoder):
-                # 如果节点是output节点，则放入output组在最后进行构建
-                output_groups.append(group)
-            else:
-                if (not group._input_connections) and (not group._output_connections):
-                    # 孤立点的情况
-                    import warnings
-                    warnings.warn('Isolated group occurs, please check the network.')
+                all_groups.remove(group)
+        break_tag = 0
+        while all_groups or all_connections:
+            old_all_connections = all_connections.copy()
+            old_all_groups = all_groups.copy()
+            if break_tag > 100:
+                break
+            for conn in old_all_connections:
+                if conn.pre_assembly in builded_groups: # 如果连接的突触前神经元已经build，则可以build
+                    conn.build(self._backend)
+                    builded_connections.append(conn)
+                    all_connections.remove(conn)
+                    continue
+                break_tag += 1
+            for group in old_all_groups:
+                can_build = 1
+                if not all_connections:
                     group.build(self._backend)
-
-        if unbuild_groups:
-            import warnings
-            warnings.warn('Loop occurs')
-        # ====================开始构建环路==================
-        for key in unbuild_groups.keys():
-            for i in unbuild_groups[key]:
-                if i in builded_groups:
+                    builded_groups.append(group)
+                    all_groups.remove(group)
                     continue
                 else:
-                    builded_groups = self.deep_build_neurongroup_with_delay(i, builded_groups)
-
-        # ====================构建output节点===============
-        for group in output_groups:
-            group.build(self._backend)
-
-    def deep_build_neurongroup(self, neuron=None, builded_groups=None, unbuild_groups=None, level=0):
-        conns = [i for i in neuron._input_connections if i not in builded_groups]
-        # conns表示神经元还没有被建立的依赖连接
-        if conns: #==========如果存在conns说明有input_connections还没有被build===========
-            if str(level) in unbuild_groups.keys():
-                unbuild_groups[str(level)].append(neuron)
-            else:
-                unbuild_groups[str(level)] = [neuron]
-            return builded_groups, unbuild_groups
-        else:
-
-            if neuron not in builded_groups:
-                if neuron._class_label == '<asb>':
-                    neuron.build(self._backend, strategy=2)
-                else:
-                    neuron.build(self._backend)
-                builded_groups.append(neuron)
-                for conn in neuron._output_connections:
-                    builded_groups, unbuild_groups = self.deep_build_conn(conn, builded_groups,
-                                                                          unbuild_groups, level)
-            return builded_groups, unbuild_groups
-
-    def deep_build_conn(self, conn=None, builded_groups=None, unbuild_groups=None, level=0):
-        conn.build(self._backend)
-        builded_groups.append(conn)
-        level += 1
-        builded_groups, unbuild_groups = self.deep_build_neurongroup(conn.post_assembly, builded_groups, unbuild_groups, level)
-        return builded_groups, unbuild_groups
-
-    def deep_build_conn_with_delay(self, conn, builded_groups):
-        conn.build(self._backend)
-        builded_groups.append(conn)
-        if conn.post_assembly not in builded_groups:
-            builded_groups = self.deep_build_neurongroup_with_delay(conn.post_assembly, builded_groups)
-        return builded_groups
-
-    def deep_build_neurongroup_with_delay(self, neuron, builded_groups):
-        conns = [i for i in neuron._input_connections if i not in builded_groups]
-        if conns:
-            for conn in conns:
-                conn.build(self._backend)
-                builded_groups.append(conn)
-            neuron.build(self._backend)
-        else:
-            neuron.build(self._backend)
-        builded_groups.append(neuron)
-        for conn in neuron._output_connections:
-            if conn not in builded_groups:
-                builded_groups = self.deep_build_conn_with_delay(conn, builded_groups)
-        return builded_groups
+                    for conn in all_connections:
+                        if group == conn.post_assembly:
+                            can_build = 0
+                            break
+                    if can_build:
+                        group.build(self._backend)
+                        builded_groups.append(group)
+                        all_groups.remove(group)
+                        continue
+                break_tag += 1
+    #
+    # def strategy_build(self, all_groups=None):
+    #     builded_groups = []
+    #     unbuild_groups = {}
+    #     output_groups = []
+    #     level = 0
+    #     from ..Neuron.Node import Encoder, Decoder, Generator
+    #     # ===================从input开始按深度构建计算图==============
+    #     for group in all_groups:
+    #         if isinstance(group, Encoder) or isinstance(group, Generator):
+    #             # 如果是input节点，则开始深度构建计算图
+    #             group.build(self._backend)
+    #             builded_groups.append(group)
+    #             # all_groups.remove(group)
+    #             for conn in group._output_connections:
+    #                 builded_groups, unbuild_groups = self.deep_build_conn(conn, builded_groups,
+    #                                                                       unbuild_groups, level)
+    #         elif isinstance(group, Decoder):
+    #             # 如果节点是output节点，则放入output组在最后进行构建
+    #             output_groups.append(group)
+    #         else:
+    #             if (not group._input_connections) and (not group._output_connections):
+    #                 # 孤立点的情况
+    #                 import warnings
+    #                 warnings.warn('Isolated group occurs, please check the network.')
+    #                 group.build(self._backend)
+    #
+    #     if unbuild_groups:
+    #         import warnings
+    #         warnings.warn('Loop occurs')
+    #     # ====================开始构建环路==================
+    #     for key in unbuild_groups.keys():
+    #         for i in unbuild_groups[key]:
+    #             if i in builded_groups:
+    #                 continue
+    #             else:
+    #                 builded_groups = self.deep_build_neurongroup_with_delay(i, builded_groups)
+    #
+    #     # ====================构建output节点===============
+    #     for group in output_groups:
+    #         group.build(self._backend)
+    #
+    # def deep_build_neurongroup(self, neuron=None, builded_groups=None, unbuild_groups=None, level=0):
+    #     conns = [i for i in neuron._input_connections if i not in builded_groups]
+    #     # conns表示神经元还没有被建立的依赖连接
+    #     if conns: #==========如果存在conns说明有input_connections还没有被build===========
+    #         if str(level) in unbuild_groups.keys():
+    #             unbuild_groups[str(level)].append(neuron)
+    #         else:
+    #             unbuild_groups[str(level)] = [neuron]
+    #         return builded_groups, unbuild_groups
+    #     else:
+    #
+    #         if neuron not in builded_groups:
+    #             if neuron._class_label == '<asb>':
+    #                 neuron.build(self._backend, strategy=2)
+    #             else:
+    #                 neuron.build(self._backend)
+    #             builded_groups.append(neuron)
+    #             for conn in neuron._output_connections:
+    #                 builded_groups, unbuild_groups = self.deep_build_conn(conn, builded_groups,
+    #                                                                       unbuild_groups, level)
+    #         return builded_groups, unbuild_groups
+    #
+    # def deep_build_conn(self, conn=None, builded_groups=None, unbuild_groups=None, level=0):
+    #     conn.build(self._backend)
+    #     builded_groups.append(conn)
+    #     level += 1
+    #     builded_groups, unbuild_groups = self.deep_build_neurongroup(conn.post_assembly, builded_groups, unbuild_groups, level)
+    #     return builded_groups, unbuild_groups
+    #
+    # def deep_build_conn_with_delay(self, conn, builded_groups):
+    #     conn.build(self._backend)
+    #     builded_groups.append(conn)
+    #     if conn.post_assembly not in builded_groups:
+    #         builded_groups = self.deep_build_neurongroup_with_delay(conn.post_assembly, builded_groups)
+    #     return builded_groups
+    #
+    # def deep_build_neurongroup_with_delay(self, neuron, builded_groups):
+    #     conns = [i for i in neuron._input_connections if i not in builded_groups]
+    #     if conns:
+    #         for conn in conns:
+    #             conn.build(self._backend)
+    #             builded_groups.append(conn)
+    #         neuron.build(self._backend)
+    #     else:
+    #         neuron.build(self._backend)
+    #     builded_groups.append(neuron)
+    #     for conn in neuron._output_connections:
+    #         if conn not in builded_groups:
+    #             builded_groups = self.deep_build_conn_with_delay(conn, builded_groups)
+    #     return builded_groups
 
     def run(self, backend_time):
         self._backend.set_runtime(backend_time)
@@ -292,6 +309,7 @@ class Network(Assembly):
             name)
 
         self.__setattr__(name, monitor)
+        # self._monitors[name] = monitor
 
     def save_state(self, filename=None, direct=None, save=True, hdf5=False):
         """
@@ -300,7 +318,7 @@ class Network(Assembly):
         Args:
             filename: The name of saved file.
             direct: Target direction for saving state.
-            # mode: Determines whether saved in hard disk, default set false, it means will not save on disk.
+            mode: Determines whether saved in hard disk, default set false, it means will not save on disk.
 
         Returns:
             state: Connections' weight of the network.
@@ -336,6 +354,14 @@ class Network(Assembly):
                     print(i, item, ': saved')
         else:
             torch.save(self._backend._parameters_dict, './_parameters_dict.pt')
+            module_dict = {}
+            module_exist = False
+            for group in self.get_groups():
+                if isinstance(group, spaic.Module):
+                    module_dict[group.id] = group.state_dict
+                    module_exist = True
+            if module_exist:
+                torch.save(module_dict, './module_dict.pt')
         os.chdir(origin_path)
         return
 
@@ -397,11 +423,17 @@ class Network(Assembly):
             raise ValueError('Wrong Path.')
 
         if '_parameters_dict.pt' in os.listdir('./'):
-            data = torch.load('./_parameters_dict.pt', map_location=device)
+            data = torch.load('./_parameters_dict.pt')
             for key, para in data.items():
                 backend_key = self._backend.check_key(key, self._backend._parameters_dict)
                 if backend_key:
                     self._backend._parameters_dict[backend_key] = para.to(device)
+            if 'module_dict.pt' in os.listdir('./'):
+                module_data = torch.load('./module_dict.pt')
+                for group in self.get_groups():
+                    if isinstance(group, spaic.Module):
+                        target_key = self._backend.check_key(group.id, module_data)
+                        group.load_state_dict(module_data[target_key])
         else:
             for file in os.listdir('./'):
                 if file.endswith('.hdf5'):

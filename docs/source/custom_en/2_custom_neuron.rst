@@ -11,7 +11,7 @@ that are more appropriate for their experiments. The neuron definition step can 
 the format in :code:`spaic.Neuron` .
 
 
-Define variables
+Define Variables
 -----------------------------
 At first, we need to introduce some typical variable type in **SPAIC** :
 
@@ -52,12 +52,12 @@ Then, :code:`tauM` and the threshold :code:`v_th` are changeable, so we get para
 
 
 
-Define calculation
+Define Calculation
 -----------------------
 Compute operation is the most important part of Neuron Model. These operations decide the change of elements during simulation. \
 When add compute operations, there are some rules to follow. At first, every operation can only do one compute process, so users \
-need to decomposition formula to independent operations. The whole build-in calculate operator can be found in \
- :class:`spaic.backend.backend` , and here is the example about :code:`LIF` model:
+need to decomposition formula to independent operations. The whole build-in calculate operator can be found \
+in :class:`spaic.backend.backend` , and here is the example about :code:`LIF` model:
 
 .. code-block:: python
 

@@ -78,20 +78,20 @@ NeuronModel.register("mylif", MYLIF2Model)
 class Assemb1(spaic.Assembly):
     def __init__(self):
         super(Assemb1, self).__init__()
-        self.assemb_layer1 = spaic.NeuronGroup(100, neuron_model=MYLIF1)
-        self.assemb_layer2 = spaic.NeuronGroup(78, neuron_model=MYLIF1, neuron_type=['exc'])
-        self.assemb_layer3 = spaic.NeuronGroup(10, neuron_model='lif', neuron_type=['exc'])
+        self.assemb_layer1 = spaic.NeuronGroup(100, model=MYLIF1)
+        self.assemb_layer2 = spaic.NeuronGroup(78, model=MYLIF1, neuron_type=['exc'])
+        self.assemb_layer3 = spaic.NeuronGroup(10, model='lif', neuron_type=['exc'])
 
         self.assemb_conn12 = spaic.Connection(self.assemb_layer1, self.assemb_layer2, link_type='full',
-                                              syn_type=['electrical_synapse'])
+                                              syn_type=['electrical'])
         self.assemb_conn23 = spaic.Connection(self.assemb_layer2, self.assemb_layer3, link_type='full')
         self.assemb_conn13 = spaic.Connection(self.assemb_layer1, self.assemb_layer3, link_type='full')
 
 class Assemb2(spaic.Assembly):
     def __init__(self):
         super(Assemb2, self).__init__()
-        self.assemb_layer1 = spaic.NeuronGroup(10, neuron_model='mylif')
-        self.assemb_layer2 = spaic.NeuronGroup(10, neuron_model='lif')
+        self.assemb_layer1 = spaic.NeuronGroup(10, model='mylif')
+        self.assemb_layer2 = spaic.NeuronGroup(10, model='lif')
 
         self.assemb_conn12 = spaic.Connection(self.assemb_layer1, self.assemb_layer2, link_type='one_to_one')
 
@@ -100,11 +100,11 @@ class TestNet(spaic.Network):
         super(TestNet, self).__init__()
         self.input = spaic.Encoder(num=784, coding_method='poisson')
 
-        self.layer1 = spaic.NeuronGroup(10, neuron_model='mylif')
+        self.layer1 = spaic.NeuronGroup(10, model='mylif')
         self.layer2_part1 = Assemb1()
         self.layer2_part2 = Assemb2()
         self.layer3 = Assemb2()
-        self.layer4 = spaic.NeuronGroup(10, neuron_model='lif')
+        self.layer4 = spaic.NeuronGroup(10, model='lif')
         self.output = spaic.Decoder(num=10, dec_target=self.layer4, coding_method='spike_counts')
 
         self.conn1 = spaic.Connection(self.input, self.layer1, link_type='full')

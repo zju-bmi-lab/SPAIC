@@ -7,8 +7,8 @@ Basic Structure
 Basic components
 ===================
 
-:code:`Assembly` is the most important basic class in **SPAIC** . :code:`spaic.Assembly` contains three part: Network,\
-``NeuronGroup`` and ``Node`` . :code:`spaic.Network` is the basic class of the whole model. :code:`spaic.Neurongroup` \
+:code:`Assembly` is the most important basic class in **SPAIC** . :code:`spaic.Assembly` contains three part: ``Network`` ,\
+``NeuronGroup`` and ``Node`` . :code:`spaic.Network` is the basic class of the whole model. :code:`spaic.NeuronGroup` \
 contains neurons. :code:`spaic.Node` is the basic class of the input and output nodes.
 
 Front-end structure：
@@ -52,8 +52,7 @@ Network
 :code:`spaic.Network` also controls the training, simulation and some data interaction process. :code:`spaic.Network` supports some \
 useful interface as follow:
 
-    - **set_runtime** -- set simulation time
-    - **run** -- simulate one time
+    - **run(run_time)** -- run the model, run_time is the time window
     - **save_state** -- save the weight of model
     - **state_from_dict** -- load weight of model
 
