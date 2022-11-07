@@ -21,7 +21,6 @@ from ..Monitor.Monitor import Monitor
 
 import time
 
-
 def network_save(Net: Assembly, filename=None, path=None,
                  trans_format='json', combine=False, save=True, save_weight=True):
     '''
@@ -46,12 +45,12 @@ def network_save(Net: Assembly, filename=None, path=None,
             a dict of the structure of the network
 
     '''
-
+    import numpy as np
     if filename is None:
         if Net.name:
-            filename = Net.name + str(time.time())
+            filename = Net.name + str(np.random.randint(10000))
         else:
-            filename = "autoname" + str(time.time())
+            filename = "autoname" + str(np.random.randint(10000))
 
     origin_path = os.getcwd()
     if path:
@@ -91,10 +90,6 @@ def network_save(Net: Assembly, filename=None, path=None,
         print("Complete.")
         return result_dict
 
-
-
-
-
 def trans_net(Net: Assembly, path: str, combine: bool, save: bool, save_weight: bool):
     '''
         Transform the structure of the network for saving.
@@ -129,7 +124,7 @@ def trans_net(Net: Assembly, path: str, combine: bool, save: bool, save_weight: 
             pass
 
     for p in Net._projections.values():
-        result_dict[net_name].append(trans_projection(p))
+        result_dict[net_name].append(trans_projection(p, combine, save_weight))
 
     for c in Net._connections.values():  # translate connections
         result_dict[net_name].append(trans_connection(c, combine, save_weight))
@@ -197,10 +192,10 @@ def trans_node(node: Node):
         para_dict['kind'] = 'Action'
     elif 'reward' in node.__dict__.keys():
         para_dict['kind'] = 'Reward'
-    elif 'predict' in node.__dict__.keys():
-        para_dict['kind'] = 'Decoder'
     elif 'gen_first' in node.__dict__.keys():
         para_dict['kind'] = 'Generator'
+    elif 'predict' in node.__dict__.keys():
+        para_dict['kind'] = 'Decoder'
     else:
         para_dict['kind'] = 'Encoder'
 
@@ -230,8 +225,8 @@ def trans_layer(layer: NeuronGroup):
                 '_output_connections', '_var_names', 'model_class', '_operations', 'model',
                 '_groups']
     needed = ['model_name', 'id', 'name', 'num', 'position', 'shape', 'type', 'parameters']
-    # Needed parameters: neuron_number, neuron_shape, neuron_type,
-    # neuron_position, neuron_model, name, parameters.
+    # Needed parameters: num, shape, neuron_type,
+    # neuron_position, model, name, parameters.
 
     for key, para in layer.__dict__.items():
         if key in needed:
@@ -247,7 +242,7 @@ def trans_layer(layer: NeuronGroup):
     return result_dict
 
 
-def trans_projection(projection: Projection):
+def trans_projection(projection: Projection, combine: bool, save_weight: bool ):
     '''
         Transform the structure of the projection for saving and extract the
             parameters.
@@ -262,7 +257,7 @@ def trans_projection(projection: Projection):
     '''
     result_dict = dict()
     para_dict = dict()
-    name_needed = ['pre_assembly', 'post_assembly']
+    name_needed = ['pre', 'post']
     needed = ['name', 'link_type', 'ConnectionParameters']
 
     for key, para in projection.__dict__.items():
@@ -271,23 +266,33 @@ def trans_projection(projection: Projection):
         elif key in needed:
             para_dict[key] = check_var_type(para)
 
+    # para_dict['prjs'] = {}
+    para_dict['conns'] = []
+
+    # for key, prj in projection._projections.items():
+    #     para_dict['prjs'][key] = trans_projection(prj, combine, save_weight)
+    for key, conn in projection._connections.items():
+        para_dict['conns'].append(trans_connection(conn, combine, save_weight))
+
+
+
     para_dict['_class_label'] = '<prj>'
-    para_dict['_policies'] = []
-    for ply in projection._policies:
-        if ply.name == 'Index_policy':
-            para_dict['_policies'].append(
-                {'name': ply.name,
-                 'pre_indexs': ply.pre_indexs,
-                 'post_indexs': ply.post_indexs,
-                 'level': ply.level}
-            )
-        else:
-            para_dict['_policies'].append(
-                {'name': ply.name,
-                 'pre_types': list(ply.pre_types) if ply.pre_types else ply.pre_types,
-                 'post_types': list(ply.post_types) if ply.post_types else ply.post_types,
-                 'level': ply.level}
-            )
+    # para_dict['_policies'] = []
+    # for ply in projection._policies:
+    #     if ply.name == 'Index_policy':
+    #         para_dict['_policies'].append(
+    #             {'name': ply.name,
+    #              'pre_indexs': ply.pre_indexs,
+    #              'post_indexs': ply.post_indexs,
+    #              'level': ply.level}
+    #         )
+    #     else:
+    #         para_dict['_policies'].append(
+    #             {'name': ply.name,
+    #              'pre_types': list(ply.pre_types) if ply.pre_types else ply.pre_types,
+    #              'post_types': list(ply.post_types) if ply.post_types else ply.post_types,
+    #              'level': ply.level}
+    #         )
 
     result_dict[projection.name] = para_dict
 
@@ -311,7 +316,7 @@ def trans_connection(connection: Connection, combine: bool, save_weight: bool):
     result_dict = dict()
     para_dict = dict()
 
-    name_needed = ['pre_assembly', 'post_assembly']
+    name_needed = ['pre', 'post']
     needed = ['name', 'link_type', 'synapse_type', 'max_delay', 'sparse_with_mask',
               'pre_var_name', 'post_var_name', 'parameters', 'id', ]
     unneeded = ['hided', 'pre_groups', 'post_groups', 'pre_assemblies', 'post_assemblies',
@@ -383,6 +388,8 @@ def trans_backend(backend: Backend, save: bool):
     for key in key_parameters_list:
         result_dict[key] = backend.__dict__[key]
 
+    result_dict['data_type'] = str(backend.__dict__['data_type'])
+
     os.chdir(ori_path)
     return result_dict
 
@@ -423,6 +430,14 @@ def trans_learner(learner, learn_name):
 
 
 def trans_monitor(monitor: Monitor):
+    """
+    Transform monitor to dict.
+    Args:
+        learner: Target learner with needed parameters.
+
+    Returns:
+        result(dict): Contain the parameters of learner to be saved.
+    """
     from spaic.Monitor.Monitor import StateMonitor, SpikeMonitor
     needed = ['var_name', 'index', 'dt', 'get_grad', 'nbatch']
     name, mon = monitor

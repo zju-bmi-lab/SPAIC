@@ -31,7 +31,7 @@ class PopulationRate_Action(Action):
         )
 
         pop_size = int(record.shape[2] / self.num)
-        spike_num = record.sum().float()
+        spike_num = record.sum().type(self._backend.data_type)
 
         # Choose action based on population's spiking.
         if spike_num == 0:
@@ -43,9 +43,9 @@ class PopulationRate_Action(Action):
                     for i in range(self.num)
                 ],
                 device=record.device,
-            )
+            ).type(self._backend.data_type)
             # multinomial(input, num_samples,replacement=False), 采样的时候是根据输入张量的数值当做权重来进行抽样的, 返回index, 数值越大, 抽到的可能性越大, 如果是0 则不会抽到
-            action = torch.multinomial((pop_spikes.float() / spike_num).view(-1), 1)[0].item()
+            action = torch.multinomial((pop_spikes / spike_num).view(-1), 1)[0].item()
         return action
 
 Action.register('pop_rate_action', PopulationRate_Action)

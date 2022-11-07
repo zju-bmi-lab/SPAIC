@@ -276,7 +276,7 @@ class IncludedTypePolicy(ConnectPolicy):
         if self.post_types is not None:
             self.post_types = set(self.post_types)
             for con in leaf_connections:
-                fit_type = self.post_types.intersection(con.post_assembly.type)
+                fit_type = self.post_types.intersection(con.post.type)
                 if not fit_type:
                     con.del_connection()
 
@@ -284,7 +284,7 @@ class IncludedTypePolicy(ConnectPolicy):
             leaf_connections = new_connection.leaf_connections
             self.pre_types = set(self.pre_types)
             for con in leaf_connections:
-                fit_type = self.pre_types.intersection(con.pre_assembly.type)
+                fit_type = self.pre_types.intersection(con.pre.type)
                 if not fit_type:
                     con.del_connection()
                     
@@ -319,7 +319,7 @@ class ExcludedTypePolicy(ConnectPolicy):
         if self.post_types is not None:
             self.post_types = set(self.post_types)
             for con in leaf_connections:
-                fit_type = self.post_types.intersection(con.post_assembly.type)
+                fit_type = self.post_types.intersection(con.post.type)
                 if fit_type:
                     con.del_connection()
 
@@ -327,7 +327,7 @@ class ExcludedTypePolicy(ConnectPolicy):
             leaf_connections = new_connection._leaf_connections
             self.pre_types = set(self.pre_types)
             for con in leaf_connections:
-                fit_type = self.pre_types.intersection(con.pre_assembly.type)
+                fit_type = self.pre_types.intersection(con.pre.type)
                 if fit_type:
                     con.del_connection()
         return new_connection
@@ -355,8 +355,8 @@ class IndexConnectPolicy(ConnectPolicy):
 
     def checked_connection(self, new_connection: Projection):
 
-        pre_level_groups = new_connection.pre_assembly.get_leveled_groups()
-        post_level_groups = new_connection.post_assembly.get_leveled_groups()
+        pre_level_groups = new_connection.pre.get_leveled_groups()
+        post_level_groups = new_connection.post.get_leveled_groups()
         for ind in range(self.index_len):
             pre_ind = self.pre_indexs[ind]
             post_ind = self.post_indexs[ind]
@@ -382,22 +382,22 @@ class IndexConnectPolicy(ConnectPolicy):
 #     def __init__(self, name=None):
 #         super(Group1, self).__init__(name)
 #
-#         self.n1 = NeuronGroup(100 ,neuron_model='clif')
-#         self.n2 = NeuronGroup(100, neuron_model='clif')
+#         self.n1 = NeuronGroup(100 ,model='clif')
+#         self.n2 = NeuronGroup(100, model='clif')
 #         self.n1.add_type('in')
 #         self.n2.add_type('out')
 #
 #
 # with asb1:
-#     g1 = NeuronGroup(100 ,neuron_model='clif')
-#     g2 = NeuronGroup(100 ,neuron_model='clif')
+#     g1 = NeuronGroup(100 ,model='clif')
+#     g2 = NeuronGroup(100 ,model='clif')
 #     g3 = Group1()
 # asb1.g1.add_type('in')
 #
 #
 # with asb2:
-#     g4 = NeuronGroup(100 ,neuron_model='clif')
-#     g5 = NeuronGroup(100 ,neuron_model='clif')
+#     g4 = NeuronGroup(100 ,model='clif')
+#     g5 = NeuronGroup(100 ,model='clif')
 #     g6 = Group1()
 #
 # asb2.g4.add_type('out')
