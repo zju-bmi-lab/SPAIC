@@ -29,7 +29,7 @@ class ActFun(torch.autograd.Function):
         ctx.thresh = thresh
         ctx.alpha = alpha
         ctx.save_for_backward(input)
-        output = input.gt(thresh).float()
+        output = input.gt(thresh).type_as(input)
         return output
 
     @staticmethod
@@ -40,7 +40,7 @@ class ActFun(torch.autograd.Function):
         input, = ctx.saved_tensors
         grad_input = grad_output.clone()
         temp = abs(input - ctx.thresh) < ctx.alpha  # 根据STCA，采用了sign函数
-        result = grad_input * temp.float()
+        result = grad_input * temp.type_as(input)
         return result, None, None
 
 act_fun = ActFun()
@@ -76,7 +76,7 @@ class STCA(Learner):
     '''
 
     def __init__(self, trainable=None, **kwargs):
-        super(STCA, self).__init__(trainable=trainable)
+        super(STCA, self).__init__(trainable=trainable, **kwargs)
 
         self.alpha = kwargs.get('alpha', 0.5)
         self.prefered_backend = ['pytorch']
@@ -110,7 +110,7 @@ class STCA(Learner):
                     ctx.thresh = thresh
                     ctx.alpha = alpha
                     ctx.save_for_backward(input)
-                    output = input.gt(thresh).float()
+                    output = input.gt(thresh).type_as(input)
                     return output
 
                 @staticmethod
@@ -121,7 +121,7 @@ class STCA(Learner):
                     input, = ctx.saved_tensors
                     grad_input = grad_output.clone()
                     temp = abs(input - ctx.thresh) < ctx.alpha  # 根据STCA，采用了sign函数
-                    result = grad_input * temp.float()
+                    result = grad_input * temp.type_as(input)
                     return result, None, None
 
             self.firing_func = ActFun()
@@ -134,7 +134,7 @@ class STCA(Learner):
             for key in neuron._operations.keys():
                 if 'threshold' in key:
                     # 这一步直接替换了神经元模型中的电压与阈值比较的计算
-                    neuron._operations[key][1] = backend_threshold[backend.backend_name]
+                    neuron._operations[key].func = backend_threshold[backend.backend_name]
 
 
 

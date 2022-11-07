@@ -29,7 +29,7 @@ class Torch_Engine(torch.nn.Module):
         for op in self._graph_operations:
             # for inputs
             inputs = []
-            for var in op[2]:
+            for var in op.input:
                 if var[0] == 'variables_dict':
                     inputs.append(variables[var[1]])
                 elif var[0] == 'temp_dict':
@@ -39,10 +39,10 @@ class Torch_Engine(torch.nn.Module):
                 elif var[0] == 'reduce_dict':
                     inputs.append(reduce_dict[var[1]])
             # compute the operation
-            result = op[1](*inputs)
-            if len(op[0]) == 1: result = [result]
+            result = op.func(*inputs)
+            if len(op.output) == 1: result = [result]
             # assign the result variables
-            for ind, var in enumerate(op[0]):
+            for ind, var in enumerate(op.output):
                 if var[0] == 'temp_dict':
                     temp_dict[var[1]] = result[ind]
                 elif var[0] == 'update_dict':
@@ -63,9 +63,11 @@ class Torch_Backend(Backend):
     def __init__(self, device='cpu'):
         super(Torch_Backend, self).__init__()
 
-        self.device = device
+        self.device = device[0] if isinstance(device,list) else device
         self.data_type = torch.float32
         self.debug_data = []
+        self.nograd_decorator = torch.no_grad()
+        self.enablegrad_decorator = torch.enable_grad()
         pass
 
     def build(self):
@@ -93,23 +95,29 @@ class Torch_Backend(Backend):
 
         super(Torch_Backend, self).build_graph()
 
+    def to_nograd_func(self, func):
+        return self.nograd_decorator(func)
+
+    def to_grad_func(self, func):
+        return self.enablegrad_decorator(func)
+
 
     # def graph_update_step(self):
     #
     #     for op in self._graph_operations:
     #         inputs = []
-    #         for var in op[2]:
+    #         for var in op.input:
     #             inputs.append(self._graph_var_dicts[var[0]][var[1]])
     #
-    #         if op[0][0] is 'reduce_dict':
-    #             self._graph_var_dicts['reduce_dict'][op[0][1]].append(op[1](*inputs))
+    #         if op.output[0] is 'reduce_dict':
+    #             self._graph_var_dicts['reduce_dict'][op.output[1]].append(op.func(*inputs))
     #         else:
-    #             self._graph_var_dicts[op[0][0]][op[0][1]] = op[1](*inputs)
+    #             self._graph_var_dicts[op.output[0]][op.output[1]] = op.func(*inputs)
     #
     #     return tuple(self._graph_var_dicts['variables_dict'].values())
 
     #  As of now, autograd support floating point Tensor types ( half, float, double and bfloat16) and complex Tensor types (cfloat, cdouble).
-    def add_backend_variable(self, name, shape, value=None, grad=False, is_sparse=False, init=None, init_param=None):
+    def add_backend_variable(self, module, name, shape, value=None, grad=False, is_sparse=False, init=None, init_param=None):
         '''
         Parameters
         ----------
@@ -202,7 +210,7 @@ class Torch_Backend(Backend):
                 self._parameters_dict[name].data = value
         else:
             assert name in self._InitVariables_dict
-            self._backend._InitVariables_dict[name].shape == value.shape
+            assert self._backend._InitVariables_dict[name].shape == value.shape
             if not isinstance(value, torch.Tensor):
                 value = torch.tensor(value, dtype=self._InitVariables_dict[name].dtype, device=self._InitVariables_dict[name].device)
             with torch.no_grad():
@@ -230,7 +238,10 @@ class Torch_Backend(Backend):
         return level*' ' + 'torch_backend'
 
     def threshold(self, x, v_th):
-        return torch.gt(x, v_th).float()
+        return torch.gt(x, v_th).type(self.data_type)
+
+    def reset(self, v, o):
+        return o.eq(0)*v
 
     def cat(self, x, dim=1):
         return torch.cat(x, dim)
@@ -241,7 +252,7 @@ class Torch_Backend(Backend):
         except:
             # patch for SLIF 2[O]
             for ii in range(len(x)):
-                if x[ii].dim() == 2:
+                if x[ii].dim() ==2:
                     tmp = torch.zeros_like(x[ii])
                     tmp = torch.stack([x[ii], tmp], dim=1)
                     x[ii] = tmp
@@ -287,6 +298,17 @@ class Torch_Backend(Backend):
         else:
             return fn.conv2d(x, kernel, stride=stride, padding=padding, dilation=dilation, groups=groups)
 
+    def conv_2d_complex(self, x, kernel, stride, padding, dilation, groups, beta):
+        if x.dtype.is_complex:
+            x = beta ** x.imag * (x.real * (0 + 1.0j))
+        else:
+            x = x*(0+1.0j)
+        real = fn.conv2d(x.real, kernel, stride=stride, padding=padding, dilation=dilation, groups=groups)
+        imag = fn.conv2d(x.imag, kernel, stride=stride, padding=padding, dilation=dilation, groups=groups)
+        return torch.complex(real, imag)
+
+
+
     def conv_max_pool2d(self, x, kernel, pool_kernel, stride, pool_stride, padding, pool_padding, dilation, groups):
         return fn.max_pool2d(fn.conv2d(x, kernel, stride=stride, padding=padding,
                              dilation=dilation, groups=groups), kernel_size=pool_kernel,
@@ -303,9 +325,28 @@ class Torch_Backend(Backend):
         return x+bias_t
     def max_pool2d(self, x, pool_kernel, pool_stride, pool_padding):
         return fn.max_pool2d(x, kernel_size=pool_kernel, stride=pool_stride, padding=pool_padding)
+    def post_max_pool2d_complex(self, x, pool_kernel, pool_stride, pool_padding):
+        pool_imag, pool_index = fn.max_pool2d(x.imag, kernel_size=pool_kernel, return_indices=True,
+                                              stride=pool_stride, padding=pool_padding)
+        x_shape = x.shape
+        pool_shape = pool_index.shape
+        pool_real = torch.gather(x.real.view(x_shape[0], x_shape[1], -1), dim=-1,
+                                 index=pool_index.view(x_shape[0], x_shape[1],-1)).view(pool_shape[0], pool_shape[1],
+                                                                                        pool_shape[2], pool_shape[3])
+
+
+        return torch.complex(real=pool_real, imag=pool_imag)
 
     def avg_pool2d(self, x, pool_kernel, pool_stride, pool_padding):
         return fn.avg_pool2d(x, kernel_size=pool_kernel, stride=pool_stride, padding=pool_padding)
+
+    def batchnorm2d(self, x, num_features):
+        # 该实现方式忽略了running_mean 和 running_var
+        # 当 batch_size 较小时，在推理阶段的统计特性就会和全局统计特性有着较大偏差，从而导致糟糕的效果，这种情况下推荐使用
+        # SPAIC 的 Module 模块实现 batchnorm。
+        device = x.device
+        bn_2d = torch.nn.BatchNorm2d(num_features).to(device=device)
+        return bn_2d(x)
 
     def dropout(self, x, p, inplace=False):
         return fn.dropout(x, p=p, inplace=inplace)
@@ -378,7 +419,7 @@ class Torch_Backend(Backend):
             return torch.sum(O * X, dim=-1)
         else:
             X = X.permute(1, 0)
-            Out = torch.matmul(A, X)
+            Out = torch.matmul(A.to(X.dtype), X)
             Out = Out*(0.0+1.0j)
             return Out
 
@@ -446,9 +487,9 @@ class Torch_Backend(Backend):
         return A * X
 
     def mult_sum_weight(self, A, X):
-        X = X.permute(1, 0)
+        # X = X.permute(1, 0)
         A = A.permute(0, 2, 1)
-        return torch.sum(torch.matmul(A, X), dim=-2)
+        return torch.sum(A * X, dim=-1)
 
     def mat_linear(self, A, X, b):
         return torch.matmul(A, X) + b
@@ -561,7 +602,7 @@ class Torch_Backend(Backend):
         '''
         return torch.nn.init.kaiming_uniform_(data, a, mode, nonlinearity)
 
-    def zero_init(self, data, constant_value=0.0):
+    def constant(self, data, constant_value=0.0):
         '''
         Args:
             data(tensor): an n-dimensional torch.Tensor
@@ -570,6 +611,24 @@ class Torch_Backend(Backend):
             torch.nn.init.constant_(data, constant_value)
         '''
         return torch.nn.init.constant_(data, constant_value)
+
+    def sparse(self, data, sparsity=0.1, std=0.01):
+        '''
+        Args:
+            data(tensor): an n-dimensional `torch.Tensor`
+            sparsity(float): The fraction of elements in each column to be set to zero
+            std(float): the standard deviation of the normal distribution used to generate
+            the non-zero values
+        Returns:
+            torch.nn.init.sparse_(data, sparsity, std)
+        '''
+        return torch.nn.init.sparse_(data, sparsity, std)
+
+    def weight_norm(self, weight, amp):
+        w_norm = torch.norm(weight, p=2, dim=1, keepdim=True)
+        # print(amp.item(), w_norm.item())
+        return weight*amp/w_norm
+
 
     def sin(self, x):
         return torch.sin(x)
@@ -589,8 +648,6 @@ class Torch_Backend(Backend):
     def log10(self, x):
         return torch.log10(x)
 
-    def reset(self, v, o):
-        return o.eq(0)*v
     # def reset(self, x, v_reset, u_reset, spike):
     #
     #     # if hasattr(x, "__len__"):
