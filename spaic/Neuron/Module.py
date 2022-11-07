@@ -9,16 +9,18 @@ Created on 2021/4/12
 @description:
 wrap around deep learning module such as a cnn network lstm cell
 """
+import torch
 
 import spaic
 from ..Network.Assembly import Assembly
+from ..Network.BaseModule import Op
 
 class Module(Assembly):
     _class_label = '<mod>'
 
-    def __init__(self, module=None, name=None, input_targets=[], input_var_names=['O'], output_tragets=None, output_var_names=['Isyn'], module_backend='pytorch'):
+    def __init__(self, module=None, name=None, input_targets=[], input_var_names=['O[updated]'], output_tragets=None, output_var_names=['Isyn'], module_backend='pytorch'):
         super(Module, self).__init__(name)
-        self.module = module
+        self.module: torch.nn.Module = module
         if isinstance(input_targets, list):
             self.input_targets = input_targets
         else:
@@ -85,11 +87,11 @@ class Module(Assembly):
         self._var_names.append(output_var_name)
         input_var_names = []
         for input_target, input_name in zip(self.input_targets, self.input_var_names):
-            input_var_name = input_target.id  + ":" + "{" + input_name + "}"
+            input_var_name = input_target.id + ":" + "{" + input_name + "}"
             self._var_names.append(input_var_name)
             input_var_names.append(input_var_name)
 
-        backend.register_standalone(output_var_name, self.standalone_run, input_var_names)
+        backend.register_standalone(Op(output_var_name, self.standalone_run, input_var_names, owner=self))
         self.module.to(backend.device)
 
 
@@ -97,7 +99,16 @@ class Module(Assembly):
     @property
     def parameters(self):
 
-        return self.module.parameters() #.state_dic()
+        return self.module.parameters()  # .state_dict()
+
+    @property
+    def state_dict(self):
+
+        return self.module.state_dict()
+
+    def load_state_dict(self, state):
+
+        return self.module.load_state_dict(state)
 
     def train(self, mode=True):
         self.module.train(mode)

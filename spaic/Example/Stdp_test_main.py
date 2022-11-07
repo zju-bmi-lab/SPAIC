@@ -54,15 +54,15 @@ class TestNet(spaic.Network):
 
         # coding
         # self.input = spaic.Encoder(num=node_num, coding_time=run_time, coding_method='blank_encoder')
-        self.input = spaic.Encoder(num=node_num, coding_time=run_time, coding_method='poisson', unit_conversion=0.6375)
+        self.input = spaic.Encoder(num=node_num, time=run_time, coding_method='poisson', unit_conversion=0.6375)
 
         # neuron group
-        self.layer1 = spaic.NeuronGroup(label_num, neuron_model='lifstdp_ex')
-        self.layer2 = spaic.NeuronGroup(label_num, neuron_model='lifstdp_ih')
+        self.layer1 = spaic.NeuronGroup(label_num, model='lifstdp_ex')
+        self.layer2 = spaic.NeuronGroup(label_num, model='lifstdp_ih')
         # self.layer3 = TestAss()
 
         # decoding
-        self.output = spaic.Decoder(num=label_num, dec_target=self.layer1, coding_time=run_time,
+        self.output = spaic.Decoder(num=label_num, dec_target=self.layer1, time=run_time,
                                       coding_method='spike_counts')
 
         # Connection

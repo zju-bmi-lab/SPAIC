@@ -12,7 +12,7 @@ Created on 2020/8/11
 from ..Network.Assembly import Assembly
 import torch
 import numpy as np
-
+from ..Backend.Backend import Op
 class Node(Assembly):
     '''Base class for input encoder and output decoders.
     '''
@@ -71,9 +71,11 @@ class Node(Assembly):
                 self.shape = tuple([1] + list(shape))
 
         if node_type == ('excitatory', 'inhibitory', 'pyramidal', '...'):
-            self.type = None
-        else:
+            self.type = []
+        elif isinstance(node_type, list):
             self.type = node_type
+        else:
+            self.type = [node_type]
 
 
 
@@ -98,7 +100,7 @@ class Node(Assembly):
 
     @property
     def dt(self):
-        if self._dt is None:
+        if self._dt is None and self._backend is not None:
             return self._backend.dt
         else:
             return self._dt
@@ -109,14 +111,14 @@ class Node(Assembly):
 
     @property
     def time(self):
-        if self._time is None:
+        if self._time is None and self._backend is not None:
             return self._backend.runtime
         else:
             return self._time
 
     @property
     def time_step(self):
-        return int(self.time / self.dt)
+        return int(np.ceil(self.time / self.dt))
 
 
     @time.setter
@@ -141,7 +143,7 @@ class Node(Assembly):
 
         raise NotImplementedError
 
-    def torch_coding(self, source, target, device):
+    def torch_coding(self, source: torch.Tensor, target: torch.Tensor , device: str) -> torch.Tensor:
         '''
 
         Args:
@@ -189,6 +191,15 @@ class Node(Assembly):
             self.new_input = True
 
         elif isinstance(self, Decoder):
+            if isinstance(data, np.ndarray):
+                self.source = data
+            elif isinstance(data, torch.Tensor):
+                self.source = data
+            elif hasattr(data, '__iter__'):
+                self.source = np.array(data)
+            else:
+                self.source = np.array([data])
+
             return self.predict
 
 
@@ -210,7 +221,7 @@ class Encoder(Node):
         super(Encoder, self).__init__(shape, num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
         self.batch_size = None
         self.new_input = True
-        coding_method = coding_method.lower()
+        # coding_method = coding_method.lower()
         # if coding_method == 'null':
         #     self.is_encoded = True
         # else:
@@ -290,7 +301,7 @@ class Encoder(Node):
             self._backend.set_batch_size(self.batch_size)
 
         # if self.sim_name == 'pytorch':
-        #     spikes = self.torch_coding(self.source, self.device)  # (time_step, batch_size, neuron_shape)
+        #     spikes = self.torch_coding(self.source, self.device)  # (time_step, batch_size, shape)
         # else:
         #     spikes = self.numpy_coding(self.source, self.device)
         # self.all_spikes = spikes
@@ -303,8 +314,8 @@ class Encoder(Node):
 
         key = self.id + ':' + '{'+self.coding_var_name+'}'
         self.variable_to_backend(key, shape, value=0)
-        backend.register_initial(None, self.init_state, [])
-        backend.register_standalone(key, self.next_stage, [])
+        self.init_op_to_backend(None, self.init_state, [])
+        backend.register_standalone(Op(key, self.next_stage, [], owner=self))
 
 
 # ======================================================================================================================
@@ -324,9 +335,9 @@ class Decoder(Node):
     def __init__(self, num=None, dec_target=None,  dt=None, coding_method=('poisson', 'spike_counts', '...'),
                  coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
         super(Decoder, self).__init__(None, num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
-        assert num == dec_target.num, ('The num of Decoder is not consistent with neuron_number of NeuronGroup')
+        assert num == dec_target.num, ('The num of Decoder is not consistent with num of NeuronGroup')
 
-    def __new__(cls, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'),
+    def __new__(cls, num=None, dec_target=None, dt=None, coding_method='spike_counts',
                 coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
         coding_method = coding_method.lower()
         if cls is not Decoder:
@@ -395,8 +406,8 @@ class Decoder(Node):
         #     self.dt = backend.dt
 
         output_name = self.dec_target.id + ':' + '{'+self.coding_var_name+'}'
-        backend.register_initial(None, self.init_state, [])
-        backend.register_standalone(None, self.get_output, [output_name])
+        self.init_op_to_backend(None, self.init_state, [])
+        backend.register_standalone(Op(None, self.get_output, [output_name], owner=self))
 
 # ======================================================================================================================
 # Rewards
@@ -483,11 +494,11 @@ class Reward(Node):
         #     self.dt = backend.dt
 
         output_name = self.dec_target.id + ':' + '{'+self.coding_var_name+'}'
-        backend.register_initial(None, self.init_state, [])
+        self.init_op_to_backend(None, self.init_state, [])
         reward_name = 'Output_Reward'
         self.variable_to_backend(reward_name, self.reward_shape, value=0.0) # shape还是要让具体的子类定义吧
 
-        backend.register_standalone(reward_name, self.get_reward, [output_name])
+        backend.register_standalone(Op(reward_name, self.get_reward, [output_name], owner=self))
 
 
 class Generator(Node):
@@ -593,8 +604,8 @@ class Generator(Node):
         else:
             key = self.dec_target.id + ':' + '{'+self.coding_var_name+'}'
         self._var_names.append(key)
-        backend.register_initial(None, self.init_state, [])
-        backend.register_standalone(key, self.next_stage, [])
+        self.init_op_to_backend(None, self.init_state, [])
+        backend.register_standalone(Op(key, self.next_stage, [], owner=self))
 
 
 # ======================================================================================================================
@@ -681,5 +692,5 @@ class Action(Node):
         #     self.dt = backend.dt
 
         output_name = self.dec_target.id + ':' + '{'+self.coding_var_name+'}'
-        backend.register_initial(None, self.init_state, [])
-        backend.register_standalone(None, self.get_action, [output_name])
+        self.init_op_to_backend(None, self.init_state, [])
+        backend.register_standalone(Op(None, self.get_action, [output_name], owner=self))

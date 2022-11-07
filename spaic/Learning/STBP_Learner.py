@@ -35,7 +35,7 @@ class STBP(Learner):
     '''
 
     def __init__(self,trainable=None, **kwargs):
-        super(STBP, self).__init__(trainable=trainable)
+        super(STBP, self).__init__(trainable=trainable, **kwargs)
         self.alpha = kwargs.get('alpha', 0.5)
         self.prefered_backend = ['pytorch']
         self.name = 'STBP'
@@ -69,7 +69,7 @@ class STBP(Learner):
                     ctx.thresh = thresh
                     ctx.alpha = alpha
                     ctx.save_for_backward(input)
-                    return input.gt(thresh).float()
+                    return input.gt(thresh).type_as(input)
 
                 @staticmethod
                 def backward(
@@ -80,7 +80,7 @@ class STBP(Learner):
                     grad_input = grad_output.clone()
                     temp = torch.exp(-(input - ctx.thresh) ** 2 / (2 * ctx.alpha)) \
                            / (2 * math.pi * ctx.alpha)
-                    result = grad_input * temp.float()
+                    result = grad_input * temp.type_as(input)
                     return result, None, None
 
 
@@ -92,7 +92,7 @@ class STBP(Learner):
             for neuron in self.trainable_groups.values():
                 for key in neuron._operations.keys():
                     if 'threshold' in key:
-                        neuron._operations[key][1] = self.threshold
+                        neuron._operations[key].func = self.threshold
 
 
     def threshold(self, x, v_th):

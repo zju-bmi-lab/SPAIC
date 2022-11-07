@@ -11,6 +11,11 @@ Created on 2020/9/9
 from abc import abstractmethod
 from collections import OrderedDict
 import spaic
+from typing import Optional,Any,List
+from dataclasses import dataclass,field
+
+
+
 
 class BaseModule():
     '''
@@ -28,6 +33,7 @@ class BaseModule():
         self._supers = []
         self._var_names = []
         self._var_dict = dict()
+        self._ops = list()
 
     @abstractmethod
     def build(self, backend):
@@ -88,8 +94,16 @@ class BaseModule():
     def variable_to_backend(self, name, shape, value=None, is_parameter=False, is_sparse=False, init=None, init_param=None,
                             min=None, max=None, is_constant=False):
         self._var_names.append(name)
-        self._var_dict[name] = self._backend.add_variable(name, shape, value, is_parameter, is_sparse, init, init_param, min, max, is_constant)
+        self._var_dict[name] = self._backend.add_variable(self, name, shape, value, is_parameter, is_sparse, init, init_param, min, max, is_constant)
         return self._var_dict[name]
+
+    def op_to_backend(self, outputs, func, inputs):
+        addcode_op = Op(outputs, func, inputs, owner=self, operation_type='_operations')
+        self._backend.add_operation(addcode_op)
+
+    def init_op_to_backend(self, outputs, func, inputs):
+        addcode_op = Op(outputs, func, inputs, owner=self, operation_type='_operations')
+        self._backend.register_initial(addcode_op)
 
     def get_full_name(self, name):
         name = '{'+name+'}'
@@ -122,6 +136,25 @@ class BaseModule():
             raise ValueError("No such variable name in this module")
         else:
             self._var_dict[full_name].value = value
+
+    def _direct_set_variable(self, name, variable):
+        # only for debug at the beginning of the network run
+        name = '{' + name + '}'
+        full_name = None
+        for key in self._var_names:
+            if name in key:
+                if full_name is not None:
+                    raise ValueError("multiple variable with same name in this module")
+                else:
+                    full_name = key
+        if full_name is None:
+            raise ValueError("No such variable name in this module")
+        else:
+            is_parameter = self._var_dict[full_name]._is_parameter
+            if is_parameter:
+                self._backend._parameters_dict[full_name] = variable
+            else:
+                self._backend._InitVariables_dict[full_name] = variable
 
 
 
@@ -172,7 +205,18 @@ class OperationCommand(object):
         else:
             return self.front_module.enabled
 
-
+@dataclass
+class Op:
+    '''
+    Operation data class.
+    '''
+    output: Optional[List] = field(default_factory=list)
+    func: Optional[Any] = None
+    input: Optional[List] = field(default_factory=list)
+    place: Optional[Any] = None
+    owner: Optional[BaseModule] = None
+    requires_grad: Optional[bool] = False
+    operation_type : Optional[str] = None # _opertaions, _init_operations, _standalone_operations
 
 # class NetModule(BaseModule):
 #     '''

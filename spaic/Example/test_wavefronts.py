@@ -44,18 +44,20 @@ CANNNet = spaic.Network()
 with CANNNet:
     input = spaic.Generator(num=200*200, shape=(1, 200, 200), coding_method='poisson_generator')
     # input = spaic.Encoder(num=200*200, shape=(1, 200, 200), coding_method='poisson_generator')
-    exc_layer = spaic.NeuronGroup(neuron_number=200 * 200, shape=(1, 200, 200),  neuron_model='meanfield', tau=1.0)
-    inh_layer = spaic.NeuronGroup(neuron_number=200 * 200, shape=(1, 200, 200), neuron_model='meanfield', tau=2.0)
-    inp_link = spaic.Connection(input, exc_layer, link_type='conv', in_channels=1, out_channels=1, kernel_size=(29,29), maxpool_on=False, padding=14, weight=weight1, post_var_name='Iext')
-    ee_link = spaic.Connection(exc_layer, exc_layer, link_type='conv', in_channels=1, out_channels=1, kernel_size=(29,29), maxpool_on=False, padding=14, weight=weight2, post_var_name='WgtSum')
+    exc_layer = spaic.NeuronGroup(neuron_number=200 * 200, shape=(1, 200, 200),  model='meanfield', tau=1.0)
+    inh_layer = spaic.NeuronGroup(neuron_number=200 * 200, shape=(1, 200, 200), model='meanfield', tau=2.0)
+    inp_link = spaic.Connection(input, exc_layer, link_type='conv', in_channels=1, out_channels=1, kernel_size=(29,29),
+                                syn_type=['conv'], padding=14, weight=weight1, post_var_name='Iext')
+    ee_link = spaic.Connection(exc_layer, exc_layer, link_type='conv', in_channels=1, out_channels=1, kernel_size=(29,29),
+                               syn_type=['conv'], padding=14, weight=weight2, post_var_name='WgtSum')
     ei_link = spaic.Connection(exc_layer, inh_layer, link_type='conv', in_channels=1, out_channels=1,
-                                 kernel_size=(29, 29), maxpool_on=False, padding=14, weight=weight2,
+                                 kernel_size=(29, 29), syn_type=['conv'],  padding=14, weight=weight2,
                                  post_var_name='WgtSum')
     ie_link = spaic.Connection(inh_layer, exc_layer, link_type='conv', in_channels=1, out_channels=1,
-                                 kernel_size=(29, 29), maxpool_on=False, padding=14, weight=-2.0*weight1,
+                                 kernel_size=(29, 29), syn_type=['conv'],  padding=14, weight=-2.0*weight1,
                                  post_var_name='WgtSum')
     ii_link = spaic.Connection(inh_layer, inh_layer, link_type='conv', in_channels=1, out_channels=1,
-                                 kernel_size=(29, 29), maxpool_on=False, padding=14, weight=-weight1,
+                                 kernel_size=(29, 29),syn_type=['conv'], padding=14, weight=-weight1,
                                  post_var_name='WgtSum')
 
     om = spaic.StateMonitor(exc_layer, 'O')

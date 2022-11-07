@@ -443,6 +443,11 @@ class StateMonitor(Monitor):
             return np.stack(self._records, axis=-1)
 
     @property
+    def tensor_values(self):
+        assert isinstance(self._records[0], torch.Tensor)
+        return torch.stack(self._records, dim=-1)
+
+    @property
     def grads(self):
         if self.get_grad:
             grads = []
@@ -523,7 +528,6 @@ class StateMonitor(Monitor):
             fig.tight_layout()
         else:
             im.set_data(square_weights)
-
         plt.pause(0.1)
         return im
 

@@ -34,7 +34,7 @@ class _MapDatasetFetcher(_BaseDatasetFetcher):
         return self.collate_fn(data)
 
 def default_collate(batch):
-    # shape of data is [batch_size, *neuron_shape]
+    # shape of data is [batch_size, *shape]
     data = [item[0] for item in batch]
     data = np.array(data)
     target = [item[1] for item in batch]

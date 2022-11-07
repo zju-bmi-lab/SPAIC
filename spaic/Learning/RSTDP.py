@@ -7,6 +7,7 @@
 @time:2021/4/8 10:46
 @description:
 """
+from ..Network.BaseModule import Op
 from .Learner import Learner
 import numpy as np
 import torch
@@ -88,8 +89,8 @@ class RSTDP(Learner):
 
         # Traverse all trainable connections
         for conn in self.trainable_connections.values():
-            preg = conn.pre_assembly
-            postg = conn.post_assembly
+            preg = conn.pre
+            postg = conn.post
             pre_name = conn.get_input_name(preg, postg)
             post_name = conn.get_group_name(postg, 'O')
             weight_name = conn.get_link_name(preg, postg, 'weight')
@@ -115,33 +116,33 @@ class RSTDP(Learner):
             # eligibility = torch.matmul(post.transpose(1, 0), p_plus) + torch.matmul(p_minus.transpose(1, 0), pre)
 
             # Update p_plus values
-            # backend.add_operation(['p_plus_temp', 'var_mult', 'A_plus', pre_name])
-            # backend.add_operation([p_plus_name, 'var_linear', 'tau_plus', p_plus_name, 'p_plus_temp'])
-            backend.add_operation(['p_plus_temp', 'var_mult', 'tau_plus', p_plus_name])
+            # self.op_to_backend('p_plus_temp', 'var_mult', 'A_plus', pre_name))
+            # self.op_to_backend(p_plus_name, 'var_linear', 'tau_plus', p_plus_name, 'p_plus_temp'))
+            self.op_to_backend('p_plus_temp', 'var_mult', ['tau_plus', p_plus_name])
             if len(pre_shape_temp) > 2 and len(pre_shape_temp) == 4:
                 # if pre layer is 2d feature map
-                backend.add_operation(['pre_name_temp', 'feature_map_flatten', pre_name])
-                backend.add_operation([p_plus_name, 'var_linear', 'A_plus', 'pre_name_temp', 'p_plus_temp'])
+                self.op_to_backend('pre_name_temp', 'feature_map_flatten', pre_name)
+                self.op_to_backend(p_plus_name, 'var_linear', ['A_plus', 'pre_name_temp', 'p_plus_temp'])
             else:
-                backend.add_operation([p_plus_name, 'var_linear', 'A_plus', pre_name, 'p_plus_temp'])
+                self.op_to_backend(p_plus_name, 'var_linear', ['A_plus', pre_name, 'p_plus_temp'])
 
             # Update p_minus values
-            # backend.add_operation(['p_minus_temp', 'var_mult', 'A_minus', post_name])
-            # backend.add_operation([p_minus_name, 'var_linear', 'tau_minus', p_minus_name, 'p_minus_temp'])
-            backend.add_operation(['p_minus_temp', 'var_mult', 'tau_minus', p_minus_name])
-            backend.add_operation([p_minus_name, 'var_linear', 'A_minus', post_name, 'p_minus_temp'])
+            # self.op_to_backend('p_minus_temp', 'var_mult', 'A_minus', post_name))
+            # self.op_to_backend(p_minus_name, 'var_linear', 'tau_minus', p_minus_name, 'p_minus_temp'))
+            self.op_to_backend('p_minus_temp', 'var_mult', ['tau_minus', p_minus_name])
+            self.op_to_backend(p_minus_name, 'var_linear', ['A_minus', post_name, 'p_minus_temp'])
 
             # Calculate point eligibility value
-            backend.add_operation(['post_permute', 'permute', post_name, permute_name])
-            backend.add_operation(['pre_post', 'mat_mult', 'post_permute', p_plus_name + '[updated]'])
+            self.op_to_backend('post_permute', 'permute', [post_name, permute_name])
+            self.op_to_backend('pre_post', 'mat_mult', ['post_permute', p_plus_name + '[updated]'])
 
-            backend.add_operation(['p_minus_permute', 'permute', p_minus_name + '[updated]', permute_name])
+            self.op_to_backend('p_minus_permute', 'permute', [p_minus_name + '[updated]', permute_name])
             if len(pre_shape_temp) > 2 and len(pre_shape_temp) == 4:
-                backend.add_operation(['post_pre', 'mat_mult', 'p_minus_permute', 'pre_name_temp'])
+                self.op_to_backend('post_pre', 'mat_mult', ['p_minus_permute', 'pre_name_temp'])
             else:
-                backend.add_operation(['post_pre', 'mat_mult', 'p_minus_permute', pre_name])
-            backend.add_operation([eligibility_name, 'add', 'pre_post', 'post_pre'])
-            backend.add_operation([weight_name, self.weight_update, weight_name, eligibility_name, reward_name])
+                self.op_to_backend('post_pre', 'mat_mult', ['p_minus_permute', pre_name])
+            self.op_to_backend(eligibility_name, 'add', ['pre_post', 'post_pre'])
+            self.op_to_backend(weight_name, self.weight_update, [weight_name, eligibility_name, reward_name])
 Learner.register('rstdp', RSTDP)
 
 
@@ -237,8 +238,8 @@ class RSTDPET(Learner):
         # Traverse all trainable connections
         for conn in self.trainable_connections.values():
 
-            preg = conn.pre_assembly
-            postg = conn.post_assembly
+            preg = conn.pre
+            postg = conn.post
             pre_name = conn.get_input_name(preg, postg)
             post_name = conn.get_group_name(postg, 'O')
             weight_name = conn.get_link_name(preg, postg, 'weight')
@@ -265,26 +266,26 @@ class RSTDPET(Learner):
             # eligibility_trace += eligibility / tau_e
 
             # Update p_plus values
-            backend.add_operation(['pre_view', 'view', pre_name, view_name])
-            # backend.add_operation(['p_plus_temp', 'var_mult', 'A_plus', 'pre_view'])
-            # backend.add_operation([p_plus_name, 'var_linear', 'tau_plus', p_plus_name, 'p_plus_temp'])
-            backend.add_operation(['p_plus_temp', 'var_mult', 'tau_plus', p_plus_name])
-            backend.add_operation([p_plus_name, 'var_linear', 'A_plus', 'pre_view', 'p_plus_temp'])
+            self.op_to_backend('pre_view', 'view', [pre_name, view_name])
+            # self.op_to_backend('p_plus_temp', 'var_mult', 'A_plus', 'pre_view'))
+            # self.op_to_backend(p_plus_name, 'var_linear', 'tau_plus', p_plus_name, 'p_plus_temp'))
+            self.op_to_backend('p_plus_temp', 'var_mult', ['tau_plus', p_plus_name])
+            self.op_to_backend(p_plus_name, 'var_linear', ['A_plus', 'pre_view', 'p_plus_temp'])
 
             # Update p_minus values
-            backend.add_operation(['post_view', 'view', post_name, view_name])
-            # backend.add_operation(['p_minus_temp', 'var_mult', 'A_minus', 'post_view'])
-            # backend.add_operation([p_minus_name, 'var_linear', 'tau_minus', p_minus_name, 'p_minus_temp'])
-            backend.add_operation(['p_minus_temp', 'var_mult', 'tau_minus', p_minus_name])
-            backend.add_operation([p_minus_name, 'var_linear', 'A_minus', 'post_view', 'p_minus_temp'])
+            self.op_to_backend('post_view', 'view', [post_name, view_name])
+            # self.op_to_backend('p_minus_temp', 'var_mult', 'A_minus', 'post_view'))
+            # self.op_to_backend(p_minus_name, 'var_linear', 'tau_minus', p_minus_name, 'p_minus_temp'))
+            self.op_to_backend('p_minus_temp', 'var_mult', ['tau_minus', p_minus_name])
+            self.op_to_backend(p_minus_name, 'var_linear', ['A_minus', 'post_view', 'p_minus_temp'])
 
             # Calculate point eligibility value
-            backend.add_operation(['pre_post', 'ger', 'post_view', p_plus_name + '[updated]'])
-            backend.add_operation(['post_pre', 'ger', p_minus_name + '[updated]', 'pre_view'])
-            backend.add_operation([eligibility_name, 'add', 'pre_post', 'post_pre'])
-            backend.add_operation(['eligibility_trace_temp', 'var_mult', 'tau_e', eligibility_name + '[updated]'])
-            backend.add_operation([eligibility_trace_name, 'var_linear', 'tau_e_trace', eligibility_trace_name, 'eligibility_trace_temp'])
+            self.op_to_backend('pre_post', 'ger', ['post_view', p_plus_name + '[updated]'])
+            self.op_to_backend('post_pre', 'ger', [p_minus_name + '[updated]', 'pre_view'])
+            self.op_to_backend(eligibility_name, 'add', ['pre_post', 'post_pre'])
+            self.op_to_backend('eligibility_trace_temp', 'var_mult', ['tau_e', eligibility_name + '[updated]'])
+            self.op_to_backend(eligibility_trace_name, 'var_linear', 'tau_e_trace', eligibility_trace_name, 'eligibility_trace_temp')
 
-            backend.add_operation([None, self.weight_update, weight_name, eligibility_trace_name, reward_name])
+            self.op_to_backend(None, self.weight_update, [weight_name, eligibility_trace_name, reward_name])
 
 Learner.register('rstdpet', RSTDPET)

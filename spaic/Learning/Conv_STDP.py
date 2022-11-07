@@ -10,6 +10,7 @@
 from .Learner import Learner
 from ..Network.Connections import conv_connect
 from ..IO.utils import im2col
+from ..Network.BaseModule import Op
 import numpy as np
 import torch
 
@@ -87,8 +88,8 @@ class Conv2d_STDP(Learner):
         for conn in self.trainable_connections.values():
             if not isinstance(conn, conv_connect):
                 raise ValueError('Conv2d_STDP can only modify the connection defined by conv_connect, not the %s'% str(type(conn)))
-            preg = conn.pre_assembly
-            postg = conn.post_assembly
+            preg = conn.pre
+            postg = conn.post
             pre_name = conn.get_input_name(preg, postg)
             post_name = conn.get_group_name(postg, 'O')
             weight_name = conn.get_link_name(preg, postg, 'weight')
@@ -140,30 +141,30 @@ class Conv2d_STDP(Learner):
             # eligibility = dw.view([out_channels, in_channels, kh, kw])
 
             # Update p_plus values
-            backend.add_operation(['pre_name_temp', 'im2col_indices', pre_name, kh_name, kw_name, padding_name, stride_name])  # (batch_size, channels*kh*kw, height*width)
-            backend.add_operation(['p_plus_temp', 'var_mult', 'tau_plus', p_plus_name])
-            backend.add_operation(['minus_pre', 'minus', 'spike', 'pre_name_temp'])
-            backend.add_operation([p_plus_name, 'var_linear', 'minus_pre', 'p_plus_temp', 'pre_name_temp'])
+            self.op_to_backend('pre_name_temp', 'im2col_indices', [pre_name, kh_name, kw_name, padding_name, stride_name])  # (batch_size, channels*kh*kw, height*width)
+            self.op_to_backend('p_plus_temp', 'var_mult', ['tau_plus', p_plus_name])
+            self.op_to_backend('minus_pre', 'minus', ['spike', 'pre_name_temp'])
+            self.op_to_backend(p_plus_name, 'var_linear', ['minus_pre', 'p_plus_temp', 'pre_name_temp'])
 
             # Update p_minus values
-            backend.add_operation(['post_name_temp', 'conv2d_flatten', post_name])  # (batch_size, out_channels, height*width)
-            backend.add_operation(['p_minus_temp', 'var_mult', 'tau_minus', p_minus_name])
-            backend.add_operation(['minus_post', 'minus', 'spike', 'post_name_temp'])
-            backend.add_operation([p_minus_name, 'var_linear', 'minus_post', 'p_minus_temp', 'post_name_temp'])
+            self.op_to_backend('post_name_temp', 'conv2d_flatten', post_name)  # (batch_size, out_channels, height*width)
+            self.op_to_backend('p_minus_temp', 'var_mult', 'tau_minus', p_minus_name)
+            self.op_to_backend('minus_post', 'minus', 'spike', 'post_name_temp')
+            self.op_to_backend(p_minus_name, 'var_linear', 'minus_post', 'p_minus_temp', 'post_name_temp')
 
             # Calculate point eligibility value
-            backend.add_operation(['p_plus_permute', 'permute', p_plus_name + '[updated]', permute_name])
-            backend.add_operation(['pre_post', 'bmm', 'post_name_temp', 'p_plus_permute'])
-            backend.add_operation(['pre_post_temp', 'var_mult', 'A_plus', 'pre_post'])
+            self.op_to_backend('p_plus_permute', 'permute', [p_plus_name + '[updated]', permute_name])
+            self.op_to_backend('pre_post', 'bmm', 'post_name_temp', 'p_plus_permute')
+            self.op_to_backend('pre_post_temp', 'var_mult', 'A_plus', 'pre_post')
 
-            backend.add_operation(['pre_permute', 'permute', 'pre_name_temp', permute_name])
-            backend.add_operation(['post_pre', 'bmm', p_minus_name + '[updated]', 'pre_permute'])
-            backend.add_operation(['post_pre_temp', 'var_mult', 'A_minus', 'post_pre'])
+            self.op_to_backend('pre_permute', 'permute', 'pre_name_temp', permute_name)
+            self.op_to_backend('post_pre', 'bmm', [p_minus_name + '[updated]', 'pre_permute'])
+            self.op_to_backend('post_pre_temp', 'var_mult', ['A_minus', 'post_pre'])
 
-            backend.add_operation(['eligibility_temp', 'add', 'pre_post_temp', 'post_pre_temp'])
-            backend.add_operation(['eligibility_sum', 'reduce_sum', 'eligibility_temp', sum_dim_name])
-            backend.add_operation([eligibility_name, 'view', 'eligibility_sum', view_name])
+            self.op_to_backend('eligibility_temp', 'add', ['pre_post_temp', 'post_pre_temp'])
+            self.op_to_backend('eligibility_sum', ['reduce_sum', 'eligibility_temp', sum_dim_name])
+            self.op_to_backend(eligibility_name, ['view', 'eligibility_sum', view_name])
 
-            backend.add_operation([weight_name, self.weight_update, weight_name, eligibility_name])
+            self.op_to_backend(weight_name, self.weight_update, weight_name, eligibility_name)
 
 Learner.register('conv2d_stdp', Conv2d_STDP)

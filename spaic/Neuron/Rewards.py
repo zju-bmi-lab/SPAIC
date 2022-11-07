@@ -125,7 +125,7 @@ class Classifiy_Reward(Reward):
         super(Classifiy_Reward, self).__init__(shape, num, dec_target, dt, coding_method, coding_var_name, node_type,
                                                  **kwargs)
         self.beta = 0.99
-        self.out= 0
+        self.out = 0
         # self.pos_reward = 0
         # self.neg_reward = 0
         self.rewards = []

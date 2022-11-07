@@ -48,9 +48,9 @@ class TestNet(spaic.Network):
         self.input = spaic.Encoder(num=node_num, coding_method='poisson', unit_conversion=0.05)
 
         # neuron group
-        self.layer1 = spaic.NeuronGroup(500, neuron_model='lif', tau_m=25)
-        self.layer2 = spaic.NeuronGroup(500, neuron_model='lif', tau_m=25)
-        self.layer3 = spaic.NeuronGroup(label_num, neuron_model='lif', tau_m=25)
+        self.layer1 = spaic.NeuronGroup(500, model='lif', tau_m=25)
+        self.layer2 = spaic.NeuronGroup(500, model='lif', tau_m=25)
+        self.layer3 = spaic.NeuronGroup(label_num, model='lif', tau_m=25)
 
         # decoding
         self.output = spaic.Decoder(num=label_num, dec_target=self.layer3, coding_method='spike_counts')

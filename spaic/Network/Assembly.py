@@ -232,8 +232,8 @@ class Assembly(BaseModule):
 
         """
         if self._backend: self._backend.builded = False
-        assert connection.pre_assembly in self.get_groups(), 'pre_assembly %s is not in the group'%connection.pre_assembly.name
-        assert connection.post_assembly in self.get_groups(), 'post_assembly %s is not in the group'%connection.post_assembly.name
+        assert connection.pre in self.get_groups(), 'pre %s is not in the group' % connection.pre.name
+        assert connection.post in self.get_groups(), 'post %s is not in the group' % connection.post.name
         if name in self._connections:
             if connection is self._connections[name]:
                 raise ValueError(" connection is already in the assembly's connection list")
@@ -300,8 +300,8 @@ class Assembly(BaseModule):
 
         """
         if self._backend: self._backend.builded = False
-        assert projection.pre_assembly in self._groups.values(), 'pre_assembly %s is not in the group' % projection.pre_assembly.name
-        assert projection.post_assembly in self._groups.values(), 'post_assembly %s is not in the group' % projection.post_assembly.name
+        assert projection.pre in self._groups.values(), 'pre %s is not in the group' % projection.pre.name
+        assert projection.post in self._groups.values(), 'post %s is not in the group' % projection.post.name
         if name in self._projections:
             if projection is self._projections[name]:
                 raise ValueError(" projection is already in the assembly's projection list")
@@ -514,6 +514,8 @@ class Assembly(BaseModule):
             return all_groups
         elif self._groups and not recursive:
             return list(self._groups.values())
+        elif self._class_label == '<asb>':
+            return []
         else:
             return [self]
 
@@ -537,7 +539,7 @@ class Assembly(BaseModule):
                         leveled_groups.append(groups)
         return leveled_groups
 
-    def get_assemblies(self, recursive=True):
+    def get_assemblies(self, recursive=True, include_empty=False):
         """
         Get all the member assemblies and assemblies in member assemblies.
         Args:
@@ -552,12 +554,14 @@ class Assembly(BaseModule):
             recursive -= 1
 
         if self._groups and recursive:
-            all_assemblies = [self]
+            all_assemblies = {self,}
             for g in self._groups.values():
-                all_assemblies.extend(g.get_assemblies(recursive))
+                all_assemblies.update(g.get_assemblies(recursive, include_empty))
             return all_assemblies
         elif self._groups and not recursive:
-            return [self]
+            return {self}
+        elif not self._groups and include_empty:
+            return {self}
         else:
             return []
 
@@ -623,12 +627,16 @@ class Assembly(BaseModule):
         if not recursive:
             return self._connections.values()
         else:
-            all_assmblies = self.get_assemblies(recursive)
-            connections = []
+            all_assmblies = self.get_assemblies(recursive=2)
+            connections = set()
+            connections.update(self._connections.values())
             for asb in all_assmblies:
-                connections.extend(asb.get_connections(recursive=False))
+                if asb is self:
+                    connections.update(asb.get_connections(recursive=False))
+                else:
+                    connections.update(asb.get_connections(recursive=True))
             for proj in self._projections.values():
-                connections.extend(proj.get_connections(recursive=True))
+                connections.update(proj.get_connections(recursive=True))
             return connections
 
     def get_var_names(self):
@@ -849,7 +857,7 @@ class Assembly(BaseModule):
             if self._backend: self._backend.builded = False
             value.set_name(name)
             self._groups[name] = value
-            self.num += value.num
+            # self.num += value.num
             value.add_super(self)
         elif isinstance(value, Connection):
             if self._backend: self._backend.builded = False
