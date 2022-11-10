@@ -58,15 +58,15 @@ class TestNet(spaic.Network):
 
         # Connection
         self.connection1 = spaic.Connection(self.input, self.layer1, link_type='conv', in_channels=1, out_channels=4,
-                                              kernel_size=(3, 3),
+                                              kernel_size=(3, 3), syn_type=['conv'],
                                               init='uniform', init_param={'a':-math.sqrt(1/(9)), 'b':math.sqrt(1/(9))})
 
         self.connection2 = spaic.Connection(self.layer1, self.layer2, link_type='conv',
-                                              in_channels=4, out_channels=8, kernel_size=(3, 3),
+                                              in_channels=4, out_channels=8, kernel_size=(3, 3), syn_type=['conv'],
                                               init='uniform', init_param={'a':-math.sqrt(1/(8*9)), 'b':math.sqrt(1/(8*9))})
 
         self.connection3 = spaic.Connection(self.layer2, self.layer3, link_type='full',
-                                              syn_type=['flatten', 'basic_synapse'],
+                                              syn_type=['flatten', 'basic'],
                                               init='kaiming_normal', init_param={'a': math.sqrt(5)})
 
         self.mo = spaic.StateMonitor(self.layer1, var_name='O')
