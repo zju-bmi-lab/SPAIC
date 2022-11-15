@@ -600,7 +600,7 @@ class LIFModel(NeuronModel):
 
         self._operations.append(('Vtemp', 'var_linear', 'tauM', 'V', 'Isyn[updated]'))
         self._operations.append(('O', 'threshold', 'Vtemp', 'Vth'))
-        self._operations.append(('V', 'reset', 'Vtemp',  'O'))
+        self._operations.append(('V', 'reset', 'Vtemp',  'O[updated]'))
 
 
 NeuronModel.register("lif", LIFModel)
