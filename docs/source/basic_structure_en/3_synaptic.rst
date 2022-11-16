@@ -32,13 +32,27 @@ If users want to use gap junction, need to set the synapse_type as :code:`electr
 .. code-block:: python
 
     self.connection = spaic.Connection(self.layer1, self.layer2,
-                                              link_type='full', w_std=0.0, w_mean=0.1,
-                                              syn_type=['electrical'])
+                                              link_type='full', syn_type=['electrical'],
+                                              w_std=0.0, w_mean=0.1,
+                                              )
 
 
-Other Synapse
+All Synapses
 -----------------------
 In ``Synapse`` , we also construct some other synapse, including pooling and flatten.
+
+
+- **Basic_synapse** -- :code:`basic`
+- **conv_synapse** -- :code:`conv` combine with convolution connection.
+- **DirectPass_synapse** -- :code:`directpass`  , choose this synapse will let output equal to the input, which means the output :code:`Isyn` will equal to the output value of presynapse neurons.
+- **Dropout_synapse** -- :code:`dropout`
+- **AvgPool_synapse** -- :code:`avgpool`
+- **MaxPool_synapse** -- :code:`maxpool`
+- **BatchNorm2d_synapse** -- :code:`batchnorm2d`
+- **Flatten** -- :code:`flatten`
+- **First_order_chemical_synapse** -- :code:`1_order_synapse` , first order attenuated synapses in chemical synapses
+- **Second_order_chemical_synapse** -- :code:`2_order_synapse` , second order attenuated synapses in chemical synapses
+- **Mix_order_chemical_synapse** -- :code:`mix_order_synapse` , mix order attenuated synapses in chemical synapses
 
 - **Max pooling** -- :code:`maxpool`
 - **Average pooling** -- :code:`avgpool`

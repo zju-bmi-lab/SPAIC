@@ -70,6 +70,6 @@ in :class:`spaic.backend.backend` , and here is the example about :code:`LIF` mo
     self._operations.append(('O', 'threshold', 'Vtemp', 'Vth'))
 
     # Used to reset voltage after spike is sent
-    self._operations.append(('V', 'reset', 'Vtemp',  'O'))
+    self._operations.append(('V', 'reset', 'Vtemp',  'O[updated]'))
 
 Also, we need to add :code:`NeuronModel.register("lif", LIFModel)` to combine the name with the model for front-end use.

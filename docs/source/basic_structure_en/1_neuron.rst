@@ -10,6 +10,7 @@ neuron dynamics. In spiking neuron network, people always convert the change of 
 into different equation and approximate it by difference equation. Finally, obtain the differential neuron model \
 that can be computed by computer. In **SPAIC** , we contains most of the common neuron models:
 
+- **IF** - Integrate-and-Fire model
 - **LIF** - Leaky Integrate-and-Fire model
 - **CLIF** - Current Leaky Integrate-and-Fire model
 - **GLIF** - Generalized Leaky Integrate-and-Fire model
@@ -37,7 +38,7 @@ For example, we build a layer with 100 **LIF** neurons:
 
 .. code-block:: python
 
-    self.layer1 = NeuronGroup(neuron_number=100, neuron_model='lif')
+    self.layer1 = NeuronGroup(num=100, model='lif')
 
 A layer with 100 standard **LIF** neurons has been constructed. While, sometimes we need to specify the **LIF** \
 neuron to get different neuron dynamics, that we will need to specify some parameters:
@@ -50,7 +51,7 @@ If users need to change these parameters, they can enter the parameters when con
 
 .. code-block:: python
 
-    self.layer2 = NeuronGroup(neuron_number=100, neuron_model='lif',
+    self.layer2 = NeuronGroup(num=100, model='lif',
                     tau_m=10.0, v_th=10, v_reset=0.2)
 
 

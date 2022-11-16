@@ -69,7 +69,7 @@ to decode the output data. So, what we need to do is add:
 .. code-block:: python
 
    self.input = spaic.Encoder(num=784, coding_method='poisson')
-   self.layer1 = spaic.NeuronGroup(neuron_num=10, neuron_model='clif')
+   self.layer1 = spaic.NeuronGroup(num=10, model='clif')
    self.output = spaic.Decoder(num=10, dec_target=self.layer1)
 
 .. note::
@@ -129,7 +129,7 @@ with **cuda**.  Use :code:`0.1ms` as the time step
 
       # Method 2:
       self.set_backend('PyTorch', 'cuda')
-      self.set_backend_dt(0.2)
+      self.set_backend_dt(0.1)
 
 2.6 Overall network structure
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -147,13 +147,13 @@ with **cuda**.  Use :code:`0.1ms` as the time step
            self.input = spaic.Encoder(num=784, coding_method='poisson')
 
            # NeuronGroup
-           self.layer1 = spaic.NeuronGroup(10, neuron_model='clif')
+           self.layer1 = spaic.NeuronGroup(num=10, model='clif')
 
            # Decoding
            self.output = spaic.Decoder(num=10, dec_target=self.layer1, coding_method='spike_counts')
 
            # Connection
-           self.connection1 = spaic.Connection(self.input, self.layer1, link_type='full')
+           self.connection1 = spaic.Connection(pre=self.input, post=self.layer1, link_type='full')
 
            # Monitor
            self.mon_V = spaic.StateMonitor(self.layer1, 'V')
@@ -339,7 +339,7 @@ Additional: Other ways of constructing networks
 
        # Establish the neuron cluster, select the neuron type, and set the neuron
        # parameters such as discharge threshold and membrane voltage time constant
-       layer1 = spaic.NeuronGroup(10, neuron_model='clif')
+       layer1 = spaic.NeuronGroup(10, model='clif')
 
        # Establish connections between nerve clusters
        connection1 = spaic.Connection(input1, layer1, link_type='full')
@@ -372,8 +372,8 @@ Additional: Other ways of constructing networks
        'V_th': 1.5,
    }
    # Creating new neuron clusters
-   layer3 = spaic.NeuronGroup(100, neuron_model='lif', param=neuron_param)
-   layer4 = spaic.NeuronGroup(100, neuron_model='lif', param=neuron_param)
+   layer3 = spaic.NeuronGroup(100, model='lif', param=neuron_param)
+   layer4 = spaic.NeuronGroup(100, model='lif', param=neuron_param)
 
    # Add new set members to a neural set
    Net.add_assembly('layer3', layer3)
@@ -477,7 +477,7 @@ II. 如何从零开始构建一个脉冲神经网络
 .. code-block:: python
 
    self.input = spaic.Encoder(num=784, coding_method='poisson')
-   self.layer1 = spaic.NeuronGroup(neuron_num=10, neuron_model='clif')
+   self.layer1 = spaic.NeuronGroup(num=10, model='clif')
    self.output = spaic.Decoder(num=10, dec_target=self.layer1)
 
 .. note::
@@ -531,7 +531,7 @@ II. 如何从零开始构建一个脉冲神经网络
 
    # 方式二：
       self.set_backend('PyTorch', 'cuda')
-      self.set_backend_dt(0.2)
+      self.set_backend_dt(0.1)
 
 2.6 整体网络结构
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -549,7 +549,7 @@ II. 如何从零开始构建一个脉冲神经网络
            self.input = spaic.Encoder(num=784, coding_method='poisson')
 
            # NeuronGroup
-           self.layer1 = spaic.NeuronGroup(10, neuron_model='clif')
+           self.layer1 = spaic.NeuronGroup(num=10, model='clif')
 
            # Decoding
            self.output = spaic.Decoder(num=10, dec_target=self.layer1, coding_method='spike_counts')
@@ -741,7 +741,7 @@ II. 如何从零开始构建一个脉冲神经网络
 
 
        # 建立神经元集群，选择神经元类型，并可以设置 放电阈值、膜电压时间常数等神经元参数值
-       layer1 = spaic.NeuronGroup(10, neuron_model='clif')
+       layer1 = spaic.NeuronGroup(10, model='clif')
 
        # 建立神经集群间的连接
        connection1 = spaic.Connection(input1, layer1, link_type='full')
@@ -770,8 +770,8 @@ II. 如何从零开始构建一个脉冲神经网络
        'V_th': 1.5,
    }
    # 新建神经元集群
-   layer3 = spaic.NeuronGroup(100, neuron_model='lif', param=neuron_param)
-   layer4 = spaic.NeuronGroup(100, neuron_model='lif', param=neuron_param)
+   layer3 = spaic.NeuronGroup(100, model='lif', param=neuron_param)
+   layer4 = spaic.NeuronGroup(100, model='lif', param=neuron_param)
 
    # 向神经集合中加入新的集合成员
    Net.add_assembly('layer3', layer3)

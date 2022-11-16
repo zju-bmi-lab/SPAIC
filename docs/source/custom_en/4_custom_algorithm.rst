@@ -68,8 +68,8 @@ At first, get the presynaptic and postsynaptic NeuronGroups from :code:`trainabl
 
 .. code-block:: python
 
-    preg = conn.pre_assembly
-    postg = conn.post_assembly
+    preg = conn.pre
+    postg = conn.post
 
 Then, get parameters ID, such as input spike, output spike and weight name:
 
@@ -83,26 +83,26 @@ Add necessary parameters to ``Backend`` :
 
 .. code-block:: python
 
-    backend.add_variable(input_trace_name, backend._variables[pre_name].shape, value=0.0)
-    backend.add_variable(output_trace_name, backend._variables[post_name].shape, value=0.0)
-    backend.add_variable(dw_name, backend._variables[weight_name].shape, value=0.0)
+    self.variable_to_backend(input_trace_name, backend._variables[pre_name].shape, value=0.0)
+    self.variable_to_backend(output_trace_name, backend._variables[post_name].shape, value=0.0)
+    self.variable_to_backend(dw_name, backend._variables[weight_name].shape, value=0.0)
 
 Append calculate formula to ``Backend`` :
 
 .. code-block:: python
 
-    backend.add_operation(['input_trace_temp', 'var_mult', input_trace_name, 'trace_decay'])
-    backend.add_operation([input_trace_name, 'add', pre_name, 'input_trace_temp'])
+    self.op_to_backend('input_trace_temp', 'var_mult', [input_trace_name, 'trace_decay'])
+    self.op_to_backend(input_trace_name, 'add', [pre_name, 'input_trace_temp'])
 
-    backend.add_operation(['output_trace_temp', 'var_mult', output_trace_name, 'trace_decay'])
-    backend.add_operation([output_trace_name, 'add', post_name, 'output_trace_temp'])
+    self.op_to_backend('output_trace_temp', 'var_mult', [output_trace_name, 'trace_decay'])
+    self.op_to_backend(output_trace_name, 'add', [post_name, 'output_trace_temp'])
 
-    backend.add_operation(['pre_post_temp', 'mat_mult_pre', post_name, input_trace_name+'[updated]'])
-    backend.add_operation(['pre_post', 'var_mult', 'Apost', 'pre_post_temp'])
-    backend.add_operation(['post_pre_temp', 'mat_mult_pre', output_trace_name+'[updated]', pre_name])
-    backend.add_operation(['post_pre', 'var_mult', 'Apre', 'post_pre_temp'])
-    backend.add_operation([dw_name, 'minus', 'pre_post', 'post_pre'])
-    backend.add_operation([weight_name, self.full_online_stdp_weightupdate, dw_name, weight_name])
+    self.op_to_backend('pre_post_temp', 'mat_mult_pre', [post_name, input_trace_name+'[updated]'])
+    self.op_to_backend('pre_post', 'var_mult', ['Apost', 'pre_post_temp'])
+    self.op_to_backend('post_pre_temp', 'mat_mult_pre', [output_trace_name+'[updated]', pre_name])
+    self.op_to_backend('post_pre', 'var_mult', ['Apre', 'post_pre_temp'])
+    self.op_to_backend(dw_name, 'minus', ['pre_post', 'post_pre'])
+    self.op_to_backend(weight_name, self.full_online_stdp_weightupdate,[dw_name, weight_name])
 
 Weight update part:
 

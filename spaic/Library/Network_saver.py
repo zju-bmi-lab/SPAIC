@@ -53,11 +53,11 @@ def network_save(Net: Assembly, filename=None, path=None,
             filename = "autoname" + str(np.random.randint(10000))
 
     origin_path = os.getcwd()
-    if path:
-        filedir = path + '/' + filename
-    else:
-        path = './'
-        filedir = path + filename
+    # if path:
+    #     filedir = path + '/' + filename
+    # else:
+    #     path = './'
+    #     filedir = path + filename
 
     if save:
         os.chdir(path)

@@ -163,12 +163,12 @@ CC_Generator ('cc_generator')
 
 .. code-block:: python
 
-    self.target = spaic.NeuronGroup(neuron_number=10, neuron_model='lif')
+    self.target = spaic.NeuronGroup(num=10, model='lif')
     self.output = spaic.Decoder(num=10, dec_target=self.target, coding_method='spike_counts')
 
 .. note::
     - 参数 **dec_target** 的值是要解码的层对象
-    - :code:`Decoder` 类中参数 **num** 的值应与目标层中 **neuron_number** 的值相同
+    - :code:`Decoder` 类中参数 **num** 的值应与目标层中 **num** 的值相同
     - 若要实例化其他解码类，只需将相应类的str名称赋值给 **coding_method** 参数即可
     - 参数 **coding_var_name** 的值是要解码的变量，例如'O'或'V'，'O'表示脉冲，'V'表示电压。
     - 对于 :code:`Spike_Counts` 和 :code:`First_Spike` ，参数 **coding_var_name** 的默认值为'O'。
@@ -192,12 +192,12 @@ CC_Generator ('cc_generator')
 
 .. code-block:: python
 
-    self.target = spaic.NeuronGroup(neuron_number=10, neuron_model='lif')
+    self.target = spaic.NeuronGroup(num=10, model='lif')
     self.reward = spaic.Reward(num=10, dec_target=self.target, coding_method='global_reward')
 
 .. note::
     - 参数 **dec_target** 的值是要解码的层对象
-    - :code:`Reward` 类中参数 **num** 的值应与目标层中 **neuron_number** 的值相同
+    - :code:`Reward` 类中参数 **num** 的值应与目标层中 **num** 的值相同
     - 若要实例化其他奖励类，只需将相应类的str名称赋值给 **coding_method** 参数即可
     - 参数 **coding_var_name** 的值是要解码的变量，例如'O'或'V'，'O'表示脉冲，'V'表示电压。
     - 参数 **coding_var_name** 的默认值为'O'。
@@ -229,12 +229,12 @@ CC_Generator ('cc_generator')
 
 .. code-block:: python
 
-    self.target = spaic.NeuronGroup(neuron_number=10, neuron_model='lif')
+    self.target = spaic.NeuronGroup(num=10, model='lif')
     self.reward = spaic.Action(num=10, dec_target=self.target, coding_method='softmax_action')
 
 .. note::
     - 参数 **dec_target** 的值是要解码的层对象
-    - :code:`Action` 类中参数 **num** 的值应与目标层中 **neuron_number** 的值相同。
+    - :code:`Action` 类中参数 **num** 的值应与目标层中 **num** 的值相同。
     - 若要实例化其他动作类，只需将相应类的str名称赋值给 **coding_method** 参数即可。
     - 参数 **coding_var_name** 的值是要解码的变量，例如'O'或'V'，'O'表示脉冲，'V'表示电压。
 
