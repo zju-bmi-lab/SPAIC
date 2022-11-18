@@ -8,7 +8,8 @@ spaic平台仿真训练平台是针对脉冲神经网络开发的网络构建、
 
 SPAIC平台的教程文档： https://spaic.readthedocs.io/en/latest/index.html
 
-如果在阅读教程文档之后仍旧抱有疑问，欢迎通过邮件与我们取得联系： 
+如果在阅读教程文档之后仍旧抱有疑问，欢迎通过邮件与我们取得联系：  
+
 Chaofei Hong <a href="mailto:hongchf@zhejainglab.com"> hongchf@zhejianglab.com</a>  
 Mengwen Yuan <a href="mailto:yuanmw@zhejianglab.com"> yuanmw@zhejianglab.com</a>  
 Mengxiao Zhang <a href="mailto:mxzhang@zhejianglab.com"> mxzhang@zhejianglab.com</a>  
