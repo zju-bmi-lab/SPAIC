@@ -410,7 +410,7 @@ User manual:
 
 Contact us:
 ==============================================
-Chaofei Hong: hongchf@zhejainglab.com
+Chaofei Hong: hongchf@zhejianglab.com
 
 Mengwen Yuan: yuanmw@zhejianglab.com
 

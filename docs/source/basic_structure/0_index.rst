@@ -35,13 +35,13 @@ Assembly (神经集合)
 
 NeuronGroup (神经元集群)
 --------------------------
-:code:`spaic.NeuronGroup` 是包含了一定数量的神经元的类，通常我们称其为一层具有相同神经元模型以及连接方式的神经元组。
+:code:`spaic.NeuronGroup` 是包含了一定数量的神经元的类，通常我们称其为一层具有相同神经元模型以及连接方式的神经元组。 更多细节参考 :doc:`./1_neuron`
 
 
 Node (节点)
 --------------------------
 :code:`spaic.Node` 是神经网络输入输出的转换节点，包含编解码机制，将输入转化为放电或将放电转化为输出。 :code:`Encoder` , :code:`Decoder` , \
-:code:`Generator` , :code:`Action` 以及 :code:`Reward` 都继承自 :code:`Node`.
+:code:`Generator` , :code:`Action` 以及 :code:`Reward` 都继承自 :code:`Node`. 更多细节参考 :doc:`./5_encode_decode`
 
 Network (网络)
 --------------------------
@@ -60,11 +60,11 @@ Projection (拓扑连接)
 
 Connection (连接)
 --------------------------
-:code:`spaic.Connection` 用于在神经元组之间构建连接，也用于构建不同类型的突触。
+:code:`spaic.Connection` 用于在神经元组之间构建连接，也用于构建不同类型的突触。更多具体介绍参考 :doc:`./2_connection` 。
 
 Backend (后端)
 --------------------------
-后端核心，负责实际构建变量以及生成计算图。
+后端核心，负责实际构建变量以及生成计算图。更多具体的介绍参考 :doc:`../backend` 。
 
 具体细节
 ======================
