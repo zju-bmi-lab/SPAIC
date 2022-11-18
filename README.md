@@ -9,6 +9,13 @@ The spaic platform simulation training platform is a network construction, forwa
 Dependency packages: pytorch, numpy
 
 Tutorial documentation for the SPAIC:  https://spaic.readthedocs.io/en/latest/index.html
+
+If you still have some questions, please feel free to contact us:  
+Chaofei Hong <a href="mailto:hongchf@zhejainglab.com"> hongchf@zhejianglab.com</a>  
+Mengwen Yuan <a href="mailto:yuanmw@zhejianglab.com"> yuanmw@zhejianglab.com</a>  
+Mengxiao Zhang <a href="mailto:mxzhang@zhejianglab.com"> mxzhang@zhejianglab.com</a>  
+
+
 <img src="./docs/source/_static/SPAIC-POSTER.png" style="zoom: 80%;" />
 
 
@@ -104,8 +111,8 @@ class ExampleNet(spaic.Network):
         self.input = spaic.Node(dataloader, encoding='latency')
               
         # Establish neurongroups, select neuron types, and set neuron parameter values
-        self.layer1 = spaic.NeuronGroup(100, neuron_model='clif')
-        self.layer2 = spaic.NeuronGroup(10, neuron_model='clif')
+        self.layer1 = spaic.NeuronGroup(100, model='clif')
+        self.layer2 = spaic.NeuronGroup(10, model='clif')
         
         # Establish connections between Neurongroups
         self.connection1 = spaic.Connection(self.input, self.layer1, link_type='full')
@@ -141,8 +148,8 @@ with Net:
 
 
     # Establish neurongroups, select neuron types, and set neuron parameter values
-    layer1 = spaic.NeuronGroup(100, neuron_model='clif')
-    layer2 = spaic.NeuronGroup(10, neuron_model='clif')
+    layer1 = spaic.NeuronGroup(100, model='clif')
+    layer2 = spaic.NeuronGroup(10, model='clif')
 
     # Establish connections between Neurongroups
     connection1 = spaic.Connection(input1, layer1, link_type='full')
@@ -174,8 +181,8 @@ neuron_param = {
     'V_th': 1.5,
 }
 # New neurongroups
-layer3 = spaic.NeuronGroup(100, neuron_model='lif', param=neuron_param)
-layer4 = spaic.NeuronGroup(100, neuron_model='lif', param=neuron_param)
+layer3 = spaic.NeuronGroup(100, model='lif', param=neuron_param)
+layer4 = spaic.NeuronGroup(100, model='lif', param=neuron_param)
 
 # Add a new member to the Assembly
 Net.add_assembly('layer3', layer3)
