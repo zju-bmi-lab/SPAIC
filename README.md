@@ -11,7 +11,6 @@ Dependency packages: pytorch, numpy
 Tutorial documentation for the SPAIC:  https://spaic.readthedocs.io/en/latest/index.html
 
 If you still have some questions, please feel free to contact us:  
-
 Chaofei Hong <a href="mailto:hongchf@zhejainglab.com"> hongchf@zhejianglab.com</a>  
 Mengwen Yuan <a href="mailto:yuanmw@zhejianglab.com"> yuanmw@zhejianglab.com</a>  
 Mengxiao Zhang <a href="mailto:mxzhang@zhejianglab.com"> mxzhang@zhejianglab.com</a>  
