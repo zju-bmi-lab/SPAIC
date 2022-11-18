@@ -111,8 +111,8 @@ class ExampleNet(spaic.Network):
         self.input = spaic.Node(dataloader, encoding='latency')
               
         # Establish neurongroups, select neuron types, and set neuron parameter values
-        self.layer1 = spaic.NeuronGroup(100, neuron_model='clif')
-        self.layer2 = spaic.NeuronGroup(10, neuron_model='clif')
+        self.layer1 = spaic.NeuronGroup(100, model='clif')
+        self.layer2 = spaic.NeuronGroup(10, model='clif')
         
         # Establish connections between Neurongroups
         self.connection1 = spaic.Connection(self.input, self.layer1, link_type='full')
@@ -148,8 +148,8 @@ with Net:
 
 
     # Establish neurongroups, select neuron types, and set neuron parameter values
-    layer1 = spaic.NeuronGroup(100, neuron_model='clif')
-    layer2 = spaic.NeuronGroup(10, neuron_model='clif')
+    layer1 = spaic.NeuronGroup(100, model='clif')
+    layer2 = spaic.NeuronGroup(10, model='clif')
 
     # Establish connections between Neurongroups
     connection1 = spaic.Connection(input1, layer1, link_type='full')
@@ -181,8 +181,8 @@ neuron_param = {
     'V_th': 1.5,
 }
 # New neurongroups
-layer3 = spaic.NeuronGroup(100, neuron_model='lif', param=neuron_param)
-layer4 = spaic.NeuronGroup(100, neuron_model='lif', param=neuron_param)
+layer3 = spaic.NeuronGroup(100, model='lif', param=neuron_param)
+layer4 = spaic.NeuronGroup(100, model='lif', param=neuron_param)
 
 # Add a new member to the Assembly
 Net.add_assembly('layer3', layer3)
