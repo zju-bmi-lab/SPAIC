@@ -89,6 +89,10 @@ Convolution Connection
 --------------------------------
 Common ``convolution connection``, pooling method can choose :code:`avgpool` or :code:`maxpool` in synapse type.
 
+.. note::
+    In order to provide better computational support, convolution connections need to be used with convolution synapses.
+
+
 Main connection parameters in convolution connection:
 
 .. code-block:: python
