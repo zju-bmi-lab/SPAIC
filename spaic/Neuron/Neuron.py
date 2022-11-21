@@ -740,14 +740,19 @@ class IZHModel(NeuronModel):
     IZH model:
 
     .. math::
-        V = V + dt / tauM * (C1 * V * V + C2 * V + C3 - U + I)  # tauM=1 此处加tauM是为了添加op时和LIF模型保存一致 \\
-        V = V + dt / tauM * (V* (C1 * V + C2) + C3 - U + I)     # 由上式拆分而来 \\
-        U = U + a. * (b. * V - U) \\
+        V &= V + dt / tauM * (C1 * V * V + C2 * V + C3 - U + I) \\
 
-        O^n[t] = spike\_func(V^n[t-1])
+        V &= V + dt / tauM * (V * (C1 * V + C2) + C3 - U + I)  \\
 
-        if V > Vth, \\
-        then V = C, U = U + d
+        U &= U + a. * (b. * V - U) \\
+
+        O^n[t] &= spike\_func(V^n[t-1]) \\
+
+        if V &> Vth, \\
+
+        then V &= C,
+
+        U &= U + d
 
     References:
         Izhikevich, E. M. (2003). Simple model of spiking neurons. IEEE Transactions on neural networks, 14(6), 1569-1572.
@@ -804,16 +809,23 @@ class aEIFModel(NeuronModel):
     aEIF model:
 
     .. math::
-        V = V + dt / tauM * (EL - V + EXP - U + I^n[t]) \\
-        U = U + dt / tauW * (a * (V - EL) - U) \\
-        EXP = delta\_t * delta\_t2 * exp(dv\_th/delta\_t2) \\
-        dv = V - EL \\
-        dv\_th = V - Vth
+        V &= V + dt / tauM * (EL - V + EXP - U + I^n[t]) \\
 
-        O^n[t] = spike\_func(V^n[t-1]) \\
+        U &= U + dt / tauW * (a * (V - EL) - U) \\
 
-        If V > 20: \\
-        then V = EL, U = U + b
+        EXP &= delta\_t * delta\_t2 * exp(dv\_th/delta\_t2) \\
+
+        dv &= V - EL \\
+
+        dv\_th &= V - Vth \\
+
+        O^n[t] &= spike\_func(V^n[t-1]) \\
+
+        If V &> 20: \\
+
+        then V &= EL,
+
+        U &= U + b
 
     References:
         Brette, R., & Gerstner, W. (2005). Adaptive exponential integrate-and-fire model as an
@@ -886,20 +898,28 @@ class GLIFModel(NeuronModel):
     """
     Current GLIF5 model:
 
-        V = V + dt / C * (I + I1 + I2 - (V - E_L) / R)
-        Theta_s = Theta_s - dt * b_s * Theta_s
-        I_j = I_j - dt * k_j * I_j (j = 1,2)
-        Theta_v = Theta_v + dt * (a_v * (V - E_L) - b_v * Theta_v)
+    .. math::
 
-        v_th = Theta_v + Theta_s + Theta_inf
-        O = spike_func(V)
+        V &= V + dt / C * (I + I1 + I2 - (V - E\_L) / R)  \\
+
+        Theta\_s &= Theta\_s - dt * b\_s * Theta\_s \\
+
+        I\_j &= I\_j - dt * k\_j * I\_j (j = 1,2) \\
+
+        Theta\_v &= Theta\_v + dt * (a\_v * (V - E\_L) - b\_v * Theta\_v) \\
+
+        v\_th &= Theta\_v + Theta\_s + Theta\_inf \\
+
+        O &= spike\_func(V) \\
 
         Reset function:
+        V &= E\_L + f\_v * (V - E\_L) - delta\_v \\
 
-        V = E_L + f_v * (V - E_L) - delta_v
-        Theta_s = Theta_s + delta_Theta_s
-        I_j = f_j * I_j + delta_I_j (j = 1, 2)
-        Theta_v = Theta_v
+        Theta\_s &= Theta\_s + delta\_Theta\_s \\
+
+        I\_j &= f\_j * I\_j + delta\_I\_j (j = 1, 2) \\
+
+        Theta\_v &= Theta\_v
 
     References:
         Teeter, C., Iyer, R., Menon, V., Gouwens, N., Feng, D., Berg, J., ... & Mihalas, S. (2018). Generalized leaky
