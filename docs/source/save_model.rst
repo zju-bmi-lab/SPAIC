@@ -42,10 +42,12 @@ network_save 与 network_load
 在 :code:`network_save` 中，
 
 - **Net** -- 具体 **SPAIC** 网络中的网络对象
-- **filename** -- 文件名称， ``network_save`` 将会将 ``Net`` 以该名称进行存储
+- **filename** -- 文件名称， ``network_save`` 将会将 ``Net`` 以该名称进行存储，若不提供则会根据网络名存储
+- **path** -- 文件的存储路径，将会在目标路径下根据文件名新建文件夹
 - **trans_format** -- 存储格式，此处可以选择的是‘json’或是’yaml‘，默认为‘json’结构。
 - **combine** -- 该参数制定了权重是否与网络结构存储在一起，默认为 ``False`` ，分开存储网络结构与权重信息。
 - **save** -- 该参数决定了平台是否会将网络结构存储下来，若为 ``True`` ，则最后会返回存储的名称以及网络信息，若为 ``False`` ，则不会存储网络，仅仅只会将网络结构以字典的形式返回
+- **save_weight** -- 该参数决定了平台是否会存储权重部分（后端部分），若为 ``True`` 则会存储权重。
 
 下面，举例说明保存下来的网络结构中各个参数所代表的意义：
 
@@ -74,7 +76,7 @@ network_save 与 network_load
             parameters: {} # 额外输入的kwargs中的parameters，在神经元中为各类神经元模型的参数
             shape: # 维度
             - 10
-            type: null # 该type表示的是神经元是兴奋还是抑制，暂未启用该参数
+            type: null # 该type表示的是神经元是兴奋还是抑制，用于Projection中policy功能
 
     -   layer3:
         -   layer1:
@@ -94,9 +96,9 @@ network_save 与 network_load
                 max_delay: 0 # 连接的最大延迟
                 name: connection0 # 连接的姓名
                 parameters: {}
-                post_assembly: layer3   # 突触后神经元为layer3层, 此处为特殊情况，layer3其实为一个assembly
+                post: layer3   # 突触后神经元为layer3层, 此处为特殊情况，layer3其实为一个assembly
                 post_var_name: WgtSum   # 该连接对突触后神经元的输出为WgtSum
-                pre_assembly: layer2    # 突触前神经元为layer2层
+                pre: layer2    # 突触前神经元为layer2层
                 pre_var_name: O         # 该连接接受突触前神经元的输入为‘O’
                 sparse_with_mask: false # 是否启用mask，该设定为平台对于系数矩阵所设置，具体可移步connection中查看具体说明
                 weight: # 权重矩阵
@@ -114,9 +116,9 @@ network_save 与 network_load
             parameters: # 连接的参数，此处为连接初始化时所用的参数，有给定权值时将会采用给定的权值
                 w_mean: 0.02
                 w_std: 0.05
-            post_assembly: layer1   # 突触后神经元为layer1层
+            post: layer1   # 突触后神经元为layer1层
             post_var_name: WgtSum   # 该连接对突触后神经元的输出为WgtSum
-            pre_assembly: input     # 突触前神经元为input层
+            pre: input     # 突触前神经元为input层
             pre_var_name: O         # 该连接接受突触前神经元的输入为‘O’
             sparse_with_mask: false # 是否启用mask，该设定为平台对于系数矩阵所设置，具体可移步connection中查看具体说明
             weight: # 权重矩阵

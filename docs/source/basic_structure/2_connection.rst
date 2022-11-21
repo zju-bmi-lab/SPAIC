@@ -11,15 +11,16 @@
 
 .. code-block:: python
 
-    def __init__(self, pre_assembly: Assembly, post_assembly: Assembly, name=None,
+    def __init__(self, pre: Assembly, post: Assembly, name=None,
             link_type=('full', 'sparse_connect', 'conv', '...'), syn_type=['basic'],
             max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='Isyn',
             syn_kwargs=None, **kwargs):
 
-在连接的初始化参数中，我们可以看到，在建立连接时，必须给定的参数为突触前神经元、突触后神经元以及连接类型。
+在连接的初始化参数中，我们可以看到，在建立连接时，必须给定的参数为 :code:`pre` , \
+:code:`post` 以及 :code:`link_type` 。
 
-- **pre_assembly** - 突触前神经元，或是突触前神经元组，亦可视为连接的起点，上一层
-- **post_assembly** - 突触后神经元，或是突触后神经元组，亦可视为连接的终点，下一层
+- **pre** - 突触前神经元，或是突触前神经元组，亦可视为连接的起点，上一层
+- **post** - 突触后神经元，或是突触后神经元组，亦可视为连接的终点，下一层
 - **name** - 连接的姓名，用于建立连接时更易区分，建议用户给定有意义的名称
 - **link_type** - 连接类型，可选的有全连接、稀疏连接、卷积连接等
 - **syn_type** - 突触类型，将会在突触部分进行更为详细的讲解
@@ -89,17 +90,23 @@
 -----------------------
 常见的卷积连接，池化方法可选择的有 :code:`avgpool` 以及 :code:`maxpool` ，这两个池化方法需要在突触类型中传入方可启用。
 
+.. note::
+    为了更好地提供对计算的支持，目前卷积连接需要与卷积突触一同使用。
+
 卷积连接中主要包含的连接参数有：
 
 .. code-block:: python
 
-        self.out_channels = kwargs.get('out_channels', 4)  # 输出通道
-        self.in_channels = kwargs.get('in_channels', 1)    # 输入通道
+        self.out_channels = kwargs.get('out_channels', None)  # 输出通道
+        self.in_channels = kwargs.get('in_channels', None)    # 输入通道
         self.kernel_size = kwargs.get('kernel_size', [3, 3])# 卷积核
         self.w_std = kwargs.get('w_std', 0.05) # 权重的标准差，用于生成随机权重
         self.w_mean = kwargs.get('w_mean', 0.05) # 权重的均值，用于生成随机权重
         weight = kwargs.get('weight', None) # 权重，如果不给定权重，连接将采取生成随机权重
 
+        self.is_parameter = kwargs.get('is_parameter', True)
+        self.is_sparse = kwargs.get('is_sparse', False)
+        self.mask = kwargs.get('mask', None)
         self.stride = kwargs.get('stride', 1)
         self.padding = kwargs.get('padding', 0)
         self.dilation = kwargs.get('dilation', 1)
@@ -109,11 +116,13 @@
 
 .. code-block:: python
 
-        self.connection1 = spaic.Connection(self.input, self.layer1, link_type='conv', in_channels=1, out_channels=4,
-                                              kernel_size=(3, 3),
-                                              init='uniform', init_param={'a':-math.sqrt(1/(9)), 'b':math.sqrt(1/(9))})
+        self.connection1 = spaic.Connection(self.input, self.layer1, link_type='conv', syn_type=['conv'],
+                                                in_channels=1, out_channels=4,
+                                                kernel_size=(3, 3),
+                                                init='uniform',
+                                                init_param={'a':-math.sqrt(1/(9)), 'b':math.sqrt(1/(9))})
 
-        self.connection2 = spaic.Connection(self.layer1, self.layer2, link_type='conv',
+        self.connection2 = spaic.Connection(self.layer1, self.layer2, link_type='conv', syn_type=['conv'],
                                               in_channels=4, out_channels=8, kernel_size=(3, 3),
                                               init='uniform', init_param={'a':-math.sqrt(1/(8*9)), 'b':math.sqrt(1/(8*9))})
 
@@ -127,19 +136,20 @@
 .. code-block:: python
 
         self.conv2 = spaic.Connection(self.layer1, self.layer2, link_type='conv',
-                                        syn_type=['dropout', 'basic'], in_channels=128, out_channels=256,
+                                        syn_type=['conv', 'dropout'], in_channels=128, out_channels=256,
                                         kernel_size=(3, 3), stride=args.stride, padding=args.padding, init='uniform',
                                         init_param=(-math.sqrt(1/(128*3*3)), math.sqrt(1/(128*9))), bias=args.bias)
         self.conv3 = spaic.Connection(self.layer2, self.layer3, link_type='conv',
-                                        syn_type=['maxpool', 'dropout', 'basic'], in_channels=256, out_channels=512,
+                                        syn_type=['conv', 'maxpool', 'dropout'], in_channels=256, out_channels=512,
                                         kernel_size=(3, 3), stride=args.stride, padding=args.padding,
                                         pool_stride=2, pool_padding=0, init='uniform',
                                         init_param=(-math.sqrt(1/(256*9)), math.sqrt(1/(256*9))), bias=args.bias)
         self.conv4 = spaic.Connection(self.layer3, self.layer4, link_type='conv',
-                                        syn_type=['maxpool', 'dropout', 'basic'], in_channels=512, out_channels=1024,
+                                        syn_type=['conv', 'maxpool', 'dropout'], in_channels=512, out_channels=1024,
                                         kernel_size=(3, 3), stride=args.stride, padding=args.padding,
                                         pool_stride=2, pool_padding=0, init='uniform',
-                                        init_param=(-math.sqrt(1/(512*9)), math.sqrt(1/(512*9))), syn_kwargs=[], bias=args.bias)
+                                        init_param=(-math.sqrt(1/(512*9)), math.sqrt(1/(512*9))),
+                                        syn_kwargs=[], bias=args.bias)
 
 
 稀疏连接

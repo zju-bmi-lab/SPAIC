@@ -32,17 +32,23 @@
 .. code-block:: python
 
     self.connection = spaic.Connection(self.layer1, self.layer2,
-                                              link_type='full', w_std=0.0, w_mean=0.1,
-                                              syn_type=['electrical'])
+                                              link_type='full', syn_type=['electrical'],
+                                              w_std=0.0, w_mean=0.1,
+                                              )
 
 
-其他突触
+全部突触
 -----------------------
 在突触中，我们还实现了一些其他种类的突触，并且将池化与展平操作都放入了突触中。
 
-- **Max pooling** -- :code:`maxpool_synapse`
-- **Average pooling** -- :code:`avgpool_synapse`
-- **Flatten** -- :code:`flatten`
-- **Dropout** -- :code:`dropout`
-- **Direct pass** -- :code:`directpass` ，该突触类型将会使得输出等同于输入部分，即输出的Isyn将会等同于连接的突触前神经元的输出的值
-
+- **Basic_synapse** -- 通过 :code:`basic` 调用
+- **conv_synapse** -- 通过 :code:`conv` 调用，配合卷积连接使用
+- **DirectPass_synapse** -- 通过 :code:`directpass` 调用，该突触类型将会使得输出等同于输入部分，即输出的Isyn将会等同于连接的突触前神经元的输出的值
+- **Dropout_synapse** -- 通过 :code:`dropout` 调用
+- **AvgPool_synapse** -- 通过 :code:`avgpool` 调用
+- **MaxPool_synapse** -- 通过 :code:`maxpool` 调用
+- **BatchNorm2d_synapse** -- 通过 :code:`batchnorm2d` 调用
+- **Flatten** -- 通过 :code:`flatten` 调用
+- **First_order_chemical_synapse** -- 通过 :code:`1_order_synapse` 调用，化学突触中的一阶衰减突触
+- **Second_order_chemical_synapse** -- 通过 :code:`2_order_synapse` 调用，化学突触中的二阶衰减突触
+- **Mix_order_chemical_synapse** -- 通过 :code:`mix_order_synapse` 调用，化学突触中的混合衰减突触

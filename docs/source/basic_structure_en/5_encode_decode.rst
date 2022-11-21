@@ -181,12 +181,12 @@ instance of the :code:`Spike_Counts` class:
 
 .. code-block:: python
 
-    self.target = spaic.NeuronGroup(neuron_number=10, neuron_model='lif')
+    self.target = spaic.NeuronGroup(num=10, model='lif')
     self.output = spaic.Decoder(num=10, dec_target=self.target, coding_method='spike_counts')
 
 .. note::
     - The value of parameter **dec_target** is the layer to be decoded.
-    - The value of parameter **num** in :code:`Decoder` class should be the same as the value of **neuron_number** in the target layer.
+    - The value of parameter **num** in :code:`Decoder` class should be the same as the value of **num** in the target layer.
     - If you want to instantiate other decoding classes, simply assign str name of corresponding class to **coding_method** parameter.
     - The value of parameter **coding_var_name** is the variable to be decoded, such as 'O' or 'V'. 'O' represents spike and 'V' represents voltage.
     - For :code:`Spike_Counts` and :code:`First_Spike` , the default value of parameter **coding_var_name** is 'O'.
@@ -217,12 +217,12 @@ global reward, we can create an instance of the :code:`Global_Reward` class as f
 
 .. code-block:: python
 
-    self.target = spaic.NeuronGroup(neuron_number=10, neuron_model='lif')
+    self.target = spaic.NeuronGroup(num=10, model='lif')
     self.reward = spaic.Reward(num=10, dec_target=self.target, coding_method='global_reward')
 
 .. note::
     - The value of parameter **dec_target** is the layer to be decoded.
-    - The value of parameter **num** in :code:`Reward` class should be the same as the value of **neuron_number** in the target layer.
+    - The value of parameter **num** in :code:`Reward` class should be the same as the value of **num** in the target layer.
     - If you want to instantiate other reward classes, simply assign str name of corresponding class to **coding_method** parameter.
     - The value of parameter **coding_var_name** is the variable to be decoded, such as 'O' or 'V'. 'O' represents spike and 'V' represents voltage.
     - The default value  is 'O'.
@@ -258,12 +258,12 @@ action, we can create an instance of the :code:`Softmax_Action` class as follows
 
 .. code-block:: python
 
-    self.target = spaic.NeuronGroup(neuron_number=10, neuron_model='lif')
+    self.target = spaic.NeuronGroup(num=10, model='lif')
     self.reward = spaic.Action(num=10, dec_target=self.target, coding_method='softmax_action')
 
 .. note::
     - The value of parameter **dec_target** is the layer to be decoded.
-    - The value of parameter **num** in :code:`Action` class should be the same as the value of **neuron_number** in the target layer.
+    - The value of parameter **num** in :code:`Action` class should be the same as the value of **num** in the target layer.
     - If you want to instantiate other action classes, simply assign str name of corresponding class to **coding_method** parameter.
     - The value of parameter **coding_var_name** is the variable to be decoded, such as 'O' or 'V'. 'O' represents spike and 'V' represents voltage.
 

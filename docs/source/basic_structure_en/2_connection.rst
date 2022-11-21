@@ -11,16 +11,16 @@ Connect Parameters
 
 .. code-block:: python
 
-    def __init__(self, pre_assembly: Assembly, post_assembly: Assembly, name=None,
-            link_type=('full', 'sparse_connect', 'conv', '...'), syn_type=['basic_synapse'],
+    def __init__(self, pre: Assembly, post: Assembly, name=None,
+            link_type=('full', 'sparse_connect', 'conv', '...'), syn_type=['basic'],
             max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='Isyn',
             syn_kwargs=None, **kwargs):
 
-In the initial parameters of connection, we can see that when we construct connections, :code:`pre_assembly` , \
-:code:`post_assembly` and :code:`link_type` are requisite.
+In the initial parameters of connection, we can see that when we construct connections, :code:`pre` , \
+:code:`post` and :code:`link_type` are requisite.
 
-- **pre_assembly** - presynaptic neuron
-- **post_assembly** - postsynaptic neuron
+- **pre** - presynaptic neuron
+- **post** - postsynaptic neuron
 - **name** - name of the connection, make connections easier to distinguish
 - **link_type** - link type, 'full connection', 'sparse connection' or 'convolution connection', etc.
 - **syn_type** - synapse type, it will be further explanation in the synaptic section
@@ -89,6 +89,10 @@ Convolution Connection
 --------------------------------
 Common ``convolution connection``, pooling method can choose :code:`avgpool` or :code:`maxpool` in synapse type.
 
+.. note::
+    In order to provide better computational support, convolution connections need to be used with convolution synapses.
+
+
 Main connection parameters in convolution connection:
 
 .. code-block:: python
@@ -100,6 +104,9 @@ Main connection parameters in convolution connection:
         self.w_mean = kwargs.get('w_mean', 0.05) # mean value of weight, used to generate weight
         weight = kwargs.get('weight', None) # weight, if not given, connection will generate randomly
 
+        self.is_parameter = kwargs.get('is_parameter', True)
+        self.is_sparse = kwargs.get('is_sparse', False)
+        self.mask = kwargs.get('mask', None)
         self.stride = kwargs.get('stride', 1)
         self.padding = kwargs.get('padding', 0)
         self.dilation = kwargs.get('dilation', 1)
@@ -109,11 +116,13 @@ Convolution connection example 1:
 
 .. code-block:: python
 
-        self.connection1 = spaic.Connection(self.input, self.layer1, link_type='conv', in_channels=1, out_channels=4,
-                                              kernel_size=(3, 3),
-                                              init='uniform', init_param={'a':-math.sqrt(1/(9)), 'b':math.sqrt(1/(9))})
+        self.connection1 = spaic.Connection(self.input, self.layer1, link_type='conv', syn_type=['conv'],
+                                                in_channels=1, out_channels=4,
+                                                kernel_size=(3, 3),
+                                                init='uniform',
+                                                init_param={'a':-math.sqrt(1/(9)), 'b':math.sqrt(1/(9))})
 
-        self.connection2 = spaic.Connection(self.layer1, self.layer2, link_type='conv',
+        self.connection2 = spaic.Connection(self.layer1, self.layer2, link_type='conv', syn_type=['conv'],
                                               in_channels=4, out_channels=8, kernel_size=(3, 3),
                                               init='uniform', init_param={'a':-math.sqrt(1/(8*9)), 'b':math.sqrt(1/(8*9))})
 
@@ -127,19 +136,20 @@ Convolution connection example 2:
 .. code-block:: python
 
         self.conv2 = spaic.Connection(self.layer1, self.layer2, link_type='conv',
-                                        syn_type=['dropout', 'basic_synapse'], in_channels=128, out_channels=256,
+                                        syn_type=['conv', 'dropout'], in_channels=128, out_channels=256,
                                         kernel_size=(3, 3), stride=args.stride, padding=args.padding, init='uniform',
                                         init_param=(-math.sqrt(1/(128*3*3)), math.sqrt(1/(128*9))), bias=args.bias)
         self.conv3 = spaic.Connection(self.layer2, self.layer3, link_type='conv',
-                                        syn_type=['maxpool', 'dropout', 'basic_synapse'], in_channels=256, out_channels=512,
+                                        syn_type=['conv', 'maxpool', 'dropout'], in_channels=256, out_channels=512,
                                         kernel_size=(3, 3), stride=args.stride, padding=args.padding,
                                         pool_stride=2, pool_padding=0, init='uniform',
                                         init_param=(-math.sqrt(1/(256*9)), math.sqrt(1/(256*9))), bias=args.bias)
         self.conv4 = spaic.Connection(self.layer3, self.layer4, link_type='conv',
-                                        syn_type=['maxpool', 'dropout', 'basic_synapse'], in_channels=512, out_channels=1024,
+                                        syn_type=['conv', 'maxpool', 'dropout'], in_channels=512, out_channels=1024,
                                         kernel_size=(3, 3), stride=args.stride, padding=args.padding,
                                         pool_stride=2, pool_padding=0, init='uniform',
-                                        init_param=(-math.sqrt(1/(512*9)), math.sqrt(1/(512*9))), syn_kwargs=[], bias=args.bias)
+                                        init_param=(-math.sqrt(1/(512*9)), math.sqrt(1/(512*9))),
+                                        syn_kwargs=[], bias=args.bias)
 
 
 Sparse Connection

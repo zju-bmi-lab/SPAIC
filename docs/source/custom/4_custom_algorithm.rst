@@ -66,8 +66,8 @@
 
 .. code-block:: python
 
-    preg = conn.pre_assembly
-    postg = conn.post_assembly
+    preg = conn.pre
+    postg = conn.post
 
 之后获取学习算法需要的参数在后端的名称，例如：输入脉冲，输出脉冲，连接权重引用了 :code:`Connection` 中的获取名字的函数
 
@@ -81,26 +81,26 @@
 
 .. code-block:: python
 
-    backend.add_variable(input_trace_name, backend._variables[pre_name].shape, value=0.0)
-    backend.add_variable(output_trace_name, backend._variables[post_name].shape, value=0.0)
-    backend.add_variable(dw_name, backend._variables[weight_name].shape, value=0.0)
+    self.variable_to_backend(input_trace_name, backend._variables[pre_name].shape, value=0.0)
+    self.variable_to_backend(output_trace_name, backend._variables[post_name].shape, value=0.0)
+    self.variable_to_backend(dw_name, backend._variables[weight_name].shape, value=0.0)
 
 之后将运算公式添加进后端
 
 .. code-block:: python
 
-    backend.add_operation(['input_trace_temp', 'var_mult', input_trace_name, 'trace_decay'])
-    backend.add_operation([input_trace_name, 'add', pre_name, 'input_trace_temp'])
+    self.op_to_backend('input_trace_temp', 'var_mult', [input_trace_name, 'trace_decay'])
+    self.op_to_backend(input_trace_name, 'add', [pre_name, 'input_trace_temp'])
 
-    backend.add_operation(['output_trace_temp', 'var_mult', output_trace_name, 'trace_decay'])
-    backend.add_operation([output_trace_name, 'add', post_name, 'output_trace_temp'])
+    self.op_to_backend('output_trace_temp', 'var_mult', [output_trace_name, 'trace_decay'])
+    self.op_to_backend(output_trace_name, 'add', [post_name, 'output_trace_temp'])
 
-    backend.add_operation(['pre_post_temp', 'mat_mult_pre', post_name, input_trace_name+'[updated]'])
-    backend.add_operation(['pre_post', 'var_mult', 'Apost', 'pre_post_temp'])
-    backend.add_operation(['post_pre_temp', 'mat_mult_pre', output_trace_name+'[updated]', pre_name])
-    backend.add_operation(['post_pre', 'var_mult', 'Apre', 'post_pre_temp'])
-    backend.add_operation([dw_name, 'minus', 'pre_post', 'post_pre'])
-    backend.add_operation([weight_name, self.full_online_stdp_weightupdate, dw_name, weight_name])
+    self.op_to_backend('pre_post_temp', 'mat_mult_pre', [post_name, input_trace_name+'[updated]'])
+    self.op_to_backend('pre_post', 'var_mult', ['Apost', 'pre_post_temp'])
+    self.op_to_backend('post_pre_temp', 'mat_mult_pre', [output_trace_name+'[updated]', pre_name])
+    self.op_to_backend('post_pre', 'var_mult', ['Apre', 'post_pre_temp'])
+    self.op_to_backend(dw_name, 'minus', ['pre_post', 'post_pre'])
+    self.op_to_backend(weight_name, self.full_online_stdp_weightupdate,[dw_name, weight_name])
 
 权重更新代码：
 
@@ -121,4 +121,3 @@
 .. [#f2]  Yujie Wu et al. "Spatio-Temporal Backpropagation for Training High-Performance Spiking Neural Networks" Front. Neurosci., 23 May 2018 | `doi:10.3389/fnins.2018.00331<https://doi.org/10.3389/fnins.2018.00331>`_
 .. [#f3]  Sjöström J, Gerstner W. Spike-timing dependent plasticity[J]. Spike-timing dependent plasticity, 2010, 35(0): 0-0._
 .. [#f4]  Gerstner W, Kempter R, van Hemmen JL, Wagner H. A neuronal learning rule for sub-millisecond temporal coding. Nature. 1996 Sep 5;383(6595):76-81. `doi: 10.1038/383076a0<https://doi.org/10.1038/383076a0>`_ . PMID: 8779718.
-

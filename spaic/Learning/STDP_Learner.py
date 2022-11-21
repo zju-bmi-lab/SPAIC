@@ -262,7 +262,6 @@ class full_online_STDP(Base_STDP):
             self.op_to_backend('input_trace_temp', 'var_mult', [input_trace_name, 'trace_decay'])
             self.op_to_backend(input_trace_name, 'add', [pre_name, 'input_trace_temp'])
 
-
             self.op_to_backend('output_trace_temp', 'var_mult', [output_trace_name, 'trace_decay'])
             self.op_to_backend(output_trace_name, 'add', [post_name, 'output_trace_temp'])
 

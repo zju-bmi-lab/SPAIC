@@ -8,6 +8,7 @@
 分方程，再由差分方程来对其进行逼近，最后获得了计算机可以进行运算的神经元模型。在\
 **SPAIC** 中，我们包含了大多数较为常见的神经元模型：
 
+- **IF** - Integrate-and-Fire model
 - **LIF** - Leaky Integrate-and-Fire model
 - **CLIF** - Current Leaky Integrate-and-Fire model
 - **GLIF** - Generalized Leaky Integrate-and-Fire model
@@ -38,7 +39,7 @@ LIF神经元
 
 .. code-block:: python
 
-    self.layer1 = NeuronGroup(neuron_number=100, neuron_model='lif')
+    self.layer1 = NeuronGroup(num=100, model='lif')
 
 
 一个含有100个标准 **LIF** 神经元的layer就建立好了。然而许多时候我们需要按需定制不同的 **LIF** \
@@ -52,7 +53,7 @@ LIF神经元
 
 .. code-block:: python
 
-    self.layer2 = NeuronGroup(neuron_number=100, neuron_model='lif',
+    self.layer2 = NeuronGroup(num=100, model='lif',
                     tau_m=10.0, v_th=10, v_reset=0.2)
 
 

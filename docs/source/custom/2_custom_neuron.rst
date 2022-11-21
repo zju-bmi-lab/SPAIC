@@ -79,7 +79,7 @@
     self._operations.append(('O', 'threshold', 'Vtemp', 'Vth'))
 
     # 此处作用为在脉冲发放之后重置电压V
-    self._operations.append(('V', 'reset', 'Vtemp',  'O'))
+    self._operations.append(('V', 'reset', 'Vtemp',  'O[updated]'))
 
 
 在最后，需要添加 :code:`NeuronModel.register("lif", LIFModel)` 用于将该神经元模型添加至神经元模型的库中。

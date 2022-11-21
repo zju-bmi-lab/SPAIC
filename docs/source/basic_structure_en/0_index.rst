@@ -38,13 +38,13 @@ the following main functions:
 
 NeuronGroup
 --------------------------
-:code:`spaic.NeuronGroup` is the class with some neurons, usually, we call it a layer of neuron with same neuron model and connection ways.
+:code:`spaic.NeuronGroup` is the class with some neurons, usually, we call it a layer of neuron with same neuron model and connection ways. For more details, please look up :doc:`./1_neuron`
 
 
 Node
 ---------------------------
 :code:`spaic.Node` is the transform node of model, it contains a lot of encoding and decoding methods. :code:`Encoder` , :code:`Decoder` , \
-:code:`Generator` , :code:`Action` and :code:`Reward` are all inherited from :code:`Node`.
+:code:`Generator` , :code:`Action` and :code:`Reward` are all inherited from :code:`Node`.  For more details, please look up :doc:`./5_encode_decode`
 
 Network
 --------------------------
@@ -65,11 +65,11 @@ between :code:`Assembly` s, the construct function will build the corresponding 
 
 Connection
 --------------------------
-:code:`spaic.Connection` is used to build connections between :code:`NeuronGroup` s, it also used to construct different synapses.
+:code:`spaic.Connection` is used to build connections between :code:`NeuronGroup` s, it also used to construct different synapses. For more details, please look up  :doc:`./2_connection`
 
 Backend
 --------------------------
-The core of backend that construct variables and generate computational graph.
+The core of backend that construct variables and generate computational graph. For more details, please look up  :doc:`../backend_en` 。
 
 More details
 ======================
