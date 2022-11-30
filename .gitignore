@@ -1,0 +1,27 @@
+tmp*/
+venv/
+build/
+dist/
+dist.*
+
+*.egg
+*.egg-ino/
+*.egg-info/
+.cache/
+__pycache__
+
+.mypy_cache/
+
+.scannerwork
+
+# IDE
+.git
+.vscode
+.idea
+
+# test
+.pytest_cache
+.coverage
+
+autoname*
+parameters
