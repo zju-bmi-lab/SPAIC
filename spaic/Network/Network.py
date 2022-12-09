@@ -151,29 +151,40 @@ class Network(Assembly):
         builded_groups = []
         builded_connections = []
         for group in all_groups:
+            # if '_node_sub_class' in dir(group):
+            #     if group._node_sub_class == '<encoder>' or (group._node_sub_class) == '<generator>':
             if (group._class_label == '<nod>') and ('predict' not in dir(group)):
                 group.build(self._backend)
                 builded_groups.append(group)
                 all_groups.remove(group)
         break_tag = 0
+        crash_tag = 100
         while all_groups or all_connections:
             old_all_connections = all_connections.copy()
             old_all_groups = all_groups.copy()
-            if break_tag > 100:
+            if break_tag > crash_tag:
+                raise Warning('May be stuck in an infinite building loop.')
+                keep_build = str(input('continue?(Y or N)'))
+                if keep_build.lower() == 'y':
+                    break_tag = 0
+                    crash_tag += 100
+                    continue
                 break
             for conn in old_all_connections:
                 if conn.pre_assembly in builded_groups: # 如果连接的突触前神经元已经build，则可以build
                     conn.build(self._backend)
                     builded_connections.append(conn)
                     all_connections.remove(conn)
+                    break_tag = 0
                     continue
-                break_tag += 1
+            break_tag += 1
             for group in old_all_groups:
                 can_build = 1
                 if not all_connections:
                     group.build(self._backend)
                     builded_groups.append(group)
                     all_groups.remove(group)
+                    break_tag = 0
                     continue
                 else:
                     for conn in all_connections:
@@ -184,8 +195,9 @@ class Network(Assembly):
                         group.build(self._backend)
                         builded_groups.append(group)
                         all_groups.remove(group)
+                        break_tag = 0
                         continue
-                break_tag += 1
+            break_tag += 1
     #
     # def strategy_build(self, all_groups=None):
     #     builded_groups = []

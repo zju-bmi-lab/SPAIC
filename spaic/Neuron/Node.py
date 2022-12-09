@@ -23,6 +23,7 @@ class Node(Assembly):
                  coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
         super(Node, self).__init__()
 
+        self._node_sub_class = None
         self._dt = dt
         self._time = kwargs.get('time', None)
         self.coding_var_name = coding_var_name
@@ -215,6 +216,7 @@ class Encoder(Node):
         4. 'latency': Latency
         5. 'relative_latency': Relative_Latency
     '''
+    _node_sub_class = '<encoder>'
     _coding_subclasses = dict()
     def __init__(self, shape=None, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'),
                  coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
@@ -331,6 +333,7 @@ class Decoder(Node):
         4. 'time_softmax': Time_Softmax
         5. 'final_step_voltage': Final_Step_Voltage
     '''
+    _node_sub_class = '<decoder>'
     _coding_subclasses = dict()
     def __init__(self, num=None, dec_target=None,  dt=None, coding_method=('poisson', 'spike_counts', '...'),
                  coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
@@ -421,6 +424,7 @@ class Reward(Node):
         3. 'da_reward': DA_Reward
         4. 'environment_reward': Environment_Reward
     '''
+    _node_sub_class = '<reward>'
     _coding_subclasses = dict()
     def __init__(self, shape=None, num=None, dec_target=None,  dt=None, coding_method=('poisson', 'spike_counts', '...'),
                  coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
@@ -507,6 +511,7 @@ class Generator(Node):
         1. 'poisson_generator': Poisson_Generator,
         2. 'cosine_generator': Cosine_Generator
     '''
+    _node_sub_class = '<generator>'
     _coding_subclasses = dict()
     def  __init__(self, shape=None, num=None, dec_target=None,  dt=None,
                   coding_method=('poisson_generator', 'cc_generator', '...'),
@@ -622,6 +627,7 @@ class Action(Node):
         5. 'first_spike_action': First_Spike_Action
         6. 'random_action': Random_Action
     '''
+    _node_sub_class = '<action>'
     _coding_subclasses = dict()
     def __init__(self, shape=None, num=None, dec_target=None,  dt=None, coding_method=('poisson', 'spike_counts', '...'),
                  coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):

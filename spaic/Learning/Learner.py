@@ -181,7 +181,7 @@ class Learner(BaseModule, ABC):
             self.get_param()
 
         if self.lr_schedule_name is not None:
-            self.build_lr_shedule()
+            self.build_lr_schedule()
 
         # set all trainable or pathway compontents to requires_grad=Ture
         if self.gradient_based:
@@ -230,7 +230,7 @@ class Learner(BaseModule, ABC):
     def active(self):
         self._active = True
         #TODO: setting all learnerable and pathway into gradient = True
-    def active(self):
+    def deactive(self):
         self._active = False
         #TODO: setting all learnerable and pathway into gradient = Fasle
 
@@ -287,9 +287,9 @@ class Learner(BaseModule, ABC):
         param = self.get_param()
         self.optim = Learner.optim_dict[self.optim_name](param, self.optim_lr, **self.optim_para)
 
-    def build_lr_shedule(self):
+    def build_lr_schedule(self):
 
-        self.shedule = Learner.lr_schedule_dict[self.lr_schedule_name](self.optim, **self.lr_schedule_para)
+        self.schedule = Learner.lr_schedule_dict[self.lr_schedule_name](self.optim, **self.lr_schedule_para)
 
     def optim_step(self):
         if self.param_run_update:
@@ -308,9 +308,9 @@ class Learner(BaseModule, ABC):
 
         self.optim.zero_grad()
 
-    def optim_shedule(self):
+    def optim_schedule(self):
 
-        self.shedule.step()
+        self.schedule.step()
 
     @staticmethod
     def register(name, algorithm):
