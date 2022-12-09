@@ -17,9 +17,10 @@ from abc import ABC, abstractmethod
 from collections import OrderedDict
 from ..Network.BaseModule import VariableAgent, Op
 import re
-
+import torch
 
 # from brian2 import *
+
 
 class NeuronGroup(Assembly):
     '''Class for a group of neurons.
@@ -573,9 +574,6 @@ class NullModel(NeuronModel):
 
 
 NeuronModel.register("null", NullModel)
-
-
-import torch
 
 
 class LIFModel(NeuronModel):

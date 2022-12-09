@@ -352,10 +352,10 @@ class ReloadedNetwork(spaic.Network):
 
         '''
 
-        Node_dict = {'Decoder': spaic.Decoder, 'Action': spaic.Action, 'Reward': spaic.Reward,
-                     'Generator': spaic.Generator, 'Encoder': spaic.Encoder}
+        Node_dict = {'decoder': spaic.Decoder, 'action': spaic.Action, 'reward': spaic.Reward,
+                     'generator': spaic.Generator, 'encoder': spaic.Encoder}
 
-        if node.get('kind') == 'Decoder':
+        if node.get('kind') == 'decoder':
             return_node = Node_dict[node.get('kind')](
                 num             = node.get('num'),
                 dec_target      = self._groups.get(node.get('dec_target', None), None),

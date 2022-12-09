@@ -439,10 +439,10 @@ class Connection(Projection):
         'one_to_one_sparse', one_to_one_sparse
         'one_to_one', one_to_one_mask
         'conv', conv_connect
-        'sparse_connect_sparse', sparse_connect_sparse
-        'sparse_connect', sparse_connect_mask
-        'random_connect_sparse', random_connect_sparse
-        'random_connect', random_connect_mask
+        'sparse_connection_sparse', sparse_connect_sparse
+        'sparse_connection', sparse_connect_mask
+        'random_connection_sparse', random_connect_sparse
+        'random_connection', random_connect_mask
     Args:
         pre(Assembly): the assembly which needs to be connected.
         post(Assembly): the assembly which needs to connect the pre.
@@ -475,7 +475,7 @@ class Connection(Projection):
     _class_label = '<con>'
 
     def __init__(self, pre: Assembly, post: Assembly, name=None,
-                 link_type=('full', 'sparse_connect', 'conv', '...'),
+                 link_type=('full', 'sparse_connection', 'conv', '...'),
                  syn_type=['basic'], max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='Isyn',
                  syn_kwargs=None, **kwargs):
 
@@ -562,7 +562,7 @@ class Connection(Projection):
             else:
                 raise ValueError("only support set synapse model with string")
 
-    def __new__(cls, pre, post, name=None, link_type=('full', 'sparse_connect', 'conv', '...'),
+    def __new__(cls, pre, post, name=None, link_type=('full', 'sparse_connection', 'conv', '...'),
                 syn_type=['basic'], max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='Isyn',
                 syn_kwargs=None, **kwargs):
         if cls is not Connection:
@@ -743,7 +743,7 @@ class Connection(Projection):
         return self._backend.dt
 
     def decode_syn_op(self, syn_ops, synapse_name, op_len):
-        if len(synapse_name) == op_len:
+        if op_len > 1:
             for i in range(1, op_len):
                 pre_op_return_name = syn_ops[i-1][0]
                 post_op_first_input = syn_ops[i][2]

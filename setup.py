@@ -10,6 +10,7 @@ setup(
         'numpy',
         'tqdm',
         'scipy',
+        'pyyaml',
         'h5py',
     ],
 )

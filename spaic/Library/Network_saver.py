@@ -53,11 +53,11 @@ def network_save(Net: Assembly, filename=None, path=None,
             filename = "autoname" + str(np.random.randint(10000))
 
     origin_path = os.getcwd()
-    # if path:
-    #     filedir = path + '/' + filename
-    # else:
-    #     path = './'
-    #     filedir = path + filename
+    if path:
+        filedir = path + '/' + filename
+    else:
+        path = './'
+        filedir = path + filename
 
     if save:
         os.chdir(path)
@@ -188,16 +188,18 @@ def trans_node(node: Node):
     if node.__dict__['dec_target']:
         para_dict['dec_target'] = node.__dict__['dec_target'].name
 
-    if 'action' in node.__dict__.keys():
-        para_dict['kind'] = 'Action'
-    elif 'reward' in node.__dict__.keys():
-        para_dict['kind'] = 'Reward'
-    elif 'gen_first' in node.__dict__.keys():
-        para_dict['kind'] = 'Generator'
-    elif 'predict' in node.__dict__.keys():
-        para_dict['kind'] = 'Decoder'
-    else:
-        para_dict['kind'] = 'Encoder'
+    para_dict['kind'] = node._node_sub_class
+
+    # if 'action' in node.__dict__.keys():
+    #     para_dict['kind'] = 'Action'
+    # elif 'reward' in node.__dict__.keys():
+    #     para_dict['kind'] = 'Reward'
+    # elif 'gen_first' in node.__dict__.keys():
+    #     para_dict['kind'] = 'Generator'
+    # elif 'predict' in node.__dict__.keys():
+    #     para_dict['kind'] = 'Decoder'
+    # else:
+    #     para_dict['kind'] = 'Encoder'
 
     para_dict['_class_label'] = '<nod>'
     result_dict[node.name] = para_dict

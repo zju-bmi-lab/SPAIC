@@ -8,7 +8,25 @@ The spaic platform simulation training platform is a network construction, forwa
 
 Dependency packages: pytorch, numpy
 
-Tutorial documentation for the SPAIC:  https://spaic.readthedocs.io/en/latest/index.html
+# Installation
+
+Recently, SPAIC use PyTorch as backend for computation. If you also want to use CUDA, please make sure you have a CUDA version PyTorch installed.
+
+**Tutorial documentation for the SPAIC:**  https://spaic.readthedocs.io/en/latest/index.html
+
+**Install the last stable version from** [**PyPI**](https://pypi.org/project/SPAIC/):
+
+```bash
+pip install SPAIC
+```
+
+**From** [**GitHub**](https://github.com/ZhejianglabNCRC/SPAIC):
+
+```bash
+git clone https://github.com/ZhejianglabNCRC/SPAIC.git
+cd SPAIC
+python setup.py install
+```
 
 If you still have some questions, please feel free to contact us:  
 Chaofei Hong <a href="mailto:hongchf@zhejainglab.com"> hongchf@zhejianglab.com</a>  

@@ -474,11 +474,6 @@ class Backend(ABC):
         for op in self._graph_operations:
             # for inputs
             inputs = []
-            # for var in op.input:
-            #     if var[0] == 'variables_dict':
-            #         inputs.append(variables[var[1]])
-            #     else:
-            #         inputs.append(eval(var[0])[var[1]])
             for var in op.input:
                 if var[0] == 'variables_dict':
                     inputs.append(variables[var[1]])
@@ -493,13 +488,6 @@ class Backend(ABC):
             if len(op.output) == 1: result = [result]
             # assign the result variables
             for ind, var in enumerate(op.output):
-                # if var[0] == 'reduce_dict':
-                #     if var[1] in reduce_dict:
-                #         reduce_dict[var[1]].append(result[ind])
-                #     else:
-                #         reduce_dict[var[1]] = [result[ind]]
-                # else:
-                #     eval(var[0])[var[1]] = result[ind]
                 if var[0] == 'temp_dict':
                     temp_dict[var[1]] = result[ind]
                 elif var[0] == 'update_dict':

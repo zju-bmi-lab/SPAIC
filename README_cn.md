@@ -6,7 +6,25 @@ spaic平台仿真训练平台是针对脉冲神经网络开发的网络构建、
 
 依赖包：pytorch, numpy, 
 
-SPAIC平台的教程文档： https://spaic.readthedocs.io/en/latest/index.html
+# 如何安装
+
+最近，SPAIC使用PyTorch作为后端进行计算。如果你想使用CUDA，请确保你已经安装了CUDA版本的PyTorch。
+
+**SPAIC平台的教程文档：** https://spaic.readthedocs.io/en/latest/index.html
+
+**从** [**PyPI**](https://pypi.org/project/SPAIC/) **安装最新的稳定版本:**
+
+```bash
+pip install SPAIC
+```
+
+**从** [**GitHub**](https://github.com/ZhejianglabNCRC/SPAIC) **安装:**
+
+```bash
+git clone https://github.com/ZhejianglabNCRC/SPAIC.git
+cd SPAIC
+python setup.py install
+```
 
 如果在阅读教程文档之后仍旧抱有疑问，欢迎通过邮件与我们取得联系：  
 Chaofei Hong <a href="mailto:hongchf@zhejainglab.com"> hongchf@zhejianglab.com</a>  

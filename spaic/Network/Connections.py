@@ -28,28 +28,34 @@ class FullConnection(Connection):
         link_type(str): full
     '''
 
-    def __init__(self, pre, post, name=None, link_type=('full', 'sparse_connect', 'conv', '...'),
+    def __init__(self, pre, post, name=None, link_type=('full', 'sparse_connection', 'conv', '...'),
                  syn_type=['basic'], max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='Isyn', syn_kwargs=None, **kwargs):
         super(FullConnection, self).__init__(pre=pre, post=post, name=name,
                                              link_type=link_type, syn_type=syn_type, max_delay=max_delay,
                                              sparse_with_mask=sparse_with_mask,
                                              pre_var_name=pre_var_name, post_var_name=post_var_name, syn_kwargs=syn_kwargs, **kwargs)
         weight = kwargs.get('weight', None)
-        bias = kwargs.get('bias', None)
         self.w_std = kwargs.get('w_std', 0.05)
         self.w_mean = kwargs.get('w_mean', 0.005)
         self.w_max = kwargs.get('w_max', None)
         self.w_min = kwargs.get('w_min', None)
         self.is_parameter = kwargs.get('is_parameter', True)
         self.is_sparse = kwargs.get('is_sparse', False)
-        self.bias_flag = False
-        if isinstance(bias, BaseInitializer):
-            self.b_init, self.b_init_param = self.decode_initializer(bias)
+
+        bias = kwargs.get('bias', None)
+        if bias is None:
+            self.bias_flag = False
+        else:
             self.bias_flag = True
-            # import math
-            # bound = math.sqrt(1 / self.pre_num)
-            # self.bias_value = np.random.uniform(-bound, bound, self.post_num)
-            self.bias_value = np.empty(self.post_num)
+            if isinstance(bias, BaseInitializer):
+                self.b_init, self.b_init_param = self.decode_initializer(bias)
+                self.bias_value = np.empty(self.post_num)
+
+            else:
+                assert (bias.size == self.post_num), f"The size of the given bias {bias.shape} does not correspond" \
+                                                         f" to the size of post_num {self.post_num} "
+                self.bias_value = bias
+
             self._variables['bias[link]'] = self.bias_value
 
         if weight is None:
@@ -145,7 +151,7 @@ Connection.register('full', FullConnection)
 Connection.register('full_connection', FullConnection)
 
 class one_to_one_sparse(Connection):
-    def __init__(self, pre, post, name=None, link_type=('full', 'sparse_connect', 'conv', '...'),
+    def __init__(self, pre, post, name=None, link_type=('full', 'sparse_connection', 'conv', '...'),
                  syn_type=['basic'], max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='Isyn', syn_kwargs=None, **kwargs):
         super(one_to_one_sparse, self).__init__(pre=pre, post=post, name=name,
                                                 link_type=link_type, syn_type=syn_type, max_delay=max_delay,
@@ -179,17 +185,20 @@ class one_to_one_sparse(Connection):
         self._variables['weight[link]'] = self.weight
 
         bias = kwargs.get('bias', None)
-        self.bias_flag = False
-
-        if isinstance(bias, BaseInitializer):
-            self.b_init, self.b_init_param = self.decode_initializer(bias)
+        if bias is None:
+            self.bias_flag = False
+        else:
             self.bias_flag = True
-            # import math
-            # bound = math.sqrt(1 / self.pre_num)
-            # self.bias_value = np.random.uniform(-bound, bound, self.post_num)
-            self.bias_value = np.empty(self.post_num)
+            if isinstance(bias, BaseInitializer):
+                self.b_init, self.b_init_param = self.decode_initializer(bias)
+                self.bias_value = np.empty(self.post_num)
+
+            else:
+                assert (bias.size == self.post_num), f"The size of the given bias {bias.shape} does not correspond" \
+                                                         f" to the size of post_num {self.post_num} "
+                self.bias_value = bias
+
             self._variables['bias[link]'] = self.bias_value
-        pass
 
 
     def condition_check(self, pre_group, post_group):
@@ -205,7 +214,7 @@ Connection.register('one_to_one_sparse', one_to_one_sparse)
 
 
 class one_to_one_mask(Connection):
-    def __init__(self, pre, post, name=None, link_type=('full', 'sparse_connect', 'conv', '...'),
+    def __init__(self, pre, post, name=None, link_type=('full', 'sparse_connection', 'conv', '...'),
                  syn_type=['basic'], max_delay=0, sparse_with_mask=True, pre_var_name='O', post_var_name='Isyn', syn_kwargs=None, **kwargs):
         super(one_to_one_mask, self).__init__(pre=pre, post=post, name=name,
                                               link_type=link_type, syn_type=syn_type, max_delay=max_delay,
@@ -240,14 +249,19 @@ class one_to_one_mask(Connection):
         self._variables['weight[link]'] = self.weight
 
         bias = kwargs.get('bias', None)
-        self.bias_flag = False
-        if isinstance(bias, BaseInitializer):
-            self.b_init, self.b_init_param = self.decode_initializer(bias)
+        if bias is None:
+            self.bias_flag = False
+        else:
             self.bias_flag = True
-            # import math
-            # bound = math.sqrt(1 / self.pre_num)
-            # self.bias_value = np.random.uniform(-bound, bound, self.post_num)
-            self.bias_value = np.empty(self.post_num)
+            if isinstance(bias, BaseInitializer):
+                self.b_init, self.b_init_param = self.decode_initializer(bias)
+                self.bias_value = np.empty(self.post_num)
+
+            else:
+                assert (bias.size == self.post_num), f"The size of the given bias {bias.shape} does not correspond" \
+                                                         f" to the size of post_num {self.post_num} "
+                self.bias_value = bias
+
             self._variables['bias[link]'] = self.bias_value
 
     def condition_check(self, pre_group, post_group):
@@ -275,7 +289,7 @@ class conv_connect(Connection):
 
     '''
 
-    def __init__(self, pre, post, name=None, link_type=('full', 'sparse_connect', 'conv', '...'),
+    def __init__(self, pre, post, name=None, link_type=('full', 'sparse_connection', 'conv', '...'),
                  syn_type=['conv'], max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='Isyn', syn_kwargs=None, **kwargs):
         super(conv_connect, self).__init__(pre=pre, post=post, name=name,
                                            link_type=link_type, syn_type=syn_type, max_delay=max_delay,
@@ -344,14 +358,22 @@ class conv_connect(Connection):
         self._variables['weight[link]'] = self.weight
 
         bias = kwargs.get('bias', None)
-        self.bias_flag = False
-        if isinstance(bias, BaseInitializer):
+        if bias is None:
+            self.bias_flag = False
+        else:
             self.bias_flag = True
-            self.b_init, self.b_init_param = self.decode_initializer(bias)
-            # import math
-            # bound = math.sqrt(1 / (self.in_channels * self.kernel_size[0] * self.kernel_size[1]))
-            # self.bias_value = np.random.uniform(-bound, bound, self.out_channels)
-            self.bias_value = np.empty(self.out_channels)
+            if isinstance(bias, BaseInitializer):
+                self.b_init, self.b_init_param = self.decode_initializer(bias)
+                # import math
+                # bound = math.sqrt(1 / (self.in_channels * self.kernel_size[0] * self.kernel_size[1]))
+                # self.bias_value = np.random.uniform(-bound, bound, self.out_channels)
+                self.bias_value = np.empty(self.out_channels)
+
+            else:
+                assert (bias.size == self.out_channels), f"The size of the given bias {bias.shape} does not correspond" \
+                                                     f" to the size of output_channels {self.out_channels} "
+                self.bias_value = bias
+
             self._variables['bias[link]'] = self.bias_value
 
         Hin = self.pre.shape[-2]
@@ -456,7 +478,7 @@ class pool_connect(Connection):
 
     '''
 
-    def __init__(self, pre, post, name=None, link_type=('full', 'sparse_connect', 'conv', '...'),
+    def __init__(self, pre, post, name=None, link_type=('full', 'sparse_connection', 'conv', '...'),
                  syn_type=['maxpool'], max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='Isyn', syn_kwargs=None, **kwargs):
         super(pool_connect, self).__init__(pre=pre, post=post, name=name,
                                            link_type=link_type, syn_type=syn_type, max_delay=max_delay,
@@ -504,7 +526,7 @@ Connection.register('pool_connection', pool_connect)
 
 class sparse_connect_sparse(Connection):
 
-    def __init__(self, pre, post, name=None, link_type=('full', 'sparse_connect', 'conv', '...'),
+    def __init__(self, pre, post, name=None, link_type=('full', 'sparse_connection', 'conv', '...'),
                  syn_type=['basic'], max_delay=0, sparse_with_mask=False, pre_var_name='O',
                  post_var_name='Isyn', syn_kwargs=None, **kwargs):
         super(sparse_connect_sparse, self).__init__(pre=pre, post=post, name=name,
@@ -542,16 +564,20 @@ class sparse_connect_sparse(Connection):
         self._variables['weight[link]'] = self.weight
 
         bias = kwargs.get('bias', None)
-        self.bias_flag = False
-        if isinstance(bias, BaseInitializer):
-            self.b_init, self.b_init_param = self.decode_initializer(bias)
+        if bias is None:
+            self.bias_flag = False
+        else:
             self.bias_flag = True
-            # import math
-            # bound = math.sqrt(1 / self.pre_num)
-            # self.bias_value = np.random.uniform(-bound, bound, self.post_num)
-            self.bias_value = np.empty(self.post_num)
+            if isinstance(bias, BaseInitializer):
+                self.b_init, self.b_init_param = self.decode_initializer(bias)
+                self.bias_value = np.empty(self.post_num)
+
+            else:
+                assert (bias.size == self.post_num), f"The size of the given bias {bias.shape} does not correspond" \
+                                                         f" to the size of post_num {self.post_num} "
+                self.bias_value = bias
+
             self._variables['bias[link]'] = self.bias_value
-        pass
 
     def condition_check(self, pre_group, post_group):
         flag = False
@@ -567,7 +593,7 @@ Connection.register('sparse_connection_sparse', sparse_connect_sparse)
 
 class sparse_connect_mask(Connection):
 
-    def __init__(self, pre, post, name=None, link_type=('full', 'sparse_connect', 'conv', '...'),
+    def __init__(self, pre, post, name=None, link_type=('full', 'sparse_connection', 'conv', '...'),
                  syn_type=['basic'], max_delay=0, sparse_with_mask=False, pre_var_name='O',
                  post_var_name='Isyn', syn_kwargs=None, **kwargs):
         super(sparse_connect_mask, self).__init__(pre=pre, post=post, name=name,
@@ -606,17 +632,20 @@ class sparse_connect_mask(Connection):
         self._variables['weight[link]'] = self.weight
 
         bias = kwargs.get('bias', None)
-        self.bias_flag = False
-        if isinstance(bias, BaseInitializer):
-            self.b_init, self.b_init_param = self.decode_initializer(bias)
+        if bias is None:
+            self.bias_flag = False
+        else:
             self.bias_flag = True
-            # import math
-            # bound = math.sqrt(1 / self.pre_num)
-            # self.bias_value = np.random.uniform(-bound, bound, self.post_num)
-            self.bias_value = np.empty(self.post_num)
-            self._variables['bias[link]'] = self.bias_value
+            if isinstance(bias, BaseInitializer):
+                self.b_init, self.b_init_param = self.decode_initializer(bias)
+                self.bias_value = np.empty(self.post_num)
 
-        pass
+            else:
+                assert (bias.size == self.post_num), f"The size of the given bias {bias.shape} does not correspond" \
+                                                         f" to the size of post_num {self.post_num} "
+                self.bias_value = bias
+
+            self._variables['bias[link]'] = self.bias_value
 
     def condition_check(self, pre_group, post_group):
         flag = False
@@ -632,7 +661,7 @@ Connection.register('sparse_connection', sparse_connect_mask)
 
 class random_connect_sparse(Connection):
 
-    def __init__(self, pre, post, name=None, link_type=('full', 'sparse_connect', 'conv', '...'),
+    def __init__(self, pre, post, name=None, link_type=('full', 'sparse_connection', 'conv', '...'),
                  syn_type=['basic'], max_delay=0, sparse_with_mask=False, pre_var_name='O',
                  post_var_name='Isyn', syn_kwargs=None, **kwargs):
         super(random_connect_sparse, self).__init__(pre=pre, post=post, name=name,
@@ -675,16 +704,20 @@ class random_connect_sparse(Connection):
         self._variables['weight[link]'] = self.weight
 
         bias = kwargs.get('bias', None)
-        self.bias_flag = False
-        if isinstance(bias, BaseInitializer):
-            self.b_init, self.b_init_param = self.decode_initializer(bias)
+        if bias is None:
+            self.bias_flag = False
+        else:
             self.bias_flag = True
-            # import math
-            # bound = math.sqrt(1 / self.pre_num)
-            # self.bias_value = np.random.uniform(-bound, bound, self.post_num)
-            self.bias_value = np.empty(self.post_num)
+            if isinstance(bias, BaseInitializer):
+                self.b_init, self.b_init_param = self.decode_initializer(bias)
+                self.bias_value = np.empty(self.post_num)
+
+            else:
+                assert (bias.size == self.post_num), f"The size of the given bias {bias.shape} does not correspond" \
+                                                         f" to the size of post_num {self.post_num} "
+                self.bias_value = bias
+
             self._variables['bias[link]'] = self.bias_value
-        pass
 
     def condition_check(self, pre_group, post_group):
         flag = False
@@ -700,7 +733,7 @@ Connection.register('random_connection_sparse', random_connect_sparse)
 
 class random_connect_mask(Connection):
 
-    def __init__(self, pre, post, name=None, link_type=('full', 'sparse_connect', 'conv', '...'),
+    def __init__(self, pre, post, name=None, link_type=('full', 'sparse_connection', 'conv', '...'),
                  syn_type=['basic'], max_delay=0, sparse_with_mask=False, pre_var_name='O',
                  post_var_name='Isyn', syn_kwargs=None, **kwargs):
         super(random_connect_mask, self).__init__(pre=pre, post=post, name=name,
@@ -739,16 +772,20 @@ class random_connect_mask(Connection):
         self._variables['weight[link]'] = self.weight
 
         bias = kwargs.get('bias', None)
-        self.bias_flag = False
-        if isinstance(bias, BaseInitializer):
-            self.b_init, self.b_init_param = self.decode_initializer(bias)
+        if bias is None:
+            self.bias_flag = False
+        else:
             self.bias_flag = True
-            # import math
-            # bound = math.sqrt(1 / self.pre_num)
-            # self.bias_value = np.random.uniform(-bound, bound, self.post_num)
-            self.bias_value = np.empty(self.post_num)
+            if isinstance(bias, BaseInitializer):
+                self.b_init, self.b_init_param = self.decode_initializer(bias)
+                self.bias_value = np.empty(self.post_num)
+
+            else:
+                assert (bias.size == self.post_num), f"The size of the given bias {bias.shape} does not correspond" \
+                                                         f" to the size of post_num {self.post_num} "
+                self.bias_value = bias
+
             self._variables['bias[link]'] = self.bias_value
-        pass
 
     def condition_check(self, pre_group, post_group):
         flag = False
@@ -778,7 +815,7 @@ class NullConnection(Connection):
 
     '''
 
-    def __init__(self, pre, post, name=None, link_type=('full', 'sparse_connect', 'conv', '...'),
+    def __init__(self, pre, post, name=None, link_type=('full', 'sparse_connection', 'conv', '...'),
                  syn_type=['basic'], max_delay=0, sparse_with_mask=False, pre_var_name='O',
                  post_var_name='Isyn', syn_kwargs=None, **kwargs):
         super(NullConnection, self).__init__(pre=pre, post=post, name=name,
@@ -795,7 +832,7 @@ class Spike_to_Mass(Connection):
     '''
     Connect pre of spiking neurons to post of Neural Mass model
     '''
-    def __init__(self, pre, post, name=None, link_type=('full', 'sparse_connect', 'conv', '...'),
+    def __init__(self, pre, post, name=None, link_type=('full', 'sparse_connection', 'conv', '...'),
                  syn_type=['basic'], max_delay=0, sparse_with_mask=False, pre_var_name='O',
                  post_var_name='Isyn', syn_kwargs=None, **kwargs):
         super(Spike_to_Mass, self).__init__(pre=pre, post=post, name=name,
@@ -844,7 +881,7 @@ class Mass_to_Spike(Connection):
     '''
     Connect pre of spiking neurons to post of Neural Mass model
     '''
-    def __init__(self, pre, post, name=None, link_type=('full', 'sparse_connect', 'conv', '...'),
+    def __init__(self, pre, post, name=None, link_type=('full', 'sparse_connection', 'conv', '...'),
                  syn_type=['basic'], max_delay=0, sparse_with_mask=False, pre_var_name='O',
                  post_var_name='Isyn', syn_kwargs=None, **kwargs):
         super(Mass_to_Spike, self).__init__(pre=pre, post=post, name=name,
@@ -895,7 +932,7 @@ Connection.register('mass2spike', Mass_to_Spike)
 
 class DistDepd_connect(Connection):
 
-    def __init__(self, pre, post, name=None, link_type=('full', 'sparse_connect', 'conv', '...'),
+    def __init__(self, pre, post, name=None, link_type=('full', 'sparse_connection', 'conv', '...'),
                  syn_type=['basic'], max_delay=0, sparse_with_mask=False, pre_var_name='O',
                  post_var_name='Isyn', syn_kwargs=None, **kwargs):
         super(DistDepd_connect, self).__init__(pre=pre, post=post, name=name,
