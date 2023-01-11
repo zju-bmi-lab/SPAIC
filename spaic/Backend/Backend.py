@@ -142,6 +142,11 @@ class Backend(ABC):
         self.basic_operate['conv2d_flatten'] = self.conv2d_flatten
         self.basic_operate['feature_map_flatten'] = self.feature_map_flatten
         self.basic_operate['weight_norm'] = self.weight_norm
+        self.basic_operate['right_shift'] = self.right_shift
+        self.basic_operate['le'] = self.le
+        self.basic_operate['gt'] = self.gt
+        self.basic_operate['lt'] = self.lt
+        self.basic_operate['sum'] = self.sum
 
         self.param_init_operate['uniform'] = self.uniform
         self.param_init_operate['normal'] = self.normal

@@ -195,6 +195,60 @@ class PoissonEncoding(Encoder):
 
 Encoder.register('poisson', PoissonEncoding)
 
+
+class PoissonEncoding1(Encoder):
+    """
+        泊松频率编码，发放脉冲的概率即为刺激强度，刺激强度需被归一化到[0, 1]。
+        Generate a poisson spike train.
+        time: encoding window ms
+        dt: time step
+    """
+    def __init__(self, shape=None, num=None, dec_target=None, dt=None, coding_method='poisson',
+                 coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
+        super(PoissonEncoding1, self).__init__(shape, num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
+
+
+    def numpy_coding(self, source, device):
+        # assert (source >= 0).all(), "Inputs must be non-negative"
+        shape = list(source.shape)
+        spk_shape = [self.time_step] + shape
+        spikes = np.random.rand(*spk_shape).__le__(source * self.dt).astype(float)
+        return spikes
+
+
+    def torch_coding(self, source, device):
+        # assert (source >= 0).all(), "Inputs must be non-negative"
+        if source.__class__.__name__ == 'ndarray':
+            source = torch.tensor(source, device=device, dtype=self._backend.data_type)
+        self.device = device
+        self.source = source
+
+        shape, size = source.shape, source.numel()
+        source = source.flatten()
+
+        rate = torch.zeros(size, device=device)
+        rate[source != 0] = 1 / source[source != 0] * (1000 / self.dt)
+
+        # Create Poisson distribution and sample inter-spike intervals
+        # (incrementing by 1 to avoid zero intervals).
+        dist = torch.distributions.Poisson(rate=rate, validate_args=False)
+        intervals = dist.sample(sample_shape=torch.Size([self.time_step + 1]))
+        intervals[:, source != 0] += (intervals[:, source != 0] == 0).float()
+
+        # Calculate spike times by cumulatively summing over time dimension.
+        times = torch.cumsum(intervals, dim=0).long()
+        times[times >= self.time_step + 1] = 0
+
+        # Create tensor of spikes.
+        spikes = torch.zeros(self.time_step + 1, size, device=device).byte()
+        spikes[times, torch.arange(size)] = 1
+        spikes = spikes[1:]
+        spikes = spikes.to(dtype=self._backend.data_type) #torch.tensor(spikes, dtype=self._backend.data_type)
+
+        return spikes.view(self.time_step, *shape)
+
+Encoder.register('poisson1', PoissonEncoding1)
+
 class Latency(Encoder):
     """
         延迟编码，刺激强度越大，脉冲发放越早。刺激强度被归一化到[0, 1]。

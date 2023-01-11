@@ -95,6 +95,7 @@ class Assembly(BaseModule):
         self._input_connections = list()
         self._output_connections = list()
         self.num = 0
+        self.synapse_num = 0
         self.position = None
         self.model_name = None
         # _var_names 和 _var_dict移动到了BaseModule 作为网络各模块的通用属性
@@ -659,11 +660,13 @@ class Assembly(BaseModule):
         level_space = "" + '-'*level
         repr_str = level_space + "|name:{}, type:{}, ".format(self.name, type(self).__name__)
         repr_str += "total_neuron_num:{}\n ".format(self.num)
+
         level += 1
         for g in self._groups.values():
             repr_str += g.get_str(level)
         for c in self._connections.values():
             repr_str += c.get_str(level)
+            self.synapse_num = self.synapse_num + c.weight.size
         for p in self._projections.values():
             repr_str += p.get_str(level)
         return repr_str
@@ -857,7 +860,7 @@ class Assembly(BaseModule):
             if self._backend: self._backend.builded = False
             value.set_name(name)
             self._groups[name] = value
-            # self.num += value.num
+            self.num += value.num
             value.add_super(self)
         elif isinstance(value, Connection):
             if self._backend: self._backend.builded = False
@@ -885,4 +888,5 @@ class Assembly(BaseModule):
     def __repr__(self):
 
         repr_str = self.get_str(0)
+        repr_str += "network total synapse num:{}\n ".format(self.synapse_num)
         return repr_str

@@ -652,7 +652,8 @@ class Connection(Projection):
         level_space = "" + '-' * level
         repr_str = level_space + "|name:{}, type:{}, ".format(self.name, type(self).__name__)
         repr_str += "pre:{}, ".format(self.pre.name)
-        repr_str += "post:{}\n ".format(self.post.name)
+        repr_str += "post:{}, ".format(self.post.name)
+        repr_str += "total_synapse_num:{}\n ".format(self.weight.size)
         # for c in self._connections.values():
         #     repr_str += c.get_str(level)
         return repr_str

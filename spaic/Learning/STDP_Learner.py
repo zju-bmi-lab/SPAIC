@@ -362,3 +362,104 @@ class Meta_nearest_online_STDP(Base_STDP):
                                    [pre_name, post_name, input_trace_name, output_trace_name, 'pre_decay', 'post_decay', 'Apost', 'Apre', weight_name])
 
 Learner.register("meta_nearest_online_stdp", Meta_nearest_online_STDP)
+
+
+class PostPreInt(Base_STDP):
+    # language=rst
+    """
+    Simple STDP rule involving both pre- and post-synaptic spiking activity, based on integer
+    arithmetic. By default, pre-synaptic update is negative and the post-synaptic update is
+    positive.
+    """
+    def __init__(self, trainable=None, *args, **kwargs):
+        super(PostPreInt, self).__init__(trainable=trainable)
+        self.prefered_backend = ['pytorch']
+        self.name = 'postpreint'
+        self._constant_variables = dict()
+        self._constant_variables['trace_decay'] = kwargs.get('trace_decay', 31169)
+        self._constant_variables['shift_spike_trace'] = kwargs.get('shift_spike_trace', 15)
+        self._constant_variables['trace_scale'] = kwargs.get('trace_scale', 127)
+        self._constant_variables['max_threshold'] = kwargs.get('max_threshold', 4915)
+
+        self.shift = kwargs.get('shift', 14)
+        self.nu0 = kwargs.get('nu0', 14)
+        self.nu1 = kwargs.get('nu1', 141)
+        self.wmin = kwargs.get('w_min', 0)
+        self.wmax = kwargs.get('w_max', 109)
+
+
+    def update(self, input, output, input_trace, output_trace, trace_decay, trace_scale, shift_spike_trace, max_threshold, post_thresh, weight):
+
+        input_trace = (trace_decay*input_trace) >> shift_spike_trace
+        output_trace = (trace_decay*output_trace) >> shift_spike_trace
+        input_trace.masked_fill_(input.bool(), trace_scale if shift_spike_trace > 0 else 1)
+        output_trace.masked_fill_(output.bool(), trace_scale if shift_spike_trace > 0 else 1)
+
+        # Pre-synaptic update.
+        source_s = input.unsqueeze(1).int()  # spike  1,784
+        target_x = output_trace.unsqueeze(2).int() * self.nu0  # spike_trace  1, 100
+        # shift = torch.tensor(shift, dtype=torch.int32)
+        p = target_x & ((1 << self.shift) - 1)
+        target_x = (target_x >> self.shift) + (torch.randint(0, 1 << self.shift, p.size()) < p).int()
+        weight -= torch.squeeze(torch.bmm(target_x, source_s), dim=0)
+        del source_s, target_x, p
+
+        # Post-synaptic update.
+        target_s = output.unsqueeze(2).int()
+        source_x = input_trace.unsqueeze(1).int() * self.nu1
+        p = source_x & ((1 << self.shift) - 1)
+        source_x = (source_x >> self.shift) + (torch.randint(0, 1 << self.shift, p.size()) < p).int()
+        weight += torch.squeeze(torch.bmm(target_s, source_x), dim=0)
+        del source_x, target_s, p
+
+        weight >>= (post_thresh.view(-1) > max_threshold).unsqueeze(1)
+
+        if (self.wmin != -np.inf or self.wmax != np.inf):
+            weight.clamp_(self.wmin, self.wmax)
+        return input_trace, output_trace, weight
+
+    def build(self, backend):
+        super(PostPreInt, self).build(backend)
+        self.dt = backend.dt
+
+        for (key, var) in self._constant_variables.items():
+            if isinstance(var, np.ndarray):
+                if var.size > 1:
+                    var_shape = var.shape
+                    shape = (1, *var_shape)  # (1, shape)
+                else:
+                    shape = ()
+            elif isinstance(var, list):
+                if len(var) > 1:
+                    var_len = len(var)
+                    shape = (1, var_len)  # (1, shape)
+                else:
+                    shape = ()
+            else:
+                shape = ()
+            self.variable_to_backend(key, shape, value=var)
+
+
+        # Traverse all trainable connections
+        for conn in self.trainable_connections.values():
+            preg = conn.pre
+            postg = conn.post
+            pre_name = conn.get_input_name(preg, postg)
+            post_name = conn.get_group_name(postg, 'O')
+            post_thresh_name = conn.get_group_name(postg, 'thresh')
+            weight_name = conn.get_link_name(preg, postg, 'weight')
+
+            # input_trace tracks the trace of presynaptic spikes; output_trace tracks the trace of postsynaptic spikes
+            input_trace_name = pre_name + '_{input_trace}'
+            output_trace_name = post_name + '_{output_trace}'
+            eligibility_name = weight_name + '_{eligibility}'
+
+            self.variable_to_backend(input_trace_name, backend._variables[pre_name].shape, value=0.0)
+            self.variable_to_backend(output_trace_name, backend._variables[post_name].shape, value=0.0)
+            self.variable_to_backend(eligibility_name, backend._variables[weight_name].shape, value=0.0)
+
+            self.op_to_backend([input_trace_name, output_trace_name, weight_name], self.update,
+                               [pre_name, post_name, input_trace_name, output_trace_name, 'trace_decay', 'trace_scale',
+                                'shift_spike_trace', 'max_threshold', post_thresh_name, weight_name])
+
+Learner.register('postpreint', PostPreInt)

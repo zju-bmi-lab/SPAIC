@@ -541,18 +541,19 @@ class IFModel(NeuronModel):
         # self.neuron_parameters['ConstantDecay'] = kwargs.get('ConstantDecay', 0.0)
         # self.neuron_parameters['v_th'] = kwargs.get('v_th', 1.0)
 
-        self._variables['O'] = 0.0
-        self._variables['V'] = 0.0
-        self._variables['Isyn'] = 0.0
+        self._variables['O'] = 0
+        self._variables['V'] = 0
+        self._variables['Isyn'] = 0
 
-        self._parameter_variables['ConstantDecay'] = kwargs.get('ConstantDecay', 0.0)
-        self._parameter_variables['Vth'] = kwargs.get('v_th', 1.0)
+        self._parameter_variables['ConstantDecay'] = kwargs.get('ConstantDecay', 0)
+        self._parameter_variables['Vth'] = kwargs.get('v_th', 1)
 
         self._operations.append(('Vtemp', 'add', 'V', 'Isyn[updated]'))
         self._operations.append(('Vtemp1', 'minus', 'Vtemp', 'ConstantDecay'))
         self._operations.append(('O', 'threshold', 'Vtemp1', 'Vth'))
-        self._operations.append(('Resetting', 'var_mult', 'Vtemp1', 'O[updated]'))
-        self._operations.append(('V', 'minus', 'Vtemp1', 'Resetting'))
+        self._operations.append(('V', 'reset', 'Vtemp1', 'O[updated]'))
+        # self._operations.append(('Resetting', 'var_mult', 'Vtemp1', 'O[updated]'))
+        # self._operations.append(('V', 'minus', 'Vtemp1', 'Resetting'))
 
 
 NeuronModel.register("if", IFModel)
@@ -1369,6 +1370,156 @@ class LIFSTDPIHModel(NeuronModel):
 
 
 NeuronModel.register("lifstdp_ih", LIFSTDPIHModel)
+
+
+class DiehlAndCookModelInt(NeuronModel):
+    """
+    Layer of leaky integrate-and-fire (LIF) neurons with adaptive thresholds (modified for Diehl & Cook 2015
+    replication), based on integer arithmetic:
+    if thresh > max_threshold: thresh = thresh/2
+
+    # Decay voltages.
+    V(t) = ((self.decay * (v - self.rest)) >> shift_voltage) + self.rest  # decay = 1013;  v_rest = 0;  shift_voltage = 10
+    # Integrate inputs.
+    V(t) = V(t) + (self.refrac_count <= 0).int() * ((Isyn^n[t] * self.weight_sum_coef) >> self.shift_weight_sum_coef)
+    refrac_count=0;  weight_sum_coef = 154;  shift_weight_sum_coef = 10
+
+    # Decrement refractory counters.
+    self.refrac_count -= 1
+
+    # Check for spiking neurons.
+    O^n[t] = spike_func(V^n[t-1])
+
+    # Refractoriness, voltage reset, and adaptive thresholds.
+    self.refrac_count.masked_fill_(self.s, self.reset_refrac)   self.reset_refrac = 5
+    self.v.masked_fill_(self.s, self.reset)
+    self.thresh = self.thresh + self.thresh_plus * self.s.int().sum(0)
+
+    # Voltage clipping to lower bound.
+    if self.lbound is not None:
+        self.v.masked_fill_(self.v < self.lbound, self.lbound)
+    """
+    def __init__(self, **kwargs):
+        super(DiehlAndCookModelInt, self).__init__()
+        # initial value for state variables
+        self._variables['V'] = 0
+        self._variables['O'] = 0
+        self._variables['Isyn'] = 0
+        self._variables['thresh'] = kwargs.get('thresh', 213)
+        self._variables['refrac_count'] = kwargs.get('refrac_count', 0)
+
+        self._constant_variables['max_threshold'] = kwargs.get('max_threshold', 4915)
+        self._constant_variables['decay'] = kwargs.get('decay', 1013)
+        self._constant_variables['shift_voltage'] = kwargs.get('shift_voltage', 10)
+        self._constant_variables['weight_sum_coef'] = kwargs.get('weight_sum_coef', 154)
+        self._constant_variables['shift_weight_sum_coef'] = kwargs.get('shift_weight_sum_coef', 10)
+        self._constant_variables['Vreset'] = kwargs.get('v_reset', 0)
+        self._constant_variables['Vrest'] = kwargs.get('v_rest', 0)
+        self._constant_variables['init_refrac'] = kwargs.get('init_refrac', 0)
+        self._constant_variables['reset_refrac'] = kwargs.get('reset_refrac', 5)
+        self._constant_variables['delta'] = kwargs.get('delta', 1)
+        self._constant_variables['thresh_plus'] = kwargs.get('thresh_plus', 66)
+        self._constant_variables['lbound'] = kwargs.get('lbound', -32767)
+
+        # self._operations.append(('halve', 'gt', 'thresh[updated]', 'max_threshold'))
+        # self._operations.append(('shiftthresh', 'right_shift', 'thresh[updated]', 'halve'))
+        # self._operations.append(('decayV', 'var_mult', 'decay', 'V[updated]'))
+        # self._operations.append(('shiftDecayV', 'right_shift', 'decayV', 'shift_voltage'))
+        # self._operations.append(('refrac_mask', 'le', 'refrac_count[updated]', 'init_refrac'))
+        # self._operations.append(('decayIsyn', 'var_mult', 'weight_sum_coef', 'Isyn[updated]'))
+        # self._operations.append(('shiftDecayIsyn', 'right_shift', 'decayIsyn', 'shift_weight_sum_coef'))
+        # self._operations.append(('refrac_Isyn', 'var_mult', 'refrac_mask', 'shiftDecayIsyn'))
+        # self._operations.append(('Vtemp', 'add', 'shiftDecayV', 'refrac_Isyn'))
+        # self._operations.append(('refrac_count_temp', 'minus', 'refrac_count[updated]', 'delta'))
+        # self._operations.append(('O', 'threshold', 'Vtemp', 'shiftthresh'))
+        # self._operations.append(('refrac_count', 'reset', 'refrac_count_temp', 'O[updated]', 'reset_refrac'))
+        # self._operations.append(('resetV', 'reset', 'Vtemp', 'O[updated]', 'Vreset'))
+        # self._operations.append(('sumO', 'sum', 'O[updated]'))
+        # self._operations.append(('thresh', 'var_linear', 'thresh_plus', 'sumO', 'shiftthresh'))
+        # self._operations.append(('v_mask', 'lt', 'resetV', 'lbound'))
+        # self._operations.append(('V', 'reset', 'resetV', 'v_mask', 'lbound'))
+        self._operations.append((['V', 'O', 'thresh', 'refrac_count'], self.update,
+                           ['Isyn', 'V', 'thresh', 'refrac_count', 'decay', 'Vrest', 'shift_voltage', 'max_threshold',
+                            'weight_sum_coef', 'shift_weight_sum_coef', 'reset_refrac', 'Vreset', 'thresh_plus', 'lbound']))
+
+    def update(self, x, v, thresh, refrac_count, decay, rest, shift_voltage, max_threshold, weight_sum_coef,
+               shift_weight_sum_coef, reset_refrac, reset, thresh_plus, lbound):
+        x_ = x.int()
+        halve = (thresh > max_threshold)
+        thresh = thresh >> halve
+        del halve
+        # Decay voltages.
+        v = ((decay * (v - rest)) >> shift_voltage) + rest
+
+        # Integrate inputs.
+        v += (refrac_count <= 0).int() * ((x_ * weight_sum_coef) >> shift_weight_sum_coef)
+
+        # Decrement refractory counters.
+        refrac_count -= 1
+
+        # Check for spiking neurons.
+        s = v > thresh
+
+        # Refractoriness, voltage reset, and adaptive thresholds.
+        refrac_count.masked_fill_(s, reset_refrac)
+        v.masked_fill_(s, reset)
+
+        thresh += thresh_plus * s.int().sum(0)
+
+        # Voltage clipping to lower bound.
+        v.masked_fill_(v < lbound, lbound)
+        return v, s.to(dtype=torch.int32), thresh, refrac_count
+
+
+NeuronModel.register("diehlAndCook", DiehlAndCookModelInt)
+
+
+class LIFInt(NeuronModel):
+    """
+    Layer of leaky integrate-and-fire (LIF) neurons based on integer arithmetic:
+    """
+    def __init__(self, **kwargs):
+        super(LIFInt, self).__init__()
+        # initial value for state variables
+        self._variables['V'] = 0
+        self._variables['O'] = 0
+        self._variables['Isyn'] = 0
+        self._variables['refrac_count'] = kwargs.get('refrac_count', 0)
+
+        self._constant_variables['thresh'] = kwargs.get('thresh', 1)
+        self._constant_variables['decay'] = kwargs.get('decay', 1)
+        self._constant_variables['Vreset'] = kwargs.get('v_reset', 0)
+        self._constant_variables['Vrest'] = kwargs.get('v_rest', 0)
+        self._constant_variables['reset_refrac'] = kwargs.get('reset_refrac', 0)
+        self._operations.append((['V', 'O', 'refrac_count'], self.update,
+                           ['Isyn', 'V', 'thresh', 'refrac_count', 'decay', 'Vrest', 'reset_refrac', 'Vreset']))
+
+    def update(self, x, v, thresh, refrac_count, decay, rest, reset_refrac, reset):
+        """
+        Runs a single simulation step.
+
+        :param x: Inputs to the layer.
+        """
+        # Decay voltages.
+        v = decay * (v - rest) + rest
+
+        # Integrate inputs.
+        x.masked_fill_(refrac_count > 0, 0.0)
+
+        # Decrement refractory counters.
+        refrac_count -= 1
+
+        v += x  # interlaced
+
+        # Check for spiking neurons.
+        s = v >= thresh
+
+        # Refractoriness and voltage reset.
+        refrac_count.masked_fill_(s, reset_refrac)
+        v.masked_fill_(s, reset)
+
+        return v, s.to(dtype=torch.int32), refrac_count
+NeuronModel.register("lifint", LIFInt)
 
 
 class CANN_MeanFieldModel(NeuronModel):

@@ -240,8 +240,21 @@ class Torch_Backend(Backend):
     def threshold(self, x, v_th):
         return torch.gt(x, v_th).type(self.data_type)
 
-    def reset(self, v, o):
-        return o.eq(0)*v
+    def gt(self, x, y):
+        return torch.gt(x, y).type(self.data_type)
+
+    def le(self, x, y):
+        return torch.le(x, y).type(self.data_type)
+
+    def lt(self, x, y):
+        return torch.lt(x, y).type(self.data_type)
+
+    def sum(self, x, dim=0):
+        return x.sum(dim=dim).type(self.data_type)
+
+    def reset(self, x, mask, reset=0):
+        # return o.eq(0)*v
+        return x.masked_fill(mask, reset)
 
     def cat(self, x, dim=1):
         return torch.cat(x, dim)
@@ -380,6 +393,10 @@ class Torch_Backend(Backend):
 
     def div(self, x, y):
         return torch.div(x, y)
+
+    def right_shift(self, x, bit):
+
+        return x >> bit
 
     def relu(self, x):
         return torch.relu(x)
