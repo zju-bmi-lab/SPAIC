@@ -204,7 +204,7 @@ def plot_spikes(
         for ax in axes:
             ax.set_aspect("auto")
 
-        plt.setp(axes, xticks=[], xlabel="Simulation time", ylabel="Neuron index")
+        plt.setp(axes, xticks=[i * 10 for i in range(25)], xlabel="Simulation time", ylabel="Neuron index")
         plt.tight_layout()
     else:
         for i, datum in enumerate(spikes.items()):

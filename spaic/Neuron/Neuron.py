@@ -1439,14 +1439,24 @@ class DiehlAndCookModelInt(NeuronModel):
         # self._operations.append(('v_mask', 'lt', 'resetV', 'lbound'))
         # self._operations.append(('V', 'reset', 'resetV', 'v_mask', 'lbound'))
         self._operations.append((['V', 'O', 'thresh', 'refrac_count'], self.update,
-                           ['Isyn', 'V', 'thresh', 'refrac_count', 'decay', 'Vrest', 'shift_voltage', 'max_threshold',
+                           ['Isyn[updated]', 'V', 'thresh', 'refrac_count', 'decay', 'Vrest', 'shift_voltage', 'max_threshold',
                             'weight_sum_coef', 'shift_weight_sum_coef', 'reset_refrac', 'Vreset', 'thresh_plus', 'lbound']))
 
     def update(self, x, v, thresh, refrac_count, decay, rest, shift_voltage, max_threshold, weight_sum_coef,
-               shift_weight_sum_coef, reset_refrac, reset, thresh_plus, lbound):
+               shift_weight_sum_coef, refrac, reset, thresh_plus, lbound):
+
         x_ = x.int()
+        # Halve the firing threshold (including the initial firing threshold and
+        # the adaptive firing threshold) if the adaptive firing threshold exceeds the
+        # maximum adaptive firing threshold.
+        # At every time step, neurons halve their firing thresholds before further
+        # updating the adaptive firing threshold, in response to excessive adaptive
+        # firing thresholds computed at the last time step. This ensures that weight
+        # updates at the last time step can access the excessive adaptive firing
+        # thresholds before they are halved.
+
         halve = (thresh > max_threshold)
-        thresh = thresh >> halve
+        thresh >>= halve
         del halve
         # Decay voltages.
         v = ((decay * (v - rest)) >> shift_voltage) + rest
@@ -1459,11 +1469,11 @@ class DiehlAndCookModelInt(NeuronModel):
 
         # Check for spiking neurons.
         s = v > thresh
+        # print(s.any())
 
         # Refractoriness, voltage reset, and adaptive thresholds.
-        refrac_count.masked_fill_(s, reset_refrac)
+        refrac_count.masked_fill_(s, refrac)
         v.masked_fill_(s, reset)
-
         thresh += thresh_plus * s.int().sum(0)
 
         # Voltage clipping to lower bound.
@@ -1492,15 +1502,10 @@ class LIFInt(NeuronModel):
         self._constant_variables['Vrest'] = kwargs.get('v_rest', 0)
         self._constant_variables['reset_refrac'] = kwargs.get('reset_refrac', 0)
         self._operations.append((['V', 'O', 'refrac_count'], self.update,
-                           ['Isyn', 'V', 'thresh', 'refrac_count', 'decay', 'Vrest', 'reset_refrac', 'Vreset']))
+                           ['Isyn[updated]', 'V', 'thresh', 'refrac_count', 'decay', 'Vrest', 'reset_refrac', 'Vreset']))
 
-    def update(self, x, v, thresh, refrac_count, decay, rest, reset_refrac, reset):
-        """
-        Runs a single simulation step.
-
-        :param x: Inputs to the layer.
-        """
-        # Decay voltages.
+    def update(self, x, v, thresh, refrac_count, decay, rest, refrac, reset):
+         # Decay voltages.
         v = decay * (v - rest) + rest
 
         # Integrate inputs.
@@ -1515,7 +1520,7 @@ class LIFInt(NeuronModel):
         s = v >= thresh
 
         # Refractoriness and voltage reset.
-        refrac_count.masked_fill_(s, reset_refrac)
+        refrac_count.masked_fill_(s, refrac)
         v.masked_fill_(s, reset)
 
         return v, s.to(dtype=torch.int32), refrac_count
