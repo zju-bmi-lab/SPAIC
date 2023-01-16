@@ -9,6 +9,7 @@
 """
 
 import os
+
 os.chdir("../../")
 
 import spaic
@@ -43,13 +44,14 @@ parser.add_argument("--n_train", type=int, default=60000)
 parser.add_argument("--n_workers", type=int, default=-1)
 parser.add_argument("--time", type=int, default=250)
 parser.add_argument("--dt", type=int, default=1)
-parser.add_argument("--intensity", type=float, default=64)
+parser.add_argument("--intensity", type=float, default=128)
 parser.add_argument("--progress_interval", type=int, default=10)
 parser.add_argument("--update_interval", type=int, default=250)
 parser.add_argument("--train", dest="train", action="store_true")
 parser.add_argument("--test", dest="train", action="store_false")
 parser.add_argument("--plot", dest="plot", action="store_true")
 parser.add_argument("--gpu", dest="gpu", action="store_true")
+
 parser.set_defaults(plot=False)
 
 args = parser.parse_args()
@@ -66,7 +68,8 @@ progress_interval = args.progress_interval
 update_interval = args.update_interval
 train = args.train
 plot = args.plot
-gpu = args.gpu
+# gpu = args.gpu
+gpu = False
 
 # # Sets up Gpu use
 # if torch.cuda.is_available():
@@ -74,8 +77,7 @@ gpu = args.gpu
 #     torch.cuda.manual_seed_all(seed)
 # else:
 torch.manual_seed(seed)
-device = torch.device("cpu")
-gpu = False
+device = torch.device('cpu' if not gpu else 'cuda')
 
 torch.set_num_threads(os.cpu_count() - 1)
 print("Running on Device = ", device)
@@ -99,38 +101,44 @@ backend = spaic.Torch_Backend(device)
 backend.dt = dt
 backend.data_type = torch.int32
 
-
 root = './spaic/Datasets/MNIST'
+
 
 class DiehlAndCook2015Int(spaic.Network):
     def __init__(self):
         super(DiehlAndCook2015Int, self).__init__()
         # coding
         self.input = spaic.Encoder(num=n_inpt, coding_method='poisson1', unit_conversion=intensity)
+        # self.input = spaic.Encoder(num=n_inpt, coding_method='null')
 
         # neuron group
         self.exc_layer = spaic.NeuronGroup(n_neurons, model='diehlAndCook')
-        self.inh_layer = spaic.NeuronGroup(n_neurons, model='if')
+        self.inh_layer = spaic.NeuronGroup(n_neurons, model='lifint')
 
         # decoding
         # self.output = spaic.Decoder(num=n_neurons, dec_target=self.exc_layer, coding_method='spike_counts')
 
         # Connection
         self.connection1 = spaic.Connection(self.input, self.exc_layer, link_type='full',
-                                            weight=torch.randint(0, wmax_initial, (n_neurons, n_inpt)),
-                                            # weight=np.random.randint(0, wmax_initial, (n_neurons, n_inpt)),
+                                            # weight=torch.load(r'D:\Projects\SPAIC\spaic\Example\w.pt').contiguous(),
+                                            weight=np.random.randint(0, wmax_initial, (n_neurons, n_inpt)),
                                             w_min=wmin, w_max=wmax, is_parameter=False)
+        # self.connection2 = spaic.Connection(self.exc_layer, self.inh_layer, link_type='full',
+        #                                     weight=w_exc_inh * torch.ones(n_neurons, n_neurons, dtype=torch.int32),
+        #                                     # weight=(np.diag(np.ones(n_neurons))) * w_exc_inh,
+        #                                     w_min=w_exc_inh, w_max=w_exc_inh, is_parameter=False)
+        # self.connection3 = spaic.Connection(self.inh_layer, self.exc_layer, link_type='full',
+        #                                     # weight=w_inh_exc*(np.ones((n_neurons, n_neurons)) - np.diag(np.ones(n_neurons))),
+        #                                     weight=w_inh_exc * (
+        #                                             -torch.ones(n_neurons, n_neurons, dtype=torch.int32)
+        #                                     ),
+        #                                     w_min=w_inh_exc, w_max=w_inh_exc, is_parameter=False)
         self.connection2 = spaic.Connection(self.exc_layer, self.inh_layer, link_type='full',
-                                            weight=w_exc_inh * torch.diag(torch.ones(n_neurons, dtype=torch.int32)),
-                                            # weight=(np.diag(np.ones(n_neurons))) * w_exc_inh,
-                                            w_min=w_exc_inh, w_max=w_exc_inh, is_parameter=False)
+                                            weight=np.diag(np.ones(n_neurons)) * w_exc_inh,
+                                            w_min=0, w_max=w_exc_inh, is_parameter=False)
         self.connection3 = spaic.Connection(self.inh_layer, self.exc_layer, link_type='full',
-                                            # weight=w_inh_exc*(np.ones((n_neurons, n_neurons)) - np.diag(np.ones(n_neurons))),
-                                            weight=w_inh_exc * (
-                                                    torch.ones(n_neurons, n_neurons, dtype=torch.int32)
-                                                    - torch.diag(torch.ones(n_neurons, dtype=torch.int32))
-                                            ),
-                                            w_min=w_inh_exc, w_max=w_inh_exc, is_parameter=False)
+                                            weight=w_inh_exc*(np.ones((n_neurons, n_neurons)) - np.diag(np.ones(n_neurons))),
+                                            w_min=w_inh_exc, w_max=0, is_parameter=False)
 
         # Learner
         self._learner = Learner(algorithm='postpreint', trainable=self.connection1)
@@ -149,6 +157,7 @@ class DiehlAndCook2015Int(spaic.Network):
         self.exc_spike = spaic.StateMonitor(self.exc_layer, 'O', nbatch=-1)
         self.inh_spike = spaic.StateMonitor(self.inh_layer, 'O', nbatch=-1)
         self.set_backend(backend)
+
 
 network = DiehlAndCook2015Int()
 
@@ -266,6 +275,9 @@ for epoch in range(n_epochs):
         labels.append(label)
 
         # Run the network on the input.
+
+        # inputs = torch.load(r'D:\Projects\SPAIC\spaic\Example\input.pt')
+
         network.input(inputs)
         network.run(time)
 
@@ -280,13 +292,15 @@ for epoch in range(n_epochs):
         # Get firing.
         exc_spike = torch.tensor(network.exc_spike.values, device=device, dtype=torch.int32).permute(2, 0, 1)
         inh_spike = torch.tensor(network.inh_spike.values, device=device, dtype=torch.int32).permute(2, 0, 1)
-        input_spike = torch.tensor(network.input_spike.values, device=device, dtype=torch.int32).permute(2, 0, 1).view(250,1,1,28,28)
+        input_spike = torch.tensor(network.input_spike.values, device=device, dtype=torch.int32).permute(2, 0, 1).view(
+            250, 1, 1, 28, 28)
 
         # Add to spikes recording.
-        spike_record[step % update_interval] = exc_spike.squeeze()    #  spikes["Ae"].get("s").squeeze()
+        spike_record[step % update_interval] = exc_spike.squeeze()  # spikes["Ae"].get("s").squeeze()
         #
         # Optionally plot various simulation information.
         if plot:
+            inputs = torch.load(r'D:\Projects\SPAIC\spaic\Example\image.pt')
             image = inputs.view(28, 28)
             inpt = network.input.all_spikes.view(time, 784).sum(0).view(28, 28)
             input_exc_weights = network.connection1.weight
@@ -297,19 +311,19 @@ for epoch in range(n_epochs):
             spikes_ = {"Ae": exc_spike, "X": input_spike, "Ai": inh_spike}
             voltages = {"Ae": exc_voltages, "Ai": inh_voltages}
             thresholds = {"Ae": exc_threshold, "Ai": inh_threshold}
-            inpt_axes, inpt_ims = plot_input(
-                image, inpt, label=label, axes=inpt_axes, ims=inpt_ims
-            )
+            # inpt_axes, inpt_ims = plot_input(
+            #     image, inpt, label=label, axes=inpt_axes, ims=inpt_ims
+            # )
             spike_ims, spike_axes = plot_spikes(spikes_, ims=spike_ims, axes=spike_axes)
             weights_im = plot_weights(square_weights, im=weights_im, wmin=wmin, wmax=wmax)
-            assigns_im = plot_assignments(square_assignments, im=assigns_im)
-            perf_ax = plot_performance(accuracy, x_scale=update_interval, ax=perf_ax)
+            # assigns_im = plot_assignments(square_assignments, im=assigns_im)
+            # perf_ax = plot_performance(accuracy, x_scale=update_interval, ax=perf_ax)
             voltage_ims, voltage_axes = plot_voltages(
                 voltages, ims=voltage_ims, axes=voltage_axes, plot_type="line"
             )
-            adaptive_threshold_ims, adaptive_threshold_axes = plot_voltages(
-                thresholds, ims=adaptive_threshold_ims, axes=adaptive_threshold_axes, plot_type="line"
-            )
+            # adaptive_threshold_ims, adaptive_threshold_axes = plot_voltages(
+            #     thresholds, ims=adaptive_threshold_ims, axes=adaptive_threshold_axes, plot_type="line"
+            # )
 
             plt.pause(1e-8)
         #
@@ -317,7 +331,6 @@ for epoch in range(n_epochs):
 
 print("Progress: %d / %d (%.4f seconds)" % (epoch + 1, n_epochs, t() - start))
 print("Training complete.\n")
-
 
 # Load MNIST data.
 test_dataset = MNIST(
@@ -385,7 +398,6 @@ for step, batch in enumerate(test_dataset):
 
 print("\nAll activity accuracy: %.2f" % (accuracy["all"] / n_test))
 print("Proportion weighting accuracy: %.2f \n" % (accuracy["proportion"] / n_test))
-
 
 print("Progress: %d / %d (%.4f seconds)" % (epoch + 1, n_epochs, t() - start))
 print("Testing complete.\n")

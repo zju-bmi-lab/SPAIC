@@ -415,6 +415,7 @@ class Torch_Backend(Backend):
         '''
 
         X = X.permute(1, 0)
+
         return torch.matmul(A, X)
 
     def mat_mult_weight_complex(self, A, X, beta):
