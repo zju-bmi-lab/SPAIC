@@ -1413,6 +1413,8 @@ class DiehlAndCookModelInt(NeuronModel):
         self._constant_variables['shift_voltage'] = kwargs.get('shift_voltage', 10)
         self._constant_variables['weight_sum_coef'] = kwargs.get('weight_sum_coef', 154)
         self._constant_variables['shift_weight_sum_coef'] = kwargs.get('shift_weight_sum_coef', 10)
+        self._constant_variables['weight_sum_min'] = kwargs.get('weight_sum_min', -32767)
+        self._constant_variables['weight_sum_max'] = kwargs.get('weight_sum_max', 32767)
         self._constant_variables['Vreset'] = kwargs.get('v_reset', 0)
         self._constant_variables['Vrest'] = kwargs.get('v_rest', 0)
         self._constant_variables['init_refrac'] = kwargs.get('init_refrac', 0)
@@ -1421,16 +1423,16 @@ class DiehlAndCookModelInt(NeuronModel):
         self._constant_variables['thresh_plus'] = kwargs.get('thresh_plus', 66)
         self._constant_variables['lbound'] = kwargs.get('lbound', -32767)
 
-        # self._operations.append(('halve', 'gt', 'thresh[updated]', 'max_threshold'))
-        # self._operations.append(('shiftthresh', 'right_shift', 'thresh[updated]', 'halve'))
-        # self._operations.append(('decayV', 'var_mult', 'decay', 'V[updated]'))
+        # self._operations.append(('halve', 'gt', 'thresh', 'max_threshold'))
+        # self._operations.append(('shiftthresh', 'right_shift', 'thresh', 'halve'))
+        # self._operations.append(('decayV', 'var_mult', 'decay', 'V'))
         # self._operations.append(('shiftDecayV', 'right_shift', 'decayV', 'shift_voltage'))
-        # self._operations.append(('refrac_mask', 'le', 'refrac_count[updated]', 'init_refrac'))
+        # self._operations.append(('refrac_mask', 'le', 'refrac_count', 'init_refrac'))
         # self._operations.append(('decayIsyn', 'var_mult', 'weight_sum_coef', 'Isyn[updated]'))
         # self._operations.append(('shiftDecayIsyn', 'right_shift', 'decayIsyn', 'shift_weight_sum_coef'))
         # self._operations.append(('refrac_Isyn', 'var_mult', 'refrac_mask', 'shiftDecayIsyn'))
         # self._operations.append(('Vtemp', 'add', 'shiftDecayV', 'refrac_Isyn'))
-        # self._operations.append(('refrac_count_temp', 'minus', 'refrac_count[updated]', 'delta'))
+        # self._operations.append(('refrac_count_temp', 'minus', 'refrac_count', 'delta'))
         # self._operations.append(('O', 'threshold', 'Vtemp', 'shiftthresh'))
         # self._operations.append(('refrac_count', 'reset', 'refrac_count_temp', 'O[updated]', 'reset_refrac'))
         # self._operations.append(('resetV', 'reset', 'Vtemp', 'O[updated]', 'Vreset'))
@@ -1438,14 +1440,16 @@ class DiehlAndCookModelInt(NeuronModel):
         # self._operations.append(('thresh', 'var_linear', 'thresh_plus', 'sumO', 'shiftthresh'))
         # self._operations.append(('v_mask', 'lt', 'resetV', 'lbound'))
         # self._operations.append(('V', 'reset', 'resetV', 'v_mask', 'lbound'))
+
         self._operations.append((['V', 'O', 'thresh', 'refrac_count'], self.update,
                            ['Isyn[updated]', 'V', 'thresh', 'refrac_count', 'decay', 'Vrest', 'shift_voltage', 'max_threshold',
-                            'weight_sum_coef', 'shift_weight_sum_coef', 'reset_refrac', 'Vreset', 'thresh_plus', 'lbound']))
+                            'weight_sum_coef', 'shift_weight_sum_coef', 'reset_refrac', 'Vreset', 'thresh_plus',
+                            'lbound', 'weight_sum_min', 'weight_sum_max']))
 
     def update(self, x, v, thresh, refrac_count, decay, rest, shift_voltage, max_threshold, weight_sum_coef,
-               shift_weight_sum_coef, refrac, reset, thresh_plus, lbound):
+               shift_weight_sum_coef, refrac, reset, thresh_plus, lbound, weight_sum_min, weight_sum_max):
 
-        x_ = x.int()
+        x_ = x.int().clamp(min=weight_sum_min, max=weight_sum_max)
         # Halve the firing threshold (including the initial firing threshold and
         # the adaptive firing threshold) if the adaptive firing threshold exceeds the
         # maximum adaptive firing threshold.
@@ -1456,7 +1460,7 @@ class DiehlAndCookModelInt(NeuronModel):
         # thresholds before they are halved.
 
         halve = (thresh > max_threshold)
-        thresh >>= halve
+        thresh >>= halve  # Note: thresh >>= halve 不能改写为 thresh = thresh >> halve，会导致量化版本的STDP训练没效果
         del halve
         # Decay voltages.
         v = ((decay * (v - rest)) >> shift_voltage) + rest
@@ -1469,7 +1473,6 @@ class DiehlAndCookModelInt(NeuronModel):
 
         # Check for spiking neurons.
         s = v > thresh
-        # print(s.any())
 
         # Refractoriness, voltage reset, and adaptive thresholds.
         refrac_count.masked_fill_(s, refrac)
@@ -1501,6 +1504,19 @@ class LIFInt(NeuronModel):
         self._constant_variables['Vreset'] = kwargs.get('v_reset', 0)
         self._constant_variables['Vrest'] = kwargs.get('v_rest', 0)
         self._constant_variables['reset_refrac'] = kwargs.get('reset_refrac', 0)
+        self._constant_variables['delta'] = kwargs.get('delta', 1)
+        self._constant_variables['reset_isyn'] = kwargs.get('reset_isyn', 0.0)
+
+        # self._operations.append(('Vdifference', 'minus', 'V', 'Vrest'))
+        # self._operations.append(('decayV', 'var_linear', 'decay', 'Vdifference', 'Vrest'))
+        # self._operations.append(('refrac_mask', 'gt', 'refrac_count', 'reset_refrac'))
+        # self._operations.append(('Isynreset', 'reset', 'Isyn[updated]', 'refrac_mask', 'reset_isyn'))
+        # self._operations.append(('refrac_count_temp', 'minus', 'refrac_count', 'delta'))
+        # self._operations.append(('Vtemp', 'add', 'decayV', 'Isynreset'))
+        # self._operations.append(('O', 'threshold', 'Vtemp', 'thresh'))
+        # self._operations.append(('refrac_count', 'reset', 'refrac_count_temp', 'O[updated]', 'reset_refrac'))
+        # self._operations.append(('V', 'reset', 'Vtemp', 'O[updated]', 'Vreset'))
+
         self._operations.append((['V', 'O', 'refrac_count'], self.update,
                            ['Isyn[updated]', 'V', 'thresh', 'refrac_count', 'decay', 'Vrest', 'reset_refrac', 'Vreset']))
 

@@ -390,32 +390,39 @@ class PostPreInt(Base_STDP):
 
     def update(self, input, output, input_trace, output_trace, trace_decay, trace_scale, shift_spike_trace, max_threshold, post_thresh, weight):
 
+        def stochastic_round(x):
+            p = x & ((1 << self.shift) - 1)
+            return (x >> self.shift) \
+                   + (torch.randint(0, 1 << self.shift, p.size()) < p).int()
+
         input_trace = (trace_decay*input_trace.int()) >> shift_spike_trace
         output_trace = (trace_decay*output_trace.int()) >> shift_spike_trace
         input_trace.masked_fill_(input.bool(), trace_scale if shift_spike_trace > 0 else 1)
         output_trace.masked_fill_(output.bool(), trace_scale if shift_spike_trace > 0 else 1)
 
         # Pre-synaptic update.
-        source_s = input.unsqueeze(1).int()  # spike  1,784
-        target_x = output_trace.unsqueeze(2).int() * self.nu0  # spike_trace  1, 100
-        # shift = torch.tensor(shift, dtype=torch.int32)
-        p = target_x & ((1 << self.shift) - 1)
-        target_x = (target_x >> self.shift) + (torch.randint(0, 1 << self.shift, p.size()) < p).int()
-        # target_x = target_x >> self.shift + 1
-        weight -= torch.squeeze(torch.bmm(target_x, source_s), dim=0)
-        # print(torch.squeeze(torch.bmm(target_x, source_s), dim=0).unique())
-
-        del source_s, target_x, p
+        source_s = input.unsqueeze(1).int()  # spike  1, 1, 784
+        target_x = output_trace.unsqueeze(2).int() * self.nu0  # spike_trace  1, 100, 1
+        target_x = target_x.repeat((1, 1, source_s.size(2)))
+        target_x = stochastic_round(target_x)
+        weight += torch.squeeze(torch.mul(target_x, source_s), dim=0)
+        del source_s, target_x
+        # p = target_x & ((1 << self.shift) - 1)
+        # target_x = (target_x >> self.shift) + (torch.randint(0, 1 << self.shift, p.size()) < p).int()
+        # weight -= torch.squeeze(torch.bmm(target_x, source_s), dim=0)
+        # del source_s, target_x, p
 
         # Post-synaptic update.
-        target_s = output.unsqueeze(2).int()
-        source_x = input_trace.unsqueeze(1).int() * self.nu1
-        p = source_x & ((1 << self.shift) - 1)
-        source_x = (source_x >> self.shift) + (torch.randint(0, 1 << self.shift, p.size()) < p).int()
-        # source_x >>= self.shift
-        # source_x = source_x >> self.shift + 1
-        weight += torch.squeeze(torch.bmm(target_s, source_x), dim=0)
-        del source_x, target_s, p
+        target_s = output.unsqueeze(2).int()   # 1,100,1
+        source_x = input_trace.unsqueeze(1).int() * self.nu1  # 1,1,784
+        source_x = source_x.repeat((1, target_s.size(1), 1))
+        source_x = stochastic_round(source_x)
+        weight += torch.squeeze(torch.mul(target_s, source_x), dim=0)
+        del source_x, target_s
+        # p = source_x & ((1 << self.shift) - 1)
+        # source_x = (source_x >> self.shift) + (torch.randint(0, 1 << self.shift, p.size()) < p).int()
+        # weight += torch.squeeze(torch.bmm(target_s, source_x), dim=0)
+        # del source_x, target_s, p
 
         weight >>= (post_thresh.view(-1) > max_threshold).unsqueeze(1)
 

@@ -44,7 +44,7 @@ parser.add_argument("--n_train", type=int, default=60000)
 parser.add_argument("--n_workers", type=int, default=-1)
 parser.add_argument("--time", type=int, default=250)
 parser.add_argument("--dt", type=int, default=1)
-parser.add_argument("--intensity", type=float, default=128)
+parser.add_argument("--intensity", type=float, default=0.128)
 parser.add_argument("--progress_interval", type=int, default=10)
 parser.add_argument("--update_interval", type=int, default=250)
 parser.add_argument("--train", dest="train", action="store_true")
@@ -108,8 +108,7 @@ class DiehlAndCook2015Int(spaic.Network):
     def __init__(self):
         super(DiehlAndCook2015Int, self).__init__()
         # coding
-        self.input = spaic.Encoder(num=n_inpt, coding_method='poisson1', unit_conversion=intensity)
-        # self.input = spaic.Encoder(num=n_inpt, coding_method='null')
+        self.input = spaic.Encoder(num=n_inpt, coding_method='bernoulli', unit_conversion=intensity)
 
         # neuron group
         self.exc_layer = spaic.NeuronGroup(n_neurons, model='diehlAndCook')
@@ -275,9 +274,6 @@ for epoch in range(n_epochs):
         labels.append(label)
 
         # Run the network on the input.
-
-        # inputs = torch.load(r'D:\Projects\SPAIC\spaic\Example\input.pt')
-
         network.input(inputs)
         network.run(time)
 

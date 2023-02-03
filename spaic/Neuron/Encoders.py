@@ -252,10 +252,49 @@ class PoissonEncoding1(Encoder):
         spikes = spikes[1:]
         spikes = spikes.to(dtype=self._backend.data_type)  # torch.tensor(spikes, dtype=self._backend.data_type)
 
+        # sumspikes = spikes.sum()
         return spikes.view(self.time_step, *shape)
 
 
 Encoder.register('poisson1', PoissonEncoding1)
+
+
+class bernoulli(Encoder):
+    """
+        伯努利分布。
+        Generate a bernoulli spike train.
+        time: encoding window ms
+        dt: time step
+    """
+
+    def __init__(self, shape=None, num=None, dec_target=None, dt=None, coding_method='poisson',
+                 coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
+        super(bernoulli, self).__init__(shape, num, dec_target, dt, coding_method, coding_var_name, node_type,
+                                               **kwargs)
+        self.max_prob = kwargs.get("max_prob", 1.0)
+        assert 0 <= self.max_prob <= 1, "Maximum firing probability must be in range [0, 1]"
+
+    def torch_coding(self, source, device):
+        assert (source >= 0).all(), "Inputs must be non-negative"
+        if source.__class__.__name__ == 'ndarray':
+            source = torch.tensor(source, device=device, dtype=self._backend.data_type)
+        self.device = device
+        self.source = source
+        shape, size = source.shape, source.numel()
+        datum = source.flatten()
+
+        # Normalize inputs and rescale (spike probability proportional to input intensity).
+        if datum.max() > 1.0:
+            datum /= datum.max()
+
+        # Make spike data from Bernoulli sampling.
+        spikes = torch.bernoulli(self.max_prob * datum.repeat([self.time_step, 1]))
+        spikes = spikes.view(self.time_step, *shape).to(dtype=self._backend.data_type)
+
+        return spikes
+
+
+Encoder.register('bernoulli', bernoulli)
 
 
 class Latency(Encoder):
