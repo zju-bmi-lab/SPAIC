@@ -12,8 +12,14 @@ Created on 2020/8/17
 
 import yaml
 import json
+from ..Network import Network, Connection, Assembly, Projection
+from ..Neuron.Neuron import NeuronGroup
+from ..Neuron.Node import Node, Encoder, Decoder
+from ..Learning.Learner import Learner
+from ..Monitor.Monitor import StateMonitor, SpikeMonitor
+from ..Backend.Torch_Backend import Torch_Backend
+from ..Neuron.Node import Action, Generator, Reward
 
-import spaic
 import torch
 
 
@@ -44,7 +50,7 @@ def network_load(filename=None, path=None, device='cpu', load_weight=True):
         # filedir = path + filename
     file = filename.split('.')[0]
     origin_path = os.getcwd()
-    os.chdir(path+'/'+file)
+    os.chdir(path + '/' + file)
     if os.path.exists(filename):
         with open(filename, 'r') as f:
             data = f.read()
@@ -54,16 +60,16 @@ def network_load(filename=None, path=None, device='cpu', load_weight=True):
                 data = yaml.load(data, Loader=yaml.FullLoader)
 
     else:
-        if os.path.exists(filename+'.yml'):
-            with open(filename+'.yml', 'r') as f:
+        if os.path.exists(filename + '.yml'):
+            with open(filename + '.yml', 'r') as f:
                 data = yaml.load(f, Loader=yaml.FullLoader)
 
-        elif os.path.exists(filename+'.json'):
-            with open(filename+'.json', 'r') as f:
+        elif os.path.exists(filename + '.json'):
+            with open(filename + '.json', 'r') as f:
                 data = json.load(f)
 
-        elif os.path.exists(filename+'.txt'):
-            with open(filename+'.txt', 'r') as f:
+        elif os.path.exists(filename + '.txt'):
+            with open(filename + '.txt', 'r') as f:
                 data = f.read()
                 if data.startswith('{'):
                     data = json.loads(data)
@@ -80,7 +86,7 @@ def network_load(filename=None, path=None, device='cpu', load_weight=True):
     return net
 
 
-class ReloadedNetwork(spaic.Network):
+class ReloadedNetwork(Network):
     '''
         The network rebuild from the yaml file.
 
@@ -112,7 +118,9 @@ class ReloadedNetwork(spaic.Network):
                 'STCA', 0.5)
 
     '''
-    def __init__(self, net_data: dict, backend=None, device='cpu', load_weight=True, data_type=None):
+
+    def __init__(self, net_data: dict, backend=None, device='cpu', load_weight=True,
+                 data_type=None):
         super(ReloadedNetwork, self).__init__()
 
         self.device = device
@@ -121,7 +129,7 @@ class ReloadedNetwork(spaic.Network):
 
         self.load_net(net_data)
         if backend is None:
-            backend = spaic.Torch_Backend(device)
+            backend = Torch_Backend(device)
 
         self.set_backend(backend)
         self.set_backend_data_type()
@@ -180,27 +188,26 @@ class ReloadedNetwork(spaic.Network):
             else:
                 self.add_assembly(name=list(g)[0], assembly=self.load_assembly(list(g)[0], para))
 
-
     def load_assembly(self, name, assembly: list):
-        target = spaic.Assembly(name=name)
+        target = Assembly(name=name)
         for g in assembly:
             para = g[list(g)[0]]
             if para.get('_class_label') == '<neg>':
                 lay_name = para.get('name')
                 target.add_assembly(name=lay_name,
-                                  assembly=self.load_layer(para))
+                                    assembly=self.load_layer(para))
             elif para.get('_class_label') == '<nod>':
                 nod_name = para.get('name')
                 target.add_assembly(name=nod_name,
-                                  assembly=self.load_node(para))
+                                    assembly=self.load_node(para))
             elif para.get('_class_label') == '<con>':
                 con_name = para.get('name')
                 target.add_connection(name=con_name,
-                                    connection=self.load_connection(pnet=target, con=para))
+                                      connection=self.load_connection(pnet=target, con=para))
             elif para.get('_class_label') == '<prj>':
                 prj_name = para.get('name')
                 target.add_projection(name=prj_name,
-                                    projection=self.load_projection(prj=para))
+                                      projection=self.load_projection(prj=para))
         return target
 
     def load_layer(self, layer: dict):
@@ -217,13 +224,13 @@ class ReloadedNetwork(spaic.Network):
         # layer.pop('_class_label')
         # parameters = self.trans_para(layer.get('parameters'))
         parameters = layer.get('parameters')
-        return_neuron = spaic.NeuronGroup(
-            num= layer.get('num', 100),
-            shape= layer.get('shape', [100]),
-            neuron_type     = layer.get('type', 'non_type'),
-            neuron_position = layer.get('position', 'x, y, z'),
-            model= layer.get('model_name', 'clif'),
-            name            = layer.get('name'),
+        return_neuron = NeuronGroup(
+            num=layer.get('num', 100),
+            shape=layer.get('shape', [100]),
+            neuron_type=layer.get('type', 'non_type'),
+            neuron_position=layer.get('position', 'x, y, z'),
+            model=layer.get('model_name', 'clif'),
+            name=layer.get('name'),
             **parameters
         )
         return_neuron.id = layer.get('id', None)
@@ -268,16 +275,16 @@ class ReloadedNetwork(spaic.Network):
         assert not isinstance(con['post'], str)
 
         # con.pop('weight_path')
-        return_conn = spaic.Connection(
-            pre              = con.get('pre'),
-            post             = con.get('post'),
-            name             = con.get('name'),
-            link_type        = con.get('link_type', 'full'),
-            syn_type         = con.get('synapse_type', ['basic_synapse']),
-            max_delay        = con.get('max_delay', 0),
-            sparse_with_mask = con.get('sparse_with_mask', False),
-            pre_var_name     = con.get('pre_var_name', 'O'),
-            post_var_name    = con.get('post_var_name', 'WgtSum'),
+        return_conn = Connection(
+            pre=con.get('pre'),
+            post=con.get('post'),
+            name=con.get('name'),
+            link_type=con.get('link_type', 'full'),
+            syn_type=con.get('synapse_type', ['basic_synapse']),
+            max_delay=con.get('max_delay', 0),
+            sparse_with_mask=con.get('sparse_with_mask', False),
+            pre_var_name=con.get('pre_var_name', 'O'),
+            post_var_name=con.get('post_var_name', 'WgtSum'),
             **con.get('parameters')
         )
         return_conn.id = con.get('id', None)
@@ -296,7 +303,7 @@ class ReloadedNetwork(spaic.Network):
         '''
         if prj['pre'] in self._groups.keys() and \
                 prj['post'] in self._groups.keys():
-            prj['pre']  = self._groups[prj['pre']]
+            prj['pre'] = self._groups[prj['pre']]
             prj['post'] = self._groups[prj['post']]
         else:
             print("Trans_error")
@@ -305,13 +312,13 @@ class ReloadedNetwork(spaic.Network):
         assert not isinstance(prj['pre'], str)
         assert not isinstance(prj['post'], str)
 
-        this_prj = spaic.Projection(
-            pre                  = prj.get('pre'),
-            post                 = prj.get('post'),
-            name                 = prj.get('name'),
-            link_type            = prj.get('link_type', 'full'),
+        this_prj = Projection(
+            pre=prj.get('pre'),
+            post=prj.get('post'),
+            name=prj.get('name'),
+            link_type=prj.get('link_type', 'full'),
             # policies             = prj.get('policies', []),
-            ConnectionParameters = prj.get('ConnectionParameters'),
+            ConnectionParameters=prj.get('ConnectionParameters'),
         )
 
         for conn in prj['conns']:
@@ -321,9 +328,8 @@ class ReloadedNetwork(spaic.Network):
                     name=key,
                 )
 
-
         # prj['policies'] = []
-        # from spaic.Network.ConnectPolicy import IndexConnectPolicy, ExcludedTypePolicy, IncludedTypePolicy
+        # from Network.ConnectPolicy import IndexConnectPolicy, ExcludedTypePolicy, IncludedTypePolicy
         # policy_dict = {'Included_policy': IncludedTypePolicy,
         #                'Excluded_policy': ExcludedTypePolicy}
         #
@@ -352,30 +358,30 @@ class ReloadedNetwork(spaic.Network):
 
         '''
 
-        Node_dict = {'decoder': spaic.Decoder, 'action': spaic.Action, 'reward': spaic.Reward,
-                     'generator': spaic.Generator, 'encoder': spaic.Encoder}
+        Node_dict = {'decoder': Decoder, 'action': Action, 'reward': Reward,
+                     'generator': Generator, 'encoder': Encoder}
 
         if node.get('kind') == 'decoder':
             return_node = Node_dict[node.get('kind')](
-                num             = node.get('num'),
-                dec_target      = self._groups.get(node.get('dec_target', None), None),
-                dt              = node.get('dt', 0.1),
+                num=node.get('num'),
+                dec_target=self._groups.get(node.get('dec_target', None), None),
+                dt=node.get('dt', 0.1),
                 # time            = node.get('time'),
-                coding_method   = node.get('coding_method', 'poisson'),
-                coding_var_name = node.get('coding_var_name', 'O'),
-                node_type       = node.get('type', None),
+                coding_method=node.get('coding_method', 'poisson'),
+                coding_var_name=node.get('coding_var_name', 'O'),
+                node_type=node.get('type', None),
                 **node.get('coding_param')
             )
         else:
             return_node = Node_dict[node.get('kind')](
-                shape           = node.get('shape', None),
-                num             = node.get('num'),
-                dec_target      = self._groups.get(node.get('dec_target', None), None),
-                dt              = node.get('dt', 0.1),
+                shape=node.get('shape', None),
+                num=node.get('num'),
+                dec_target=self._groups.get(node.get('dec_target', None), None),
+                dt=node.get('dt', 0.1),
                 # time            = node.get('time'),
-                coding_method   = node.get('coding_method', 'poisson'),
-                coding_var_name = node.get('coding_var_name', 'O'),
-                node_type       = node.get('type', None),
+                coding_method=node.get('coding_method', 'poisson'),
+                coding_var_name=node.get('coding_var_name', 'O'),
+                node_type=node.get('type', None),
                 **node.get('coding_param')
             )
         return_node.id = node.get('id', None)
@@ -391,7 +397,6 @@ class ReloadedNetwork(spaic.Network):
         key_parameters_dict = ['_parameters_dict']
         key_parameters_list = ['dt', 'runtime', 'time', 'n_time_step']
         typical = ['_graph_var_dicts']
-
 
         import torch
         # import os
@@ -436,11 +441,12 @@ class ReloadedNetwork(spaic.Network):
             The function for load learners' parameters.
 
         '''
-        if '<net>' in learner['trainable']:  ## If self in net, use the whole net as the trainable traget.
+        if '<net>' in learner[
+            'trainable']:  ## If self in net, use the whole net as the trainable traget.
             learner.pop('trainable')
-            builded_learner = spaic.Learner(
-                algorithm = learner.get('algorithm'),
-                trainable = self,
+            builded_learner = Learner(
+                algorithm=learner.get('algorithm'),
+                trainable=self,
                 **learner.get('parameters')
             )
         else:
@@ -452,20 +458,20 @@ class ReloadedNetwork(spaic.Network):
                     trainable_list.append(self._connections[trains])
             learner.pop('trainable')
             if learner.get('parameters'):
-                builded_learner = spaic.Learner(
-                    trainable = trainable_list,
-                    algorithm = learner.get('algorithm'),
+                builded_learner = Learner(
+                    trainable=trainable_list,
+                    algorithm=learner.get('algorithm'),
                     **learner.get('parameters')
-                    )
+                )
             else:
-                builded_learner = spaic.Learner(
-                    trainable = trainable_list,
-                    algorithm = learner.get('algorithm')
+                builded_learner = Learner(
+                    trainable=trainable_list,
+                    algorithm=learner.get('algorithm')
                 )
         if learner.get('optim_name', None):
             builded_learner.set_optimizer(optim_name=learner.get('optim_name'),
-                                      optim_lr=learner.get('optim_lr'),
-                                      **learner.get('optim_para'))
+                                          optim_lr=learner.get('optim_lr'),
+                                          **learner.get('optim_para'))
         if learner.get('lr_schedule_name', None):
             builded_learner.set_schedule(lr_schedule_name=learner.get('lr_schedule_name'),
                                          **learner.get('lr_schedule_para'))
@@ -481,8 +487,8 @@ class ReloadedNetwork(spaic.Network):
 
 
         '''
-        monitor_dict = {'StateMonitor': spaic.StateMonitor,
-                        'SpikeMonitor': spaic.SpikeMonitor}
+        monitor_dict = {'StateMonitor': StateMonitor,
+                        'SpikeMonitor': SpikeMonitor}
 
         for name, mon in monitor.items():
             for target in self.get_groups():
@@ -495,7 +501,7 @@ class ReloadedNetwork(spaic.Network):
                     break
 
             self.add_monitor(name=name,
-                                 monitor=monitor_dict[mon.get('monitor_type', 'StateMonitor')](
+                             monitor=monitor_dict[mon.get('monitor_type', 'StateMonitor')](
                                  target=mon['target'],
                                  var_name=mon['var_name'],
                                  dt=mon['dt'],
