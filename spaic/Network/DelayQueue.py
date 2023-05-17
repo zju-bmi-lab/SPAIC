@@ -76,24 +76,25 @@ class TorchDelayQueue(DelayQueue):
 
     def __init__(self,var_name, max_len, backend):
         super(TorchDelayQueue, self).__init__(var_name, max_len, backend)
-        self.device = backend.device
+        self.device = backend.device0
         self._backend = backend
 
 
 
-    def initial(self, var=None):
+    def initial(self, var=None, batch_size=1):
         self.count = 0
         # self.queue = None #torch.zeros(queue_shape, device=self.device)
-        self.var_shape = var.shape
-        queue_shape = [self.max_len] + list(self.var_shape)
-        self.queue = torch.zeros(queue_shape, device=self.device)
+        self.var_shape = list(var.shape)
+        self.var_shape[0] = batch_size
+        queue_shape = [self.max_len] + self.var_shape
+        self.queue = torch.zeros(queue_shape, device=self.device[0], dtype=var.dtype)
 
     def transform_delay_output(self, input, delay):
         if input.dim() == 2:
             output = input.unsqueeze(-1).expand(-1, -1, delay.shape[0])
         else:
             output = input.unsqueeze(-1).expand(-1, -1, -1, delay.shape[0])
-        return output
+        return input
 
 
     def push(self, input):
@@ -102,7 +103,11 @@ class TorchDelayQueue(DelayQueue):
         #     queue_shape = [self.max_len] + list(self.var_shape)
         #     self.queue = torch.zeros(queue_shape, device=self.device)
 
-        self.queue[self.count, ...] = input
+        if input.requires_grad:
+            self.queue = torch.cat([self.queue[:self.count], input.unsqueeze(0), self.queue[self.count + 1:]], dim=0)
+        else:
+            self.queue[self.count, ...] = input
+
         self.count += 1
         self.count = self.count % self.max_len
 
@@ -125,6 +130,12 @@ class TorchDelayQueue(DelayQueue):
             output = torch.gather(self.queue, 0, ind)
             output[:, :, 1, :] -= (delay - ind*self.dt)[:, :, 1, :]/10.0
             output = output.permute(1,2,3,0)
+        elif self.queue.dim() == delay.dim():
+            delay = delay.expand(-1, self.var_shape[0], -1)
+            ind = (delay / self.dt).long()
+            ind = torch.fmod(self.max_len - ind + self.count, self.max_len)
+            output = torch.gather(self.queue, 0, ind).permute(1, 2, 0)
+
 
         return output
 

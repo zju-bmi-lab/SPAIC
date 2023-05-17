@@ -18,6 +18,8 @@ from ..Network.Topology import Connection
 from ..Backend.Backend import Backend
 from ..Network.Topology import Projection
 from ..Monitor.Monitor import Monitor
+from ..IO.Initializer import BaseInitializer
+from ..IO import Initializer as Initer
 
 import time
 
@@ -332,9 +334,11 @@ def trans_connection(connection: Connection, combine: bool, save_weight: bool):
             if key == 'parameters':
                 if 'weight' in para.keys():
                     del para['weight']
+                if 'bias' in para.keys():
+                    para['bias'] = trans_bias(para['bias'])
             para_dict[key] = check_var_type(para)
     if combine:     # 是否需要在文件中存储weight
-        para_dict['weight'] = check_var_type(connection.weight)
+        para_dict['weight'] = check_var_type(connection.weight.value)
 
     para_dict['_class_label'] = '<con>'
     result_dict[connection.name] = para_dict
@@ -384,6 +388,7 @@ def trans_backend(backend: Backend, save: bool):
             result_dict[key] = './parameters/' + key + '.pt'
         else:
             result_dict = backend._parameter_dict
+            # pass
             # raise ValueError("Wrong save choosen, since parameters can be get from network"
             #                  "unneeded to use network_save function.")
 
@@ -499,7 +504,17 @@ def check_var_type(var):
 
 
 
-# def
+def trans_bias(para: dict):
+    if isinstance(para, BaseInitializer):
+        n_para = dict()
+        for key in Initer.__all__:
+            if Initer.__dict__[key] == para.__class__:
+                n_para['method'] = key
+                break
+        n_para['para'] = para.__dict__
+        return n_para
+    else:
+        return para
 
 
 

@@ -15,11 +15,18 @@ from spaic.Network.Assembly import Assembly
 from collections import OrderedDict
 from warnings import warn
 import spaic
-# from ..Backend.Backend import Op
+from ..utils.memory import get_tens_mem
+from multiprocessing.pool import ThreadPool as Pool
+
+try:
+    import torch
+except:
+    pass
+
 
 class Network(Assembly):
-
     _class_label = '<net>'
+
     def __init__(self, name=None):
 
         super(Network, self).__init__(name=name)
@@ -27,27 +34,33 @@ class Network(Assembly):
         self._learners = OrderedDict()
         self._pipline = None
         self._backend: spaic.Backend = None
+        self._forward_build = False
         pass
 
     # --------- Frontend code ----------
-    def set_backend(self, backend=None, device='cpu'):
+    def set_backend(self, backend=None, device='cpu', partition=False):
+        if isinstance(device, str):
+            device = [device]
         if backend is None:
             self._backend = spaic.Torch_Backend(device)
+            self._backend.partition = partition
         elif isinstance(backend, spaic.Backend):
             self._backend = backend
         elif isinstance(backend, str):
-            if backend == 'torch' or backend =='pytorch':
+            if backend == 'torch' or backend == 'pytorch':
                 self._backend = spaic.Torch_Backend(device)
+                self._backend.partition = partition
             elif backend == 'tensorflow':
                 self._backend = spaic.Tensorflow_Backend(device)
 
-    def set_backend_dt(self, dt=0.1):
+    def set_backend_dt(self, dt=0.1, partition=False):
         if self._backend is None:
             warn("have not set backend, default pytorch backend is set automatically")
             self._backend = spaic.Torch_Backend('cpu')
             self._backend.dt = dt
         else:
             self._backend.dt = dt
+            self._backend.partition = partition
 
     def set_random_seed(self, seed):
         if isinstance(self._backend, spaic.Torch_Backend):
@@ -79,18 +92,26 @@ class Network(Assembly):
 
     # ---------  backend code  ----------
 
-    def build(self, backend=None, strategy=0):
+    def build(self, backend=None, strategy=0, full_enable_grad=None, device=None):
+        if full_enable_grad is not None:
+            self.enable_full_grad(full_enable_grad)
         if self._backend is None:
             if backend is not None:
-                self.set_backend(backend)
+                if device is not None:
+                    self.set_backend(backend, device)
+                else:
+                    self.set_backend(backend)
             else:
-                self.set_backend()
+                if device is not None:
+                    self.set_backend(device=device)
+                else:
+                    self.set_backend()
 
         self._backend.clear_step()
 
         # build 试运行时，假设一个runtime
         if self._backend.runtime is None:
-            self._backend.runtime = 10*self._backend.dt
+            self._backend.runtime = 10 * self._backend.dt
 
         all_groups = self.get_groups()
         for asb in all_groups:
@@ -100,20 +121,23 @@ class Network(Assembly):
 
         all_connections = self.get_connections()
 
+        # for debug
+        con_debug = False
+        con_syn_count = 0
 
         for con in all_connections:
             con.set_id()
 
-            #----根据连接，对每个神经元建立input_connection和output_connection
+            # ----根据连接，对每个神经元建立input_connection和output_connection
             con.pre.register_connection(con, True)
             con.post.register_connection(con, False)
-
 
         if strategy == 1:
             # 采取单纯的从头递归地build，一旦出现环路会陷入死循环，可以避开固有延迟的问题,
             # Use directly build strategy to avoid inherent delay. But cannot be used on models with loop, will fall in an endless loop.
             # Unfortunately,
             self.forward_build(all_groups, all_connections)
+            self._backend.forward_build = True
         # elif strategy == 2:
         #     # 采取策略性构建，但是目前存在两个问题：
         #     #   1. 网络中存在Assembly块时会出现bug，尚未修复
@@ -123,23 +147,41 @@ class Network(Assembly):
         else:
             # 原本的构建方式，首先构建连接，每个连接都是用上一轮神经元的输出脉冲，从而存在固有延迟的问题
             # 但是可以避开环路的问题。
-            for connection in all_connections:
-                connection.build(self._backend)
+            self._backend.forward_build = False
+            def build_fn(module):
+                # if con_debug:
+                #     con_syn_count += torch.count_nonzero(connection.weight.value).item()
+                module.build(self._backend)
 
-            for group in all_groups:
-                group.build(self._backend)
+            # for connection in all_connections:
+            #     connection.build(self._backend)
+            #     if con_debug:
+            #         import torch
+            #         con_syn_count += torch.count_nonzero(connection.weight.value).item()
+
+            # for group in all_groups:
+            #     group.build(self._backend)    
+            pool = Pool(4)
+            pool.map(build_fn, all_connections)
+            pool.close()
+            pool.join()
+            pool = Pool(4)
+            pool.map(build_fn, all_groups)
+            pool.close()
+            pool.join()
+
+        for learner in self._learners.values():
+            learner.set_id()
+            learner.build(self._backend)
 
         for monitor in self._monitors.values():
             monitor.build(self._backend)
 
-        for learner in self._learners.values():
-            learner.build(self._backend)
-
         self._backend.build_graph()
         # self._backend.build()
         self._backend.builded = True
-
-
+        # if con_debug:
+        #     print("Connection synapses count:%d"%con_syn_count)
 
         # for group in all_groups:
         #     if hasattr(group, 'index'):
@@ -150,55 +192,64 @@ class Network(Assembly):
     def forward_build(self, all_groups=None, all_connections=None):
         builded_groups = []
         builded_connections = []
-        for group in all_groups:
-            # if '_node_sub_class' in dir(group):
-            #     if group._node_sub_class == '<encoder>' or (group._node_sub_class) == '<generator>':
-            if (group._class_label == '<nod>') and ('predict' not in dir(group)):
-                group.build(self._backend)
-                builded_groups.append(group)
-                all_groups.remove(group)
-        break_tag = 0
-        crash_tag = 100
-        while all_groups or all_connections:
-            old_all_connections = all_connections.copy()
-            old_all_groups = all_groups.copy()
-            if break_tag > crash_tag:
-                raise Warning('May be stuck in an infinite building loop.')
-                keep_build = str(input('continue?(Y or N)'))
-                if keep_build.lower() == 'y':
-                    break_tag = 0
-                    crash_tag += 100
-                    continue
-                break
-            for conn in old_all_connections:
-                if conn.pre_assembly in builded_groups: # 如果连接的突触前神经元已经build，则可以build
-                    conn.build(self._backend)
-                    builded_connections.append(conn)
-                    all_connections.remove(conn)
-                    break_tag = 0
-                    continue
-            break_tag += 1
-            for group in old_all_groups:
-                can_build = 1
-                if not all_connections:
+        nod_groups = []
+        for group in all_groups.copy():
+            if group._class_label == '<nod>':
+                if (group._node_sub_class == '<encoder>') or (group._node_sub_class == '<generator>'):
                     group.build(self._backend)
                     builded_groups.append(group)
                     all_groups.remove(group)
-                    break_tag = 0
-                    continue
+                    for conn in group._output_connections:
+                        self.deep_forward_build(conn, all_groups, all_connections, builded_groups, builded_connections)
+                    for module in group._output_modules:
+                        self.deep_forward_build(module, all_groups, all_connections, builded_groups,
+                                                builded_connections)
                 else:
-                    for conn in all_connections:
-                        if group == conn.post_assembly:
-                            can_build = 0
-                            break
-                    if can_build:
-                        group.build(self._backend)
-                        builded_groups.append(group)
-                        all_groups.remove(group)
-                        break_tag = 0
-                        continue
-            break_tag += 1
-    #
+                    all_groups.remove(group)
+                    nod_groups.append(group)
+
+        while all_groups or all_connections:
+            for group in all_groups:
+                self.deep_forward_build(group, all_groups, all_connections, builded_groups, builded_connections)
+            for conn in all_connections:
+                self.deep_forward_build(conn, all_groups, all_connections, builded_groups, builded_connections)
+
+        for group in nod_groups:
+            group.build(self._backend)
+            builded_groups.append(group)
+
+    def deep_forward_build(self, target, all_groups, all_connections, builded_groups, builded_connections):
+        if (target in builded_groups) or (target in builded_connections):
+            return
+        if target._class_label == '<con>':
+            pre = [target.pre]
+            post = [target.post]
+        elif target._class_label == '<neg>':
+            pre = target._input_connections + target._input_modules
+            post = target._output_connections + target._output_modules
+        elif target._class_label == '<mod>':
+            pre = target.input_targets.copy()
+            post = target.output_targets.copy()
+        else:
+            raise ValueError("Deep forward build Error, unsupported class label.")
+
+        for pr in pre:
+            if (pr in all_groups) or (pr in all_connections):
+                return
+
+        target.build(self._backend)
+        if target._class_label == '<con>':
+            builded_connections.append(target)
+            all_connections.remove(target)
+        elif (target._class_label == '<neg>') or (target._class_label == '<mod>'):
+            builded_groups.append(target)
+            all_groups.remove(target)
+
+        for po in post:
+            self.deep_forward_build(po, all_groups, all_connections, builded_groups, builded_connections)
+
+        return
+
     # def strategy_build(self, all_groups=None):
     #     builded_groups = []
     #     unbuild_groups = {}
@@ -310,6 +361,9 @@ class Network(Assembly):
         if self._backend.builded is True:
             self._backend.initial_step()
 
+    def enable_full_grad(self, requires_grad=True):
+        self._backend.full_enable_grad = requires_grad
+
     def init_run(self):
         self._backend.initial_step()
 
@@ -322,6 +376,12 @@ class Network(Assembly):
 
         self.__setattr__(name, monitor)
         # self._monitors[name] = monitor
+
+    def get_elements(self):
+        element_dict = dict()
+        for element in self.get_groups():
+            element_dict[element.id] = element
+        return element_dict
 
     def save_state(self, filename=None, direct=None, save=True, hdf5=False):
         """
@@ -400,15 +460,17 @@ class Network(Assembly):
             self.build()
         if self._backend.device != device:
             import warnings
-            warnings.warn('Backend device setting is '+self._backend.device+'. Backend device selection is priority.')
-            device = self._backend.device
+            warnings.warn(
+                'Backend device setting is ' + str(self._backend.device) + '. Backend device selection is priority.')
+            # device = self._backend.device
         if state:
             import torch
             if isinstance(state, dict) or isinstance(state, torch.Tensor):
                 for key, para in state.items():
                     backend_key = self._backend.check_key(key, self._backend._parameters_dict)
-                    if key:
-                        self._backend._parameters_dict[backend_key] = para.to(device)
+                    if backend_key:
+                        target_device = self._backend._parameters_dict[backend_key].device
+                        self._backend._parameters_dict[backend_key] = para.to(target_device)
 
                 # if self._backend.device
                 return
@@ -435,13 +497,14 @@ class Network(Assembly):
             raise ValueError('Wrong Path.')
 
         if '_parameters_dict.pt' in os.listdir('./'):
-            data = torch.load('./_parameters_dict.pt')
+            data = torch.load('./_parameters_dict.pt', map_location=self._backend.device0)
             for key, para in data.items():
                 backend_key = self._backend.check_key(key, self._backend._parameters_dict)
                 if backend_key:
-                    self._backend._parameters_dict[backend_key] = para.to(device)
+                    target_device = self._backend._parameters_dict[backend_key].device
+                    self._backend._parameters_dict[backend_key] = para.to(target_device)
             if 'module_dict.pt' in os.listdir('./'):
-                module_data = torch.load('./module_dict.pt')
+                module_data = torch.load('./module_dict.pt', map_location=self._backend.device0)
                 for group in self.get_groups():
                     if isinstance(group, spaic.Module):
                         target_key = self._backend.check_key(group.id, module_data)
@@ -454,9 +517,7 @@ class Network(Assembly):
                         for key, para in f.items():
                             backend_key = self._backend.check_key(key, self._backend._parameters_dict)
                             if key:
-                                self._backend._parameters_dict[backend_key] = para.to(device)
+                                target_device = self._backend._parameters_dict[backend_key].device
+                                self._backend._parameters_dict[backend_key] = para.to(target_device)
         os.chdir(origin_path)
         return
-
-
-

@@ -15,6 +15,7 @@ from ..Network.Assembly import BaseModule
 from abc import ABC, abstractmethod
 from collections import OrderedDict
 import torch
+import spaic
 import torch.nn.functional as F
 import numpy as np
 
@@ -41,7 +42,7 @@ class Learner(BaseModule, ABC):
             build(self, backend) : Build Learner, choose the backend as user wish, if we have already finished the api.
 
     '''
-
+    _class_label = '<learner>'
     learning_algorithms = dict()
     learning_optims = dict()
     optim_dict = {'Adam': torch.optim.Adam, 'AdamW': torch.optim.AdamW,
@@ -60,7 +61,7 @@ class Learner(BaseModule, ABC):
                         'CyclicLR': torch.optim.lr_scheduler.CyclicLR,
                         'CosineAnnealingWarmRestarts': torch.optim.lr_scheduler.CosineAnnealingWarmRestarts}
 
-    def __init__(self, trainable=None, pathway=None, algorithm=('STCA', 'STBP', 'RSTDP', '...'), **kwargs):
+    def __init__(self, trainable=None, pathway=None, algorithm=('STCA', 'STBP', 'RSTDP', '...'), name=None, **kwargs):
 
         super(Learner, self).__init__()
 
@@ -68,7 +69,7 @@ class Learner(BaseModule, ABC):
         self.super_parameters = OrderedDict()
         self.backend_functions = OrderedDict()
 
-        self.name = None
+        self.name = self.set_name(name)
         self.optim_name = None
         self.optim = None
         self.lr_schedule_name = None
@@ -82,6 +83,11 @@ class Learner(BaseModule, ABC):
         self.init_trainable = trainable
         self.training_param_name = []
         self.param_run_update = kwargs.get("param_run_update", False)
+        self._variables = dict()
+        self._constant_variables = dict()
+        self._tau_constant_variables = dict()
+        self._tau_membrane_variables = dict()
+
 
         self.pathway_groups = OrderedDict()
         self.pathway_connections = OrderedDict()
@@ -158,7 +164,7 @@ class Learner(BaseModule, ABC):
             elif isinstance(target, BaseModule):
                 self.pathway_others[target.id] = target
 
-    def build(self, backend):
+    def build(self, backend: spaic.Backend):
         '''
             Build Learner, choose the backend as user wish, if we have already finished the api.
             Args:
@@ -171,7 +177,6 @@ class Learner(BaseModule, ABC):
 
         if backend.backend_name in self.prefered_backend:
             self._backend = backend
-
         else:
             raise ValueError(
                 "the backend %s is not supported by the learning rule %s" % (backend.backend_name, self.name))
@@ -199,6 +204,8 @@ class Learner(BaseModule, ABC):
                     op.requires_grad = True
             for mod in self.trainable_modules.values():
                 mod.module.requires_grad_()
+                for op in mod._ops:
+                    op.requires_grad = True
 
             for node in self.pathway_nodes.values():
                 for op in node._ops:
@@ -214,6 +221,67 @@ class Learner(BaseModule, ABC):
                     op.requires_grad = True
             for mod in self.pathway_modules.values():
                 mod.module.requires_grad_()
+                for op in mod._ops:
+                    op.requires_grad = True
+
+
+        # add learner variables to the backend
+        self.dt = backend.dt
+        for (key, tau_var) in self._tau_constant_variables.items():
+            tau_var = np.exp(-self.dt / tau_var)
+            shape = ()
+            self.variable_to_backend(self._add_label(key), shape, value=tau_var)
+        for (key, tau_membrane_var) in self._tau_membrane_variables.items():
+            tau_membrane_var = self.dt/tau_membrane_var
+            shape = ()  # (1, neuron_num)
+            self.variable_to_backend(self._add_label(key), shape, value=tau_membrane_var)
+        for (key, var) in self._constant_variables.items():
+            if isinstance(var, np.ndarray):
+                if var.size > 1:
+                    var_shape = var.shape
+                    shape = (1, *var_shape)  # (1, shape)
+                else:
+                    shape = ()
+            elif isinstance(var, list):
+                if len(var) > 1:
+                    var_len = len(var)
+                    shape = (1, var_len)  # (1, shape)
+                else:
+                    shape = ()
+            else:
+                shape = ()
+            self.variable_to_backend(self._add_label(key), shape, value=var)
+        for (key, var) in self._variables.items():
+            if isinstance(var, np.ndarray):
+                if var.size > 1:
+                    var_shape = var.shape
+                    shape = (1, *var_shape)  # (1, shape)
+                else:
+                    shape = ()
+            elif isinstance(var, list):
+                if len(var) > 1:
+                    var_len = len(var)
+                    shape = (1, var_len)  # (1, shape)
+                else:
+                    shape = ()
+            else:
+                shape = ()
+            self.variable_to_backend(self._add_label(key), shape, value=var)
+
+        # build custom learning rules
+        if self.is_overridden(self.custom_rule):
+            self.custom_rule(backend)
+        if self.is_overridden(self.connection_rule):
+            for conn in self.trainable_connections.values():
+                self.connection_rule(conn, backend, 'trainable')
+            for conn in self.pathway_connections.values():
+                self.connection_rule(conn, backend, 'pathway')
+        if self.is_overridden(self.neuron_rule):
+            for neuron in self.trainable_groups.values():
+                self.neuron_rule(neuron, backend, 'trainable')
+            for neuron in self.pathway_groups.values():
+                self.neuron_rule(neuron, backend, 'pathway')
+
 
 
     def __new__(cls, trainable=None, pathway=None, algorithm=('STCA', 'STBP', 'RSTDP', '...'), **kwargs):
@@ -281,6 +349,8 @@ class Learner(BaseModule, ABC):
     def get_varname(self, key):
         name = self.name + ':{' + key + '}'
         return name
+    def get_var_names(self):
+        return self._var_names
 
     def build_optimizer(self):
 
@@ -299,7 +369,7 @@ class Learner(BaseModule, ABC):
                         varialbe_value = self._backend._variables[key]
                         if varialbe_value is not value:
                             value.data = varialbe_value.data
-                            self._backend._variables[key] = value
+                            self._backend._variables[key] = value #Is this step needed?
 
         if self.optim is not None:
             self.optim.step()
@@ -324,22 +394,23 @@ class Learner(BaseModule, ABC):
 
         Learner.learning_algorithms[name] = algorithm
 
-    @staticmethod
-    def connection_function(learner, input_vars=dict(), output_vars=dict(), new_vars_dict=dict(), execute_condition=['initial','iterative','end'], target=['trainable', 'pathway']):
-        pass
+    def custom_rule(self, backend: spaic.Backend):
+        return None
 
-    @staticmethod
-    def Assamble_function(learner, input_vars=dict(), output_vars=dict(), new_vars_dict=dict(), execute_condition=['initial','iterative','end'], target=['trainable', 'pathway']):
-        pass
+    def connection_rule(self, con : spaic.Connection, backend: spaic.Backend, obj_type='trainable'):
+        return None
 
 
-class SpikeProp(Learner):
+    def neuron_rule(self, neuron: spaic.NeuronGroup, backend: spaic.Backend, obj_type='trainable'):
+        return None
 
-    def __init__(self):
-        super(SpikeProp, self).__init__()
-        pass
 
-# Learner.register("spikeprop", SpikeProp)
+    def is_overridden(self, func):
+        if isinstance(self, Learner):
+            return False
+        super_func = getattr(super(type(self), self), func.__name__)
+        return super_func != func
+
 
 
 class ReSuMe(Learner):

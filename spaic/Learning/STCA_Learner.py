@@ -39,6 +39,7 @@ class ActFun(torch.autograd.Function):
     ):
         input, = ctx.saved_tensors
         grad_input = grad_output.clone()
+        ctx.alpha = ctx.alpha.to(input)
         temp = abs(input - ctx.thresh) < ctx.alpha  # 根据STCA，采用了sign函数
         result = grad_input * temp.type_as(input)
         return result, None, None
@@ -93,7 +94,7 @@ class STCA(Learner):
 
         '''
         super(STCA, self).build(backend)
-        self.device = backend.device
+        self.device = backend.device0
         if backend.backend_name == 'pytorch':
             import torch
             class ActFun(torch.autograd.Function):

@@ -112,7 +112,7 @@ class Environment_Reward(Reward):
 
     def torch_coding(self, record, target, device):
         # the shape of record is (time_step, batch_size, n_neurons)
-        reward = torch.tensor(target, device=device)
+        reward = torch.tensor(target, device=device, dtype=self.data_type)
         return reward
 
 Reward.register('environment_reward', Environment_Reward)
