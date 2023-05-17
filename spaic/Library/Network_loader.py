@@ -271,9 +271,11 @@ class ReloadedNetwork(Network):
 
         if 'bias' in con['parameters'].keys():
             bias = con['parameters']['bias']
-            if 'method' in con['parameters']['bias'].keys():
-                method = bias.get('method')
-                con['parameters']['bias'] = Initer.__dict__[method](**bias.get('para'))
+            if isinstance(con['parameters']['bias'], dict):
+                if 'method' in con['parameters']['bias'].keys():
+                    method = bias.get('method')
+                    con['parameters']['bias'] = Initer.__dict__[method](**bias.get('para'))
+
 
         # con.pop('weight_path')
         return_conn = Connection(
