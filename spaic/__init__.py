@@ -8,7 +8,7 @@ Created on 2020/8/11
 @description: 
 """
 
-VERSION = (0, 6, 1, 0, 0)
+VERSION = (0, 6, 2, 0, 0)
 __version__ = '.'.join(map(lambda x: str(x), VERSION))
 
 # print('__file__={0:<35} | __name__={1:<20} | __package__={2:<20}'.format(__file__,__name__,str(__package__)))
