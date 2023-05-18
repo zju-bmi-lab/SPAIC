@@ -32,7 +32,7 @@ class NeuronGroup(Assembly):
                  model=None,
                  shape=None,
                  neuron_type=('excitatory', 'inhibitory', 'pyramidal', '...'),
-                 neuron_position=('x, y, z'),
+                 neuron_position='x, y, z',
                  name=None,
                  parameter_variables: list = None,
                  varible_ranges: dict = None,
@@ -51,7 +51,7 @@ class NeuronGroup(Assembly):
         else:
             self.type = [neuron_type]
 
-        if neuron_position == ('x, y, z'):
+        if neuron_position == 'x, y, z':
             self.position = []
         else:
             neuron_position = np.array(neuron_position)
