@@ -87,14 +87,14 @@ class TorchDelayQueue(DelayQueue):
         self.var_shape = list(var.shape)
         self.var_shape[0] = batch_size
         queue_shape = [self.max_len] + self.var_shape
-        self.queue = torch.zeros(queue_shape, device=self.device[0], dtype=var.dtype)
+        self.queue = torch.zeros(queue_shape, device=self.device, dtype=var.dtype)
 
     def transform_delay_output(self, input, delay):
         if input.dim() == 2:
             output = input.unsqueeze(-1).expand(-1, -1, delay.shape[0])
         else:
             output = input.unsqueeze(-1).expand(-1, -1, -1, delay.shape[0])
-        return input
+        return output
 
 
     def push(self, input):
@@ -118,10 +118,10 @@ class TorchDelayQueue(DelayQueue):
         # Only for one-dim neurongroup for now
         delay = delay.clip(0, self.max_len*self.dt)
         if self.queue.dim() == delay.dim()+1:
-            delay = delay.unsqueeze(1).expand(-1, self.var_shape[0], -1)
+            delay = delay.unsqueeze(1).expand(-1, self.var_shape[0], -1)  # (post_num, batch)
             ind = (delay/self.dt).long()
             ind = torch.fmod(self.max_len-ind + self.count, self.max_len)
-            output = torch.gather(self.queue, 0, ind).permute(1,2,0)
+            output = torch.gather(self.queue, 0, ind).permute(1, 0, 2)
 
         elif self.queue.dim() == delay.dim()+2:
             delay = delay.unsqueeze(1).unsqueeze(1).expand(-1,self.var_shape[0], 2, -1)
@@ -129,12 +129,12 @@ class TorchDelayQueue(DelayQueue):
             ind = torch.fmod(self.max_len-ind + self.count+1, self.max_len)
             output = torch.gather(self.queue, 0, ind)
             output[:, :, 1, :] -= (delay - ind*self.dt)[:, :, 1, :]/10.0
-            output = output.permute(1,2,3,0)
+            output = output.permute(1, 0, 2, 3)
         elif self.queue.dim() == delay.dim():
             delay = delay.expand(-1, self.var_shape[0], -1)
             ind = (delay / self.dt).long()
             ind = torch.fmod(self.max_len - ind + self.count, self.max_len)
-            output = torch.gather(self.queue, 0, ind).permute(1, 2, 0)
+            output = torch.gather(self.queue, 0, ind).permute(1, 0, 2)
 
 
         return output

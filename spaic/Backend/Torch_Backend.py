@@ -600,7 +600,7 @@ class Torch_Backend(Backend):
 
     def mult_sum_weight(self, A, X):
         # X = X.permute(1, 0)
-        A = A.permute(0, 2, 1)
+        # A = A.permute(0, 2, 1)
         return torch.sum(A * X, dim=-1)
 
     def mat_linear(self, A, X, b):
