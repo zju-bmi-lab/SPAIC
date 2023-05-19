@@ -12,13 +12,13 @@ wrap around deep learning module such as a cnn network lstm cell
 import torch
 
 import spaic
-from ..Network.Assembly import Assembly
-from ..Network.BaseModule import Op
+from spaic.Network.Assembly import Assembly
+from spaic.Network.BaseModule import Op
 
 class Module(Assembly):
     _class_label = '<mod>'
 
-    def __init__(self, module=None, name=None, input_targets=[], input_var_names=['O[updated]'], output_tragets=None, output_var_names=['Isyn'], module_backend='pytorch'):
+    def __init__(self, module=None, name=None, input_targets=[], input_var_names=['O[updated]'], output_targets=None, output_var_names=['Isyn'], module_backend='pytorch'):
         super(Module, self).__init__(name)
         self.module: torch.nn.Module = module
         if isinstance(input_targets, list):
@@ -29,14 +29,21 @@ class Module(Assembly):
             self.input_var_names = input_var_names
         else:
             self.input_var_names = [input_var_names]
-        if isinstance(output_tragets, list):
-            self.output_traget = output_tragets
+
+        if isinstance(output_targets, list):
+            self.output_targets = output_targets
         else:
-            self.output_traget = [output_tragets]
+            self.output_targets = [output_targets]
         if isinstance(output_var_names, list):
             self.output_var_names = output_var_names
         else:
             self.output_var_names = [output_var_names]
+
+        for in_targ in self.input_targets:
+            in_targ.register_module(self, True)
+        for out_targ in self.output_targets:
+            out_targ.register_module(self, False)
+
         self.module_backend = module_backend
 
 
@@ -83,7 +90,7 @@ class Module(Assembly):
             self.variable_to_backend(key, shape, self._var_values[ii])
 
         # add standalone operation
-        output_var_name = self.output_traget[0].id + ":" + "{" + self.output_var_names[0] + "}"
+        output_var_name = self.output_targets[0].id + ":" + "{" + self.output_var_names[0] + "}"
         self._var_names.append(output_var_name)
         input_var_names = []
         for input_target, input_name in zip(self.input_targets, self.input_var_names):
@@ -92,7 +99,7 @@ class Module(Assembly):
             input_var_names.append(input_var_name)
 
         backend.register_standalone(Op(output_var_name, self.standalone_run, input_var_names, owner=self))
-        self.module.to(backend.device)
+        self.module.to(backend.device0)
 
 
 

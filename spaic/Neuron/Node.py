@@ -9,10 +9,10 @@ Created on 2020/8/11
 @description:
 定义神经网络的输入输出接口
 """
-from ..Network.Assembly import Assembly
+from spaic.Network.Assembly import Assembly
 import torch
 import numpy as np
-from ..Backend.Backend import Op
+from spaic.Backend.Backend import Op
 class Node(Assembly):
     '''Base class for input encoder and output decoders.
     '''
@@ -23,7 +23,6 @@ class Node(Assembly):
                  coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
         super(Node, self).__init__()
 
-        self._node_sub_class = None
         self._dt = dt
         self._time = kwargs.get('time', None)
         self.coding_var_name = coding_var_name
@@ -42,7 +41,7 @@ class Node(Assembly):
 
         self.coding_var_name = coding_var_name
 
-        if coding_method == 'null':
+        if coding_method.lower() == 'null':
             self.is_encoded = True
         else:
             self.is_encoded = kwargs.get('is_encoded', False)
@@ -60,16 +59,16 @@ class Node(Assembly):
 
         if shape is None:
             if self.is_encoded:
-                self.shape = (1, 1, self.num)
+                self.shape = [1, 1, self.num]
             else:
-                self.shape = (1, self.num)
+                self.shape = [1, self.num]
         else:
             if coding_method == 'mstb' or coding_method == 'sstb':
                 self.shape = (1, self.num)
             elif self.is_encoded:
-                self.shape = tuple([1, 1] + list(shape))
+                self.shape = [1, 1] + list(shape)
             else:
-                self.shape = tuple([1] + list(shape))
+                self.shape = [1] + list(shape)
 
         if node_type == ('excitatory', 'inhibitory', 'pyramidal', '...'):
             self.type = []
@@ -146,15 +145,13 @@ class Node(Assembly):
 
     def torch_coding(self, source: torch.Tensor, target: torch.Tensor , device: str) -> torch.Tensor:
         '''
-
         Args:
-            source (): It is input spike trains for encoding class and output spike trains for decoding class.
-            target (): It is None  for encodoing class and labels for decoding class.
-            device (): CPU or CUDA, this parameter is taken from backend
-
+            source : It is input spike trains for encoding class and output spike trains for decoding class.
+            target : It is None  for encodoing class and labels for decoding class.
+            device : CPU or CUDA, this parameter is taken from backend
         Returns:
-
         '''
+
         raise NotImplementedError
 
     def numpy_coding(self, source, target, device):
@@ -165,7 +162,7 @@ class Node(Assembly):
 
     def build(self, backend):
         self._backend = backend
-        raise NotImplementedError
+        self.data_type = backend.data_type
 
     def __call__(self, data=None):
 
@@ -176,6 +173,9 @@ class Node(Assembly):
             elif isinstance(data, torch.Tensor):
                 self.source = data
                 batch_size = data.shape[0]
+            elif isinstance(data, list) and self.coding_method=="mstb":
+                self.source = data
+                batch_size = len(self.source)
             elif hasattr(data, '__iter__'):
                 self.source = np.array(data)
                 batch_size = self.source.shape[0]
@@ -295,7 +295,7 @@ class Encoder(Node):
     def build(self, backend):
         self._backend = backend
         self.sim_name = backend.backend_name
-        self.device = backend.device
+        self.device = backend.device0
 
         # if self.dt is None:
         #     self.dt = backend.dt
@@ -404,7 +404,7 @@ class Decoder(Node):
     def build(self, backend):
         self._backend = backend
         self.sim_name = backend.backend_name
-        self.device = backend.device
+        self.device = backend.device0
         # if self.dt is None:
         #     self.dt = backend.dt
 
@@ -470,7 +470,8 @@ class Reward(Node):
         self.index = 0
 
     # stand alone operation: get reward from output activities
-    def get_reward(self, output):
+    def get_reward(self, output=np.empty(0)):
+        self.device = self._backend.device0
         if (self.index % self.dec_sample_step) == 0:
             self.index = 0
             shape = list(output.shape)
@@ -493,16 +494,18 @@ class Reward(Node):
     def build(self, backend):
         self._backend = backend
         self.sim_name = backend.backend_name
-        self.device = backend.device
+        self.data_type = backend.data_type
+        self.device = backend.device0
         # if self.dt is None:
         #     self.dt = backend.dt
-
-        output_name = self.dec_target.id + ':' + '{'+self.coding_var_name+'}'
         self.init_op_to_backend(None, self.init_state, [])
         reward_name = 'Output_Reward'
-        self.variable_to_backend(reward_name, self.reward_shape, value=0.0) # shape还是要让具体的子类定义吧
-
-        backend.register_standalone(Op(reward_name, self.get_reward, [output_name], owner=self))
+        self.variable_to_backend(reward_name, self.reward_shape, value=0.0)  # shape还是要让具体的子类定义吧
+        if self.dec_target is not None:
+            output_name = self.dec_target.id + ':' + '{'+self.coding_var_name+'}'
+            backend.register_standalone(Op(reward_name, self.get_reward, [output_name], owner=self))
+        else:
+            backend.register_standalone(Op(reward_name, self.get_reward, [], owner=self))
 
 
 class Generator(Node):
@@ -594,7 +597,7 @@ class Generator(Node):
     def build(self, backend):
         self._backend = backend
         self.sim_name = backend.backend_name
-        self.device = backend.device
+        self.device = backend.device0
         # if self.dt is None:
         #     self.dt = backend.dt
 
@@ -693,7 +696,7 @@ class Action(Node):
     def build(self, backend):
         self._backend = backend
         self.sim_name = backend.backend_name
-        self.device = backend.device
+        self.device = backend.device0
         # if self.dt is None:
         #     self.dt = backend.dt
 

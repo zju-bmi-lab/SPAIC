@@ -15,6 +15,10 @@ import numpy as np
 import torch.nn.functional as fn
 import torch.nn as nn
 from typing import Tuple, Dict, Callable
+from collections import defaultdict
+from torch.cuda.amp import autocast
+import torch.distributed
+import threading
 
 class Torch_Engine(torch.nn.Module):
     def __init__(self, graph_operations):
@@ -62,8 +66,9 @@ class Torch_Backend(Backend):
 
     def __init__(self, device='cpu'):
         super(Torch_Backend, self).__init__()
-
-        self.device = device[0] if isinstance(device,list) else device
+        self.device = device if isinstance(device,list) else [device]
+        self.device0 = self.device[0]
+        self.device_count = len(self.device)
         self.data_type = torch.float32
         self.debug_data = []
         self.nograd_decorator = torch.no_grad()
@@ -90,10 +95,71 @@ class Torch_Backend(Backend):
 
         for key, value in self._InitVariables_dict.items():
             if isinstance(value, torch.Tensor):
-                value = value.to(self.device)
+                value = value.to(self.device0)
                 self._InitVariables_dict[key] = value
 
         super(Torch_Backend, self).build_graph()
+
+    def remove_tensor(self, inputs):
+        if not torch.is_tensor(inputs[0]):
+            device = inputs[1].device
+        else:
+            device = inputs[0].device
+        for ind,t in enumerate(inputs):
+            if torch.is_tensor(t):
+                inputs[ind] = t.to(device)
+
+    def is_insert(self,inputs):
+        if len(inputs) == 0:
+            return False
+        elif len(set(inputs)) < len(inputs):
+            return True
+
+    def move_compute_and_assign_tensors(self,op):
+        inputs = []
+        for var in op.input:
+            if torch.is_tensor(var.value):
+                var.value = var.value.to(op.place)
+                inputs.append(var.value)
+            elif isinstance(var.value, list):
+                for ind,x in enumerate(var.value):
+                    if torch.is_tensor(x):
+                        var.value[ind] = x.to(op.place)
+                inputs.append(var.value)
+            else:
+                inputs.append(var.value)
+        result = op.func(*inputs)
+        if len(op.output) == 1: result = [result]
+        for ind, var in enumerate(op.output):
+            var.value = result[ind]
+
+    def graph_update_step_multigpu(self):
+        def _worker(*tuple):
+            grad_enabled, autocast_enabled = torch.is_grad_enabled(), torch.is_autocast_enabled()
+            for group in sorted(tuple):
+                op = self._graph_operations[group]
+                # with torch.cuda.device(self.device[index]), autocast(enabled=autocast_enabled):
+                self.move_compute_and_assign_tensors(op)
+
+        if self.partition:
+            if self.partition == 'multithread':
+                threads = [threading.Thread(target=_worker,args=group) for group in self.groups]
+                for thread in threads:
+                    thread.start()
+                for thread in threads:
+                    thread.join()
+            if self.partition == 'thread1':
+                for group in self.groups:
+                    for i in sorted(group):
+                        op = self._graph_operations[i]
+                        self.move_compute_and_assign_tensors(op)
+            for op in self.isolate:
+                op = self._graph_operations[op]
+                self.move_compute_and_assign_tensors(op)
+        else:
+            for group in self.groups:
+                for op in group:
+                    self.move_compute_and_assign_tensors(op)
 
     def to_nograd_func(self, func):
         return self.nograd_decorator(func)
@@ -101,23 +167,8 @@ class Torch_Backend(Backend):
     def to_grad_func(self, func):
         return self.enablegrad_decorator(func)
 
-
-    # def graph_update_step(self):
-    #
-    #     for op in self._graph_operations:
-    #         inputs = []
-    #         for var in op.input:
-    #             inputs.append(self._graph_var_dicts[var[0]][var[1]])
-    #
-    #         if op.output[0] is 'reduce_dict':
-    #             self._graph_var_dicts['reduce_dict'][op.output[1]].append(op.func(*inputs))
-    #         else:
-    #             self._graph_var_dicts[op.output[0]][op.output[1]] = op.func(*inputs)
-    #
-    #     return tuple(self._graph_var_dicts['variables_dict'].values())
-
     #  As of now, autograd support floating point Tensor types ( half, float, double and bfloat16) and complex Tensor types (cfloat, cdouble).
-    def add_backend_variable(self, module, name, shape, value=None, grad=False, is_sparse=False, init=None, init_param=None):
+    def add_backend_variable(self, module, name, shape, value=None, grad=False, is_sparse=False, init=None, init_param=None, prefer_device=None):
         '''
         Parameters
         ----------
@@ -128,14 +179,28 @@ class Torch_Backend(Backend):
         Returns
         -------
         '''
+        l = len(self._parameters_dict)
+        if prefer_device != None:
+            device0 = self.device[prefer_device]
+        else:
+            device0 = self.device[l % self.device_count]
 
         if init_param is None:
             init_param = dict()
-        if value is not None:
+        if init is not None:
+            # self._variables[name] = self.init_param(grad, init)
+            data = torch.empty(shape, dtype=self.data_type, device=device0, requires_grad=grad)
+            init = init.lower()
+            if init in self.param_init_operate.keys():
+                self._variables[name] = self.param_init_operate[init](data, **init_param)
+            else:
+                raise ValueError("No initialize method: %s in param_init_operate" % init)
+        elif value is not None:
+        # if value is not None:
             if hasattr(value, "__len__"):
-                if tuple(value.shape) == (1,) and isinstance(value, torch.Tensor):
-                    self._variables[name] = value.to(self.device) * torch.ones(shape, dtype=self.data_type, device=self.device,
-                                                               requires_grad=grad)
+                if (value.shape == torch.Size([1,]) or value.shape == torch.Size([])) and isinstance(value, torch.Tensor):
+                    self._variables[name] = (value.to(self.device0) * torch.ones(shape, dtype=self.data_type, device=self.device0)).clone()
+                    self._variables[name].requires_grad = grad
                 elif tuple(value.shape) != tuple(shape):
                     raise ValueError("Value is not scalar and the shape of Value is not equal to shape")
                 # add a sparse matrices with all dimensions greater than 2
@@ -145,17 +210,17 @@ class Torch_Backend(Backend):
 
                     # Index for sparse matrix
                     sparse_index = name + '_sparse_index'
-                    self._variables[sparse_index] = torch.LongTensor(i).to(device=self.device)
+                    self._variables[sparse_index] = torch.LongTensor(i).to(device=self.device0)
                     self._InitVariables_dict[sparse_index] = self._variables[sparse_index]
 
                     # Value for sparse matrix
                     sparse_value = name + '_sparse_value'
                     if init is not None:
                         # self._variables[sparse_value] = self.init_param(True, init)
-                        data = torch.empty(shape, dtype=self.data_type, device=self.device, requires_grad=True)
+                        data = torch.empty(shape, dtype=self.data_type, device=self.device0, requires_grad=True)
                         self._variables[sparse_value] = self.param_init_operate[init](data, **init_param)
                     else:
-                        self._variables[sparse_value] = torch.tensor(v, dtype=self.data_type, requires_grad=True, device=self.device)
+                        self._variables[sparse_value] = torch.tensor(v, dtype=self.data_type, requires_grad=True, device=self.device0)
                     self._parameters_dict[sparse_value] = self._variables[sparse_value]
 
                     # The shape of sparse matrix
@@ -168,7 +233,7 @@ class Torch_Backend(Backend):
                 else:
                     # add a non sparse matrices with all dimensions greater than 2
                     if init is not None:
-                        data = torch.empty(shape, dtype=self.data_type, device=self.device, requires_grad=grad)
+                        data = torch.empty(shape, dtype=self.data_type, device=self.device0, requires_grad=grad)
                         init = init.lower()
                         if init in self.param_init_operate.keys():
                             self._variables[name] = self.param_init_operate[init](data, **init_param)
@@ -176,28 +241,31 @@ class Torch_Backend(Backend):
                             raise ValueError("No initialize method: %s in param_init_operate" % init)
                     else:
                         if isinstance(value, torch.Tensor):
-                            self._variables[name] = value.clone().detach().to(self.device)
+                            # device0 = random.choice(self.device)
+                            self._variables[name] = value.clone().detach().to(device0)
                         else:
-                            self._variables[name] = torch.tensor(value, dtype=self.data_type, device=self.device,
+                            self._variables[name] = torch.tensor(value, dtype=self.data_type, device=device0,
                                                                    requires_grad=grad)
 
             elif len(shape) == 0:
                 # add constant
-                self._variables[name] = torch.tensor(value, dtype=self.data_type, device=self.device, requires_grad=grad)
+                self._variables[name] = torch.tensor(value, dtype=self.data_type, device=self.device0, requires_grad=grad)
 
             else:
                 # add a matrix through constant
                 if init is not None:
                     # self._variables[name] = self.init_param(grad, init)
-                    data = value*torch.ones(shape, dtype=self.data_type, device=self.device, requires_grad=grad)
+                    data = value*torch.ones(shape, dtype=self.data_type, device=device0, requires_grad=grad)
                     init = init.lower()
                     if init in self.param_init_operate.keys():
                         self._variables[name] = self.param_init_operate[init](data, **init_param)
                     else:
                         raise ValueError("No initialize method: %s in param_init_operate" % init)
                 else:
-                    self._variables[name] = value*torch.ones(shape, dtype=self.data_type, device=self.device, requires_grad=grad)
-
+                    # add a matrix through constant
+                    self._variables[name] = (
+                                value * torch.ones(shape, dtype=self.data_type, device=self.device0)).clone()
+                    self._variables[name].requires_grad = grad
         return self._variables[name]
 
     def set_variable_value(self, name, value, is_parameter):
@@ -281,16 +349,17 @@ class Torch_Backend(Backend):
     def conv1d(self, x, kernel):
         return torch.conv1d(x, kernel)
 
-    def conv_trans1d(self, x, kernel):
-        return torch.conv_transpose1d(x, kernel)
+    def conv_trans1d(self, x, kernel, bias=None):
+        return torch.conv_transpose1d(x, kernel, bias)
 
-    def conv_2d(self, x, kernel, stride, padding, dilation, groups):
+
+    def conv_2d(self, x, kernel, stride, padding, dilation, groups, padding_mode='constant'):
         if x.dim() == kernel.dim() + 1:
             xshape = list(x.shape)
             xshape[0] = xshape[0]*xshape[1]
             extend_size = xshape[1]
             xshape.pop(1)
-            out = fn.conv2d(x.reshape(xshape), kernel, stride=stride, padding=padding, dilation=dilation, groups=groups)
+            out = fn.conv2d(x.reshape(xshape), kernel, stride=stride, padding=padding, dilation=dilation, groups=groups, padding_mode=padding_mode)
             outshape = list(out.shape)
             outshape[0] = outshape[0]//extend_size
             outshape.insert(1, extend_size)
@@ -298,14 +367,22 @@ class Torch_Backend(Backend):
         else:
             return fn.conv2d(x, kernel, stride=stride, padding=padding, dilation=dilation, groups=groups)
 
-    def conv_2d_complex(self, x, kernel, stride, padding, dilation, groups, beta):
+    def conv_2d_complex(self, x, kernel, stride, padding, dilation, groups, beta, delay=None):
         if x.dtype.is_complex:
-            x = beta ** x.imag * (x.real * (0 + 1.0j))
+            if delay is not None:
+                d_delay = delay/self.dt
+                d_delay = torch.ceil(d_delay) - d_delay
+                x = beta ** (x.imag+d_delay) * (x.real * (0 + 1.0j))
+            else:
+                x = beta ** x.imag * (x.real * (0 + 1.0j))
         else:
             x = x*(0+1.0j)
         real = fn.conv2d(x.real, kernel, stride=stride, padding=padding, dilation=dilation, groups=groups)
         imag = fn.conv2d(x.imag, kernel, stride=stride, padding=padding, dilation=dilation, groups=groups)
         return torch.complex(real, imag)
+
+    def conv_trans2d(self, x, kernel, stride=1, padding=0, dilation=0, groups=1):
+        return torch.conv_transpose2d(x, kernel,stride=stride, padding=padding, dilation=dilation, groups=groups)
 
 
 
@@ -400,7 +477,8 @@ class Torch_Backend(Backend):
         X = X.permute(1, 0)
         return torch.matmul(A, X)
 
-    def mat_mult_weight_complex(self, A, X, beta):
+
+    def mat_mult_weight_complex(self, A, X, beta, delay=None):
         '''
         Parameters
         ----------
@@ -411,18 +489,52 @@ class Torch_Backend(Backend):
         -------
         '''
         if A.dtype.is_complex:
-            A = A.unsqueeze(-2)
             beta = beta.unsqueeze(-1)
-            real = A.real
-            imag = A.imag
-            O = beta ** imag * (real * (0 + 1.0j))
+            if delay is not None:
+                A = A.permute(0,2,1)
+                real = A.real
+                imag = A.imag
+                d_delay = delay.unsqueeze(0)/self.dt
+                d_delay = torch.ceil(d_delay) - d_delay
+                O = beta ** (imag+d_delay) * (real * (0 + 1.0j))
+            else:
+                A = A.unsqueeze(-2)
+                real = A.real
+                imag = A.imag
+                O = beta ** imag * (real * (0 + 1.0j))
+            # if torch.any(torch.isnan(O)):
+            #     print("real:", real)
+            #     print("real:", real)
+            #     print("imag:", imag)
+            #     print("O:", O)
+            #     raise ValueError(" nan mat_mult_complex error")
             return torch.sum(O * X, dim=-1)
+        elif delay is not None:
+            A = A.permute(0, 2, 1)
+            return torch.sum(A * X, dim=-1)*(0.0+1.0j)
         else:
             X = X.permute(1, 0)
             Out = torch.matmul(A.to(X.dtype), X)
             Out = Out*(0.0+1.0j)
+            # if torch.any(torch.isnan(Out)):
+            #     print("input:", A)
+            #     print("weight:", X)
+            #     print("Out:", Out)
+            #     raise ValueError(" nan mat_mult_complex error")
             return Out
 
+    def mat_mult_weight_2complex(self, A, X, beta, delay=None):
+        if A.dtype.is_complex:
+            A = A.unsqueeze(-2).unsqueeze(-1)
+            beta = beta.unsqueeze(-1)
+            real = A.real
+            imag = A.imag
+            O = torch.sum((beta ** imag * (real * (0 + 1.0j))) * X, dim=-2)
+            return O
+        else:
+            A = A.unsqueeze(-2).unsqueeze(-1)
+            O = torch.sum(A*X, dim=-2)
+            return O
 
     def mat_mult_pre(self, A, X):
         '''
@@ -488,7 +600,7 @@ class Torch_Backend(Backend):
 
     def mult_sum_weight(self, A, X):
         # X = X.permute(1, 0)
-        A = A.permute(0, 2, 1)
+        # A = A.permute(0, 2, 1)
         return torch.sum(A * X, dim=-1)
 
     def mat_linear(self, A, X, b):
@@ -509,6 +621,8 @@ class Torch_Backend(Backend):
             return data.to(torch.float).to(self.device)
         else:
             return torch.tensor(data, dtype=torch.float, device=self.device)
+    def upsample(self,x, scale):
+        return torch.nn.functional.interpolate(x, scale_factor=scale, mode='nearest')
 
     def exp(self, x):
         return torch.exp(x)
@@ -629,6 +743,9 @@ class Torch_Backend(Backend):
         # print(amp.item(), w_norm.item())
         return weight*amp/w_norm
 
+    #TODO: THis "TO" should be named to_device
+    def to(self, x, device):
+        return x.to(device)
 
     def sin(self, x):
         return torch.sin(x)

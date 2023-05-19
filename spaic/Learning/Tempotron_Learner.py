@@ -200,7 +200,7 @@ class Tempotron(Learner):
         '''
 
         super(Tempotron, self).build(backend)
-        self.device = backend.device
+        self.device = backend.device0
         self._backend = backend
         self.sim_name = backend.backend_name
         self.dt = backend.dt

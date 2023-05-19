@@ -20,13 +20,29 @@ class Basic_synapse(SynapseModel):
     def __init__(self, conn, **kwargs):
         super(Basic_synapse, self).__init__(conn)
 
+
+
         if conn.is_sparse:
             self._syn_operations.append([conn.post_var_name + '[post]', 'sparse_mat_mult_weight', 'weight[link]',
                                          self.input_name])
-        elif conn.post.model_name == 'complex':
-            self._syn_operations.append(
-                [conn.post_var_name + '[post]', 'mat_mult_weight_complex', conn.pre_var_name + '[input][updated]',
-                 'weight[link]', 'complex_beta[post]'])
+        elif  'complex' in conn.post.model_name and conn.post.model_name != 'double_complex':
+            if conn.max_delay > 0:
+                self._syn_operations.append(
+                    [conn.post_var_name + '[post]', 'mat_mult_weight_complex', self.input_name,
+                     'weight[link]', 'complex_beta[post]', 'delay[link]'])
+            else:
+                self._syn_operations.append(
+                    [conn.post_var_name + '[post]', 'mat_mult_weight_complex', self.input_name,
+                     'weight[link]', 'complex_beta[post]'])
+        elif conn.post.model_name == 'double_complex':
+            if conn.max_delay > 0:
+                self._syn_operations.append(
+                    [conn.post_var_name + '[post]', 'mat_mult_weight_2complex', self.input_name,
+                     'weight[link]', 'complex_beta[post]', 'delay[link]'])
+            else:
+                self._syn_operations.append(
+                    [conn.post_var_name + '[post]', 'mat_mult_weight_2complex', self.input_name,
+                     'weight[link]', 'complex_beta[post]'])
         elif conn.max_delay > 0:
             self._syn_operations.append(
                 [conn.post_var_name + '[post]', 'mult_sum_weight', self.input_name, 'weight[link]'])
@@ -52,11 +68,11 @@ class conv_synapse(SynapseModel):
         if conn.post.model_name == 'complex':
             self._syn_operations.append(
                 [conn.post_var_name + '[post]', 'conv_2d_complex', self.input_name, 'weight[link]',
-                 'stride[pre]', 'padding[pre]', 'dilation[pre]', 'groups[pre]', 'complex_beta[post]'])
+                 'stride[link]', 'padding[link]', 'dilation[link]', 'groups[link]', 'complex_beta[post]'])
         else:
             self._syn_operations.append(
                 [conn.post_var_name + '[post]', 'conv_2d', self.input_name, 'weight[link]',
-                 'stride[pre]', 'padding[pre]', 'dilation[pre]', 'groups[pre]'])
+                 'stride[link]', 'padding[link]', 'dilation[link]', 'groups[link]']) # every time a new parameter will be added to all conditions, that's silly
 
         if conn.bias_flag:
             self._syn_operations.append(
@@ -64,6 +80,24 @@ class conv_synapse(SynapseModel):
 
 # SynapseModel.register('conv_synapse', conv_synapse)
 SynapseModel.register('conv', conv_synapse)
+
+
+class ConvTranspose_synapse(SynapseModel):
+
+    def __init__(self, conn, **kwargs):
+        super(ConvTranspose_synapse, self).__init__(conn)
+
+        self._syn_operations.append(
+            [conn.post_var_name + '[post]', 'conv_trans2d', self.input_name, 'weight[link]',
+             'stride[link]', 'padding[link]', 'dilation[link]', 'groups[link]'])
+
+        if conn.bias_flag:
+            raise ValueError("bias for conv_transpose is not supported")
+
+    # SynapseModel.register('conv_synapse', conv_synapse)
+
+
+SynapseModel.register('conv_transpose', ConvTranspose_synapse)
 
 class DirectPass_synapse(SynapseModel):
     """
@@ -103,15 +137,15 @@ class AvgPool_synapse(SynapseModel):
         super(AvgPool_synapse, self).__init__(conn)
         if conn.pool_only:
             self._syn_operations.append([conn.post_var_name + '[post]', 'avg_pool2d', self.input_name,
-                                         'pool_kernel_size[pre]', 'pool_stride[pre]', 'pool_padding[pre]'])
+                                         'pool_kernel_size[link]', 'pool_stride[link]', 'pool_padding[link]'])
         else:
             if conn.pool_before:
                 # when pooling before, the return operator name should be pre_var_name
                 self._syn_operations.append([conn.pre_var_name + '[input]', 'avg_pool2d', self.input_name,
-                                             'pool_kernel_size[pre]', 'pool_stride[pre]', 'pool_padding[pre]'])
+                                             'pool_kernel_size[link]', 'pool_stride[link]', 'pool_padding[link]'])
             else:
                 self._syn_operations.append([conn.post_var_name + '[post]', 'avg_pool2d', conn.post_var_name + '[post]',
-                                             'pool_kernel_size[pre]', 'pool_stride[pre]', 'pool_padding[pre]'])
+                                             'pool_kernel_size[link]', 'pool_stride[link]', 'pool_padding[link]'])
 
 # SynapseModel.register('avgpool_synapse', AvgPool_synapse)
 SynapseModel.register('avgpool', AvgPool_synapse)
@@ -122,24 +156,31 @@ class MaxPool_synapse(SynapseModel):
         super(MaxPool_synapse, self).__init__(conn)
         if conn.pool_only:
             self._syn_operations.append([conn.post_var_name + '[post]', 'avg_pool2d', self.input_name,
-                                         'pool_kernel_size[pre]', 'pool_stride[pre]', 'pool_padding[pre]'])
+                                         'pool_kernel_size[link]', 'pool_stride[link]', 'pool_padding[link]'])
         else:
             if conn.pool_before:
                 # when pooling before, the return operator name should be pre_var_name
                 self._syn_operations.append([conn.pre_var_name + '[input]', 'max_pool2d', self.input_name,
-                                             'pool_kernel_size[pre]', 'pool_stride[pre]', 'pool_padding[pre]'])
+                                             'pool_kernel_size[link]', 'pool_stride[link]', 'pool_padding[link]'])
             else:
                 if conn.post.model_name == 'complex':
                     self._syn_operations.append(
                         [conn.post_var_name + '[post]', 'post_max_pool2d_complex', conn.post_var_name + '[post]',
-                         'pool_kernel_size[pre]', 'pool_stride[pre]', 'pool_padding[pre]'])
+                         'pool_kernel_size[link]', 'pool_stride[link]', 'pool_padding[link]'])
                 else:
                     self._syn_operations.append(
                         [conn.post_var_name + '[post]', 'max_pool2d', conn.post_var_name + '[post]',
-                         'pool_kernel_size[pre]', 'pool_stride[pre]', 'pool_padding[pre]'])
+                         'pool_kernel_size[link]', 'pool_stride[link]', 'pool_padding[link]'])
 
 # SynapseModel.register('maxpool_synapse', MaxPool_synapse)
 SynapseModel.register('maxpool', MaxPool_synapse)
+
+class Upsample_synapse(SynapseModel):
+    def __init__(self, conn, **kwargs):
+        super(Upsample_synapse, self).__init__(conn)
+        self._syn_operations.append([conn.pre_var_name + '[input]', 'upsample', self.input_name, 'upscale[link]'])
+
+SynapseModel.register('upsample', Upsample_synapse)
 
 class BatchNorm2d_synapse(SynapseModel):
 
@@ -289,6 +330,150 @@ class Second_order_chemical_synapse(SynapseModel):
 SynapseModel.register('2_order_synapse', Second_order_chemical_synapse)
 
 import torch
+class Delayed_complex_synapse(SynapseModel):
+    def __init__(self, conn, **kwargs):
+        super(Delayed_complex_synapse, self).__init__(conn)
+        self._backend = conn._backend
+        self.delay = kwargs.get('delay', None)
+        self.syn_tau = kwargs.get('tau', 10.0)
+        self.syn_rotk = kwargs.get('rot_k', 6.0)
+        self.delay_len = kwargs.get('delay_len', 1)
+        self.max_delay_len = kwargs.get('max_delay_len', None)
+        self.max_delay = kwargs.get('max_delay', 5.0)
+        self.min_delay = kwargs.get('min_delay', 0.0)
+        self.real_output = kwargs.get('real_output', True)
+        self.weight_shape = list(conn.get_value('weight').shape)
+        self.delay_shape = [self.delay_len] + self.weight_shape
+        self.delay_buffer = torch.zeros(self.delay_shape, dtype=torch.cfloat).unsqueeze(0)
+        self.Isyn = torch.zeros(self.weight_shape[0], dtype=torch.cfloat).unsqueeze(0)
+
+        beta_s = np.exp(-self.dt/ self.syn_tau)
+        rot_s = -self.dt*np.pi / (self.syn_rotk * self.syn_tau)
+        # tmax = np.arctan(-self.syn_tau*rot_s)/-rot_s
+        # vmax = np.exp(-tmax/self.syn_tau)*np.sin(-rot_s*tmax)
+        self.v0 = 1.0/self.syn_tau
+        self.complex_decay = torch.view_as_complex(torch.tensor([beta_s * np.cos(rot_s), beta_s * np.sin(rot_s)]))
+
+        if self.delay is None:
+            self.delay = self.min_delay + (self.max_delay-self.min_delay)*torch.rand(self.weight_shape, dtype=torch.float)
+        elif self.max_delay is None:
+            self.delay = torch.tensor(self.delay)
+            self.max_delay = torch.amax(self.delay).item()
+        if self.max_delay > self.syn_tau*self.syn_rotk:
+            rot_d = -self.dt *np.pi / self.max_delay
+        else:
+            rot_d = rot_s
+        self.complex_delay = torch.view_as_complex(torch.tensor([np.cos(rot_d), np.sin(rot_d)]))
+
+        init_rot = -self.delay * rot_d / self.dt
+        self.init_roting_complex = torch.view_as_complex(torch.stack([torch.cos(init_rot), torch.sin(init_rot)], dim=-1))
+
+        self._syn_variables['delay_buffer[link]'] = self.delay_buffer
+        self._syn_variables['Isyn[link]'] = self.Isyn
+        self._syn_variables['init_roting_complex[link]'] = self.init_roting_complex
+        self._syn_variables['complex_decay[link]'] = self.complex_decay
+        self._syn_variables['complex_delay[link]'] = self.complex_delay
+
+        if self.real_output:
+            self._syn_operations.append([[conn.post_var_name+'[post]', 'delay_buffer[link]', 'Isyn[link]'], self.update_real_out,
+                                         ['[input]','delay_buffer[link]', 'Isyn[link]', 'weight[link]', 'init_roting_complex[link]',
+                                          'complex_delay[link]', 'complex_decay[link]']])
+        else:
+            self._syn_operations.append([[conn.post_var_name+'[post]', 'delay_buffer[link]', 'Isyn[link]'], self.update_complex_out,
+                                         ['[input]','delay_buffer[link]', 'Isyn[link]', 'weight[link]', 'init_roting_complex[link]',
+                                          'complex_delay[link]', 'complex_decay[link]']])
+
+
+    @property
+    def dt(self):
+        return self._backend.dt
+
+
+    def push_spike(self, spike, delay_buffer, init_roting_complex):
+        if spike.dtype is torch.cfloat:
+            vspk = spike.abs()
+        else:
+            vspk = spike
+
+        vspk = torch.sum(vspk)
+        if vspk > 0:
+            if spike.dtype is not torch.cfloat:
+                zero_real = torch.zeros_like(spike)
+                spike = torch.view_as_complex(torch.stack((zero_real, spike), dim=-1))
+            spike = spike.unsqueeze(-2)
+            spike = self.v0*spike * init_roting_complex
+
+            values, indices = torch.min(delay_buffer.abs(), dim=1)
+            indices = indices.unsqueeze(1)
+            spike = spike.unsqueeze(1)
+            if torch.sum(values) > 0:
+                delay_buffer = torch.cat([spike, delay_buffer], dim=1)
+            else:
+                delay_buffer.scatter_(dim=1, index=indices, src=spike)
+        return delay_buffer
+
+    def update_real_out(self, spike, delay_buffer, Isyn, weight, init_roting_complex, complex_delay, complex_decay):
+        # push input spikes
+        if spike.dtype is torch.cfloat:
+            vspk = spike.abs()
+        else:
+            vspk = spike
+
+        vspk = torch.sum(vspk)
+        if vspk > 0:
+            if spike.dtype is not torch.cfloat:
+                zero_real = torch.zeros_like(spike)
+                spike = torch.view_as_complex(torch.stack((zero_real, spike), dim=-1))
+            spike = spike.unsqueeze(-2)
+            spike = self.v0*spike * init_roting_complex
+
+            values, indices = torch.min(delay_buffer.abs(), dim=1)
+            indices = indices.unsqueeze(1)
+            spike = spike.unsqueeze(1)
+            if torch.sum(values) > 0:
+                delay_buffer = torch.cat([spike, delay_buffer], dim=1)
+            else:
+                delay_buffer.scatter_(dim=1, index=indices, src=spike)
+
+        # update and output
+        delay_buffer = delay_buffer*complex_delay
+        spike_mask = delay_buffer.real.gt(0.0)
+        Isyn = Isyn*complex_decay + torch.sum(torch.sum(spike_mask*delay_buffer, 1)*weight, dim=-1)
+        delay_buffer[spike_mask] = 0.0
+        out = Isyn.real
+        return out, delay_buffer, Isyn
+
+    def update_complex_out(self, spike, delay_buffer, Isyn, weight, init_roting_complex, complex_delay, complex_decay):
+        # push input spikes
+        if spike.dtype is torch.cfloat:
+            vspk = spike.abs()
+        else:
+            vspk = spike
+
+        vspk = torch.sum(vspk)
+        if vspk > 0:
+            if spike.dtype is not torch.cfloat:
+                zero_real = torch.zeros_like(spike)
+                spike = torch.view_as_complex(torch.stack((zero_real, spike), dim=-1))
+            spike = spike.unsqueeze(-2)
+            spike = self.v0*spike * init_roting_complex
+
+            values, indices = torch.min(delay_buffer.abs(), dim=1)
+            indices = indices.unsqueeze(1)
+            spike = spike.unsqueeze(1)
+            if torch.sum(values) > 0:
+                delay_buffer = torch.cat([spike, delay_buffer], dim=1)
+            else:
+                delay_buffer.scatter_(dim=1, index=indices, src=spike)
+
+        # update and output
+        delay_buffer = delay_buffer*complex_delay
+        spike_mask = delay_buffer.real.gt(0.0)
+        Isyn = Isyn*complex_decay + torch.sum(torch.sum(spike_mask*delay_buffer, 1)*weight, dim=-1)
+        delay_buffer[spike_mask] = 0.0
+        return Isyn, delay_buffer, Isyn
+
+SynapseModel.register('delay_complex_synapse', Delayed_complex_synapse)
 
 class Mix_order_chemical_synapse(SynapseModel):
 

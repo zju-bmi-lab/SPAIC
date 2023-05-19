@@ -10,7 +10,7 @@ Created on 2020/8/5
 import spaic
 
 from collections import OrderedDict
-from ..Network.BaseModule import BaseModule, VariableAgent
+from spaic.Network.BaseModule import BaseModule, VariableAgent
 from abc import ABC, abstractmethod
 from torch import nn
 from typing import List
@@ -94,6 +94,8 @@ class Assembly(BaseModule):
         self._supers = list()
         self._input_connections = list()
         self._output_connections = list()
+        self._input_modules = list()
+        self._output_modules = list()
         self.num = 0
         self.position = None
         self.model_name = None
@@ -232,8 +234,8 @@ class Assembly(BaseModule):
 
         """
         if self._backend: self._backend.builded = False
-        assert connection.pre in self.get_groups(), 'pre %s is not in the group' % connection.pre.name
-        assert connection.post in self.get_groups(), 'post %s is not in the group' % connection.post.name
+        # assert connection.pre in self.get_groups(), 'pre %s is not in the group' % connection.pre.name
+        # assert connection.post in self.get_groups(), 'post %s is not in the group' % connection.post.name
         if name in self._connections:
             if connection is self._connections[name]:
                 raise ValueError(" connection is already in the assembly's connection list")
@@ -514,7 +516,7 @@ class Assembly(BaseModule):
             return all_groups
         elif self._groups and not recursive:
             return list(self._groups.values())
-        elif self._class_label == '<asb>':
+        elif self._class_label == '<asb>' or self._class_label == '<net>':
             return []
         else:
             return [self]
@@ -625,19 +627,37 @@ class Assembly(BaseModule):
             List of Connections
         """
         if not recursive:
-            return self._connections.values()
+            return list(self._connections.values())
         else:
             all_assmblies = self.get_assemblies(recursive=2)
-            connections = set()
-            connections.update(self._connections.values())
+            connections = list()
+            connections = self.update_connection(connections, self._connections)
+            # connections.update(self._connections.values())
             for asb in all_assmblies:
                 if asb is self:
-                    connections.update(asb.get_connections(recursive=False))
+                    # connections.update(asb.get_connections(recursive=False))
+                    connections = self.update_connection(connections, asb.get_connections(recursive=False))
                 else:
-                    connections.update(asb.get_connections(recursive=True))
+                    # connections.update(asb.get_connections(recursive=True))
+                    connections = self.update_connection(connections, asb.get_connections(recursive=True))
             for proj in self._projections.values():
-                connections.update(proj.get_connections(recursive=True))
+                # connections.update(proj.get_connections(recursive=True))
+                connections = self.update_connection(connections, proj.get_connections(recursive=True))
             return connections
+    def update_connection(self, container, connections):
+        assert isinstance(container, list)
+        if isinstance(connections, OrderedDict):
+            for con in connections.values():
+                if con not in container:
+                    container.append(con)
+        elif isinstance(connections, list):
+            for con in connections:
+                if con not in container:
+                    container.append(con)
+        else:
+            raise ValueError("connections type not right")
+        return container
+
 
     def get_var_names(self):
         """
@@ -753,6 +773,15 @@ class Assembly(BaseModule):
             if connection_obj not in self._input_connections:
                 self._input_connections.append(connection_obj)
 
+    def register_module(self, module_obj, pre):
+        if pre:
+            if module_obj not in self._output_modules:
+                self._output_modules.append(module_obj)
+        else:
+            if module_obj not in self._input_modules:
+                self._input_modules.append(module_obj)
+
+
     def structure_copy(self, name=None):
         """
         Copy the structure of this assembly with new members
@@ -846,8 +875,8 @@ class Assembly(BaseModule):
         # print(keys)
 
     def __setattr__(self, name, value):
-        from ..Network.Topology import Connection
-        from ..Network.Topology import Projection
+        from spaic.Network.Topology import Connection
+        from spaic.Network.Topology import Projection
         super(Assembly, self).__setattr__(name, value)
         if (self.__class__ is spaic.NeuronGroup) or (issubclass(self.__class__, spaic.Node)):
             # If class is NeuronGroup or the subclass of Node, do not add other object to it.

@@ -11,13 +11,15 @@ Created on 2020/8/17
 """
 
 import os
-from ..Network.Assembly import Assembly
-from ..Neuron.Neuron import NeuronGroup
-from ..Neuron.Node import Node
-from ..Network.Topology import Connection
-from ..Backend.Backend import Backend
-from ..Network.Topology import Projection
-from ..Monitor.Monitor import Monitor
+from spaic.Network.Assembly import Assembly
+from spaic.Neuron.Neuron import NeuronGroup
+from spaic.Neuron.Node import Node
+from spaic.Network.Topology import Connection
+from spaic.Backend.Backend import Backend
+from spaic.Network.Topology import Projection
+from spaic.Monitor.Monitor import Monitor
+from spaic.IO.Initializer import BaseInitializer
+from spaic.IO import Initializer as Initer
 
 import time
 
@@ -329,12 +331,15 @@ def trans_connection(connection: Connection, combine: bool, save_weight: bool):
         if key in name_needed:
             para_dict[key] = para.id
         elif key in needed:
+            d_para = para
             if key == 'parameters':
-                if 'weight' in para.keys():
-                    del para['weight']
-            para_dict[key] = check_var_type(para)
+                if 'weight' in d_para.keys():
+                    del d_para['weight']
+                if 'bias' in d_para.keys():
+                    d_para['bias'] = trans_bias(d_para['bias'])
+            para_dict[key] = check_var_type(d_para)
     if combine:     # 是否需要在文件中存储weight
-        para_dict['weight'] = check_var_type(connection.weight)
+        para_dict['weight'] = check_var_type(connection.weight.value)
 
     para_dict['_class_label'] = '<con>'
     result_dict[connection.name] = para_dict
@@ -384,6 +389,7 @@ def trans_backend(backend: Backend, save: bool):
             result_dict[key] = './parameters/' + key + '.pt'
         else:
             result_dict = backend._parameter_dict
+            # pass
             # raise ValueError("Wrong save choosen, since parameters can be get from network"
             #                  "unneeded to use network_save function.")
 
@@ -466,6 +472,8 @@ def check_var_type(var):
             for key, value in var.items():
                 var[key] = check_var_type(value)
             return var
+        if isinstance(var, str):
+            return var
         try:
             var_list = var.tolist()
             return var_list
@@ -498,8 +506,17 @@ def check_var_type(var):
     #     return var
 
 
-
-# def
+def trans_bias(para: dict):
+    if isinstance(para, BaseInitializer):
+        n_para = dict()
+        for key in Initer.__all__:
+            if Initer.__dict__[key] == para.__class__:
+                n_para['method'] = key
+                break
+        n_para['para'] = para.__dict__
+        return n_para
+    else:
+        return para
 
 
 

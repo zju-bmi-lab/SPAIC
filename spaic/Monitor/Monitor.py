@@ -9,9 +9,10 @@ Created on 2020/8/12
 @description:
 定义神经集群放电以及神经元状态量、连接状态量的仿真记录模块
 """
-from ..Network.Assembly import BaseModule, Assembly
-from ..Network.Connections import Connection
-from ..Backend.Backend import Backend
+from spaic.Network.Assembly import BaseModule, Assembly
+from spaic.Network.Connections import Connection
+from spaic.Learning.Learner import Learner
+from spaic.Backend.Backend import Backend
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
@@ -30,6 +31,9 @@ class Monitor(BaseModule):
         elif isinstance(target, Connection):
             self.target = target
             self.target_type = 'Connection'
+        elif isinstance(target, Learner):
+            self.target = target
+            self.target_type = 'Learner'
         elif target == None:
             self.target = None
             self.target_type = None
@@ -51,7 +55,7 @@ class Monitor(BaseModule):
 
     def check_var_name(self, var_name):
         '''
-        Check if variable is in the traget model, and add the target id label to the variable name.
+        Check if variable is in the target model, and add the target id label to the variable name.
 
         Parameters
         ----------
@@ -185,7 +189,9 @@ class SpikeMonitor(Monitor):
         if self.is_recording is False:
             return
 
-        if int(10000 * self.backend.time / self.dt) % 10000 == 0:
+        from decimal import Decimal
+        acttime = Decimal(self.backend.time/ self.dt).quantize(Decimal(str(min(self.dt, 0.1))), rounding="ROUND_HALF_UP")
+        if int(10000 * float(acttime)) % 10000 == 0:
             record_value = variables[self.var_name]
             if self.get_grad:
                 variables[self.var_name].retain_grad()
@@ -216,12 +222,15 @@ class SpikeMonitor(Monitor):
             self._transform_len = len(self._records)
             self._spk_index = []
             self._spk_times = []
+            # self._spk_p = []
             if isinstance(self._records[0], torch.Tensor):
                 step = len(self._records)
-                rec_spikes = torch.stack(self._records, dim=-1).cpu().detach()
+                # for i,x in enumerate(self._records):
+                #     self._records[i] = x.cpu()
+                rec_spikes = torch.stack(self._records, dim=-1).detach()
                 if '{[2]' in self.var_name:
                     for ii in range(batch_size):
-                        rec_spikes_i = rec_spikes[ii,0,...].bool().reshape(-1)
+                        rec_spikes_i = rec_spikes[ii,0,...].bool().reshape(-1).cpu()
                         rec_spikes_t = rec_spikes[ii,1,...].reshape(-1)
                         num = int(rec_spikes_i.size(0)/step)
                         time_seq = torch.tensor(self._times).unsqueeze(dim=0).expand(num, -1).reshape(-1)
@@ -230,12 +239,13 @@ class SpikeMonitor(Monitor):
                         indx_seq = torch.masked_select(indx_seq, rec_spikes_i).numpy()
                         self._spk_index.append(indx_seq)
                         self._spk_times.append(time_seq)
+
                 else:
                     for ii in range(batch_size):
                         if rec_spikes.dtype.is_complex:
-                            rec_spikes_i = (rec_spikes[ii, ...].imag.bool()*rec_spikes[ii, ...].real.gt(0.5)).reshape(-1)
+                            rec_spikes_i = (rec_spikes[ii, ...].imag.bool()*rec_spikes[ii, ...].real.gt(0.0)).reshape(-1).cpu()
                         else:
-                            rec_spikes_i = rec_spikes[ii,...].bool().reshape(-1)
+                            rec_spikes_i = rec_spikes[ii,...].bool().reshape(-1).cpu()
 
                         num = int(rec_spikes_i.size(0)/step)
                         time_seq = torch.tensor(self._times).unsqueeze(dim=0).expand(num, -1).reshape(-1)
@@ -244,6 +254,7 @@ class SpikeMonitor(Monitor):
                         indx_seq = torch.masked_select(indx_seq, rec_spikes_i).numpy()
                         self._spk_index.append(indx_seq)
                         self._spk_times.append(time_seq)
+                        # self._spk_p.append(torch.masked_select(rec_spikes[ii, ...].real.reshape(-1).cpu(), rec_spikes_i).numpy())
 
 
     @property
@@ -255,6 +266,11 @@ class SpikeMonitor(Monitor):
     def spk_index(self):
         self._spike_transform()
         return self._spk_index
+
+    @property
+    # def spk_p(self):
+    #     self._spike_transform()
+    #     return self._spk_p
 
     @property
     def spk_grad(self):
@@ -356,6 +372,7 @@ class StateMonitor(Monitor):
 
         '''
         self.new_record = True
+        self._last_step_time = 0
         if len(self._records) > 0:
             if self.nbatch is True:
                 if isinstance(self._records[0], torch.Tensor):
@@ -378,6 +395,7 @@ class StateMonitor(Monitor):
             self._times = []
 
 
+
     def update_step(self, variables):
         '''
         Recoding the variable values of the current step.
@@ -390,7 +408,10 @@ class StateMonitor(Monitor):
             return
 
         # only data in variable_dict can be recorded now
-        if int(10000 * self.backend.time / self.dt) % 10000 == 0:
+        from decimal import Decimal
+        acttime = Decimal(self.backend.time/ self.dt).quantize(Decimal(str(min(self.dt, 0.1))), rounding="ROUND_HALF_UP")
+        if int(10000 * float(acttime)) % 10000 == 0:
+
             record_value = variables[self.var_name]
             if self.get_grad:
                 var = variables[self.var_name]
@@ -417,6 +438,10 @@ class StateMonitor(Monitor):
                     self._records.append(indexed_value)
                     self._times.append(self.backend.time)
 
+        else:
+            print(self.backend.time)
+        self._last_step_time = self.backend.time
+
 
     @property
     def nbatch_values(self):
@@ -438,6 +463,8 @@ class StateMonitor(Monitor):
     def values(self):
         # return np.concatenate(self._records)
         if isinstance(self._records[0], torch.Tensor):
+            # for i,x in enumerate(self._records):
+            #     self._records[i] = x.cpu()
             return torch.stack(self._records, dim=-1).cpu().detach().numpy()
         else:
             return np.stack(self._records, axis=-1)
@@ -473,7 +500,7 @@ class StateMonitor(Monitor):
     def plot_weight(self, **kwargs):
         neuron_id = kwargs.get('neuron_id')
         time_id = kwargs.get('time_id')
-        batch_id = kwargs.get('batch_id')
+        batch_id = kwargs.get('batch_id', None)
         new_shape = kwargs.get('new_shape')
         reshape = kwargs.get('reshape')
         axes = kwargs.get('Axes', None)
@@ -494,10 +521,14 @@ class StateMonitor(Monitor):
 
             if reshape:
 
+                # value = value.reshape(2, 5, side, side)
+                #
+                # value = value.transpose(0, 2, 1, 3)
+                # value = value.reshape(2*side, 5*side)
                 value = value.reshape(n_sqrt, n_sqrt, side, side)
 
                 value = value.transpose(0, 2, 1, 3)
-                value = value.reshape(n_sqrt*side, n_sqrt*side)
+                value = value.reshape(n_sqrt * side, n_sqrt * side)
                 square_weights = value
 
             else:

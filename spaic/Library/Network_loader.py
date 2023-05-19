@@ -12,13 +12,19 @@ Created on 2020/8/17
 
 import yaml
 import json
-from ..Network import Network, Connection, Assembly, Projection
-from ..Neuron.Neuron import NeuronGroup
-from ..Neuron.Node import Node, Encoder, Decoder
-from ..Learning.Learner import Learner
-from ..Monitor.Monitor import StateMonitor, SpikeMonitor
-from ..Backend.Torch_Backend import Torch_Backend
-from ..Neuron.Node import Action, Generator, Reward
+
+from spaic.Network.Network import Network
+from spaic.Network.Assembly import Assembly
+from spaic.Neuron.Neuron import NeuronGroup
+from spaic.Neuron.Node import Node, Decoder, Encoder, Action, Generator, Reward
+from spaic.Network.Topology import Connection
+from spaic.Backend.Backend import Backend
+from spaic.Backend.Torch_Backend import Torch_Backend
+from spaic.Learning.Learner import Learner
+from spaic.Network.Topology import Projection
+from spaic.Monitor.Monitor import Monitor, StateMonitor, SpikeMonitor
+from spaic.IO.Initializer import BaseInitializer
+from spaic.IO import Initializer as Initer
 
 import torch
 
@@ -50,7 +56,7 @@ def network_load(filename=None, path=None, device='cpu', load_weight=True):
         # filedir = path + filename
     file = filename.split('.')[0]
     origin_path = os.getcwd()
-    os.chdir(path + '/' + file)
+    os.chdir(path+'/'+file)
     if os.path.exists(filename):
         with open(filename, 'r') as f:
             data = f.read()
@@ -60,16 +66,16 @@ def network_load(filename=None, path=None, device='cpu', load_weight=True):
                 data = yaml.load(data, Loader=yaml.FullLoader)
 
     else:
-        if os.path.exists(filename + '.yml'):
-            with open(filename + '.yml', 'r') as f:
+        if os.path.exists(filename+'.yml'):
+            with open(filename+'.yml', 'r') as f:
                 data = yaml.load(f, Loader=yaml.FullLoader)
 
-        elif os.path.exists(filename + '.json'):
-            with open(filename + '.json', 'r') as f:
+        elif os.path.exists(filename+'.json'):
+            with open(filename+'.json', 'r') as f:
                 data = json.load(f)
 
-        elif os.path.exists(filename + '.txt'):
-            with open(filename + '.txt', 'r') as f:
+        elif os.path.exists(filename+'.txt'):
+            with open(filename+'.txt', 'r') as f:
                 data = f.read()
                 if data.startswith('{'):
                     data = json.loads(data)
@@ -118,9 +124,7 @@ class ReloadedNetwork(Network):
                 'STCA', 0.5)
 
     '''
-
-    def __init__(self, net_data: dict, backend=None, device='cpu', load_weight=True,
-                 data_type=None):
+    def __init__(self, net_data: dict, backend=None, device='cpu', load_weight=True, data_type=None):
         super(ReloadedNetwork, self).__init__()
 
         self.device = device
@@ -128,15 +132,10 @@ class ReloadedNetwork(Network):
         self._backend_info = []
 
         self.load_net(net_data)
-        if backend is None:
-            backend = Torch_Backend(device)
 
-        self.set_backend(backend)
-        self.set_backend_data_type()
+        self.load_backend(backend, device=device, load_weight=load_weight, data_type=data_type)
+
         # self._learner = Learner(algorithm='STCA', lr=0.5, trainable=self)
-        self.build()
-        if load_weight:
-            self.load_backend(device)
 
         del self._backend_info
 
@@ -188,6 +187,7 @@ class ReloadedNetwork(Network):
             else:
                 self.add_assembly(name=list(g)[0], assembly=self.load_assembly(list(g)[0], para))
 
+
     def load_assembly(self, name, assembly: list):
         target = Assembly(name=name)
         for g in assembly:
@@ -195,19 +195,19 @@ class ReloadedNetwork(Network):
             if para.get('_class_label') == '<neg>':
                 lay_name = para.get('name')
                 target.add_assembly(name=lay_name,
-                                    assembly=self.load_layer(para))
+                                  assembly=self.load_layer(para))
             elif para.get('_class_label') == '<nod>':
                 nod_name = para.get('name')
                 target.add_assembly(name=nod_name,
-                                    assembly=self.load_node(para))
+                                  assembly=self.load_node(para))
             elif para.get('_class_label') == '<con>':
                 con_name = para.get('name')
                 target.add_connection(name=con_name,
-                                      connection=self.load_connection(pnet=target, con=para))
+                                    connection=self.load_connection(pnet=target, con=para))
             elif para.get('_class_label') == '<prj>':
                 prj_name = para.get('name')
                 target.add_projection(name=prj_name,
-                                      projection=self.load_projection(prj=para))
+                                    projection=self.load_projection(prj=para))
         return target
 
     def load_layer(self, layer: dict):
@@ -225,19 +225,18 @@ class ReloadedNetwork(Network):
         # parameters = self.trans_para(layer.get('parameters'))
         parameters = layer.get('parameters')
         return_neuron = NeuronGroup(
-            num=layer.get('num', 100),
-            shape=layer.get('shape', [100]),
-            neuron_type=layer.get('type', 'non_type'),
-            neuron_position=layer.get('position', 'x, y, z'),
-            model=layer.get('model_name', 'clif'),
-            name=layer.get('name'),
+            num= layer.get('num', 100),
+            shape= layer.get('shape', [100]),
+            neuron_type     = layer.get('type', 'non_type'),
+            neuron_position = layer.get('position', 'x, y, z'),
+            model= layer.get('model_name', 'clif'),
+            name            = layer.get('name'),
             **parameters
         )
         return_neuron.id = layer.get('id', None)
         return return_neuron
 
-    @staticmethod
-    def load_connection(pnet, con: dict):
+    def load_connection(self, pnet, con: dict):
         '''
             The function for load connections,
 
@@ -248,15 +247,7 @@ class ReloadedNetwork(Network):
                 Connection with needed parameters.
 
         '''
-        # con.pop('_class_label')
 
-        # if con['pre'] in net._groups.keys() and \
-        #         con['post'] in net._groups.keys():
-        #     con['pre']  = net._groups[con['pre']]
-        #     con['post'] = net._groups[con['post']]
-        # else:
-        #     print("Trans_error")
-        #     print(net._groups.keys())
         if pnet._class_label == '<prj>':
             for pretarget in pnet.pre.get_groups():
                 if con['pre'] == pretarget.id:
@@ -271,20 +262,32 @@ class ReloadedNetwork(Network):
                 if con['post'] == target.id:
                     con['post'] = target
 
+        for con_tar in ['pre', 'post']:
+            if isinstance(con[con_tar], str):
+                con[con_tar] = self.get_elements()[con[con_tar]] if con[con_tar] in self.get_elements().keys() else None
+
         assert not isinstance(con['pre'], str)
         assert not isinstance(con['post'], str)
 
+        if 'bias' in con['parameters'].keys():
+            bias = con['parameters']['bias']
+            if isinstance(con['parameters']['bias'], dict):
+                if 'method' in con['parameters']['bias'].keys():
+                    method = bias.get('method')
+                    con['parameters']['bias'] = Initer.__dict__[method](**bias.get('para'))
+
+
         # con.pop('weight_path')
         return_conn = Connection(
-            pre=con.get('pre'),
-            post=con.get('post'),
-            name=con.get('name'),
-            link_type=con.get('link_type', 'full'),
-            syn_type=con.get('synapse_type', ['basic_synapse']),
-            max_delay=con.get('max_delay', 0),
-            sparse_with_mask=con.get('sparse_with_mask', False),
-            pre_var_name=con.get('pre_var_name', 'O'),
-            post_var_name=con.get('post_var_name', 'WgtSum'),
+            pre              = con.get('pre'),
+            post             = con.get('post'),
+            name             = con.get('name'),
+            link_type        = con.get('link_type', 'full'),
+            syn_type         = con.get('synapse_type', ['basic_synapse']),
+            max_delay        = con.get('max_delay', 0),
+            sparse_with_mask = con.get('sparse_with_mask', False),
+            pre_var_name     = con.get('pre_var_name', 'O'),
+            post_var_name    = con.get('post_var_name', 'WgtSum'),
             **con.get('parameters')
         )
         return_conn.id = con.get('id', None)
@@ -303,7 +306,7 @@ class ReloadedNetwork(Network):
         '''
         if prj['pre'] in self._groups.keys() and \
                 prj['post'] in self._groups.keys():
-            prj['pre'] = self._groups[prj['pre']]
+            prj['pre']  = self._groups[prj['pre']]
             prj['post'] = self._groups[prj['post']]
         else:
             print("Trans_error")
@@ -313,12 +316,12 @@ class ReloadedNetwork(Network):
         assert not isinstance(prj['post'], str)
 
         this_prj = Projection(
-            pre=prj.get('pre'),
-            post=prj.get('post'),
-            name=prj.get('name'),
-            link_type=prj.get('link_type', 'full'),
+            pre                  = prj.get('pre'),
+            post                 = prj.get('post'),
+            name                 = prj.get('name'),
+            link_type            = prj.get('link_type', 'full'),
             # policies             = prj.get('policies', []),
-            ConnectionParameters=prj.get('ConnectionParameters'),
+            ConnectionParameters = prj.get('ConnectionParameters'),
         )
 
         for conn in prj['conns']:
@@ -327,6 +330,7 @@ class ReloadedNetwork(Network):
                     con=self.load_connection(pnet=this_prj, con=value),
                     name=key,
                 )
+
 
         # prj['policies'] = []
         # from Network.ConnectPolicy import IndexConnectPolicy, ExcludedTypePolicy, IncludedTypePolicy
@@ -358,64 +362,65 @@ class ReloadedNetwork(Network):
 
         '''
 
-        Node_dict = {'decoder': Decoder, 'action': Action, 'reward': Reward,
-                     'generator': Generator, 'encoder': Encoder}
+        Node_dict = {'<decoder>': Decoder, '<action>': Action, '<reward>': Reward,
+                     '<generator>': Generator, '<encoder>': Encoder}
 
-        if node.get('kind') == 'decoder':
+        if node.get('kind') == '<decoder>':
             return_node = Node_dict[node.get('kind')](
-                num=node.get('num'),
-                dec_target=self._groups.get(node.get('dec_target', None), None),
-                dt=node.get('dt', 0.1),
+                num             = node.get('num'),
+                dec_target      = self._groups.get(node.get('dec_target', None), None),
+                dt              = node.get('dt', 0.1),
                 # time            = node.get('time'),
-                coding_method=node.get('coding_method', 'poisson'),
-                coding_var_name=node.get('coding_var_name', 'O'),
-                node_type=node.get('type', None),
+                coding_method   = node.get('coding_method', 'poisson'),
+                coding_var_name = node.get('coding_var_name', 'O'),
+                node_type       = node.get('type', None),
                 **node.get('coding_param')
             )
         else:
             return_node = Node_dict[node.get('kind')](
-                shape=node.get('shape', None),
-                num=node.get('num'),
-                dec_target=self._groups.get(node.get('dec_target', None), None),
-                dt=node.get('dt', 0.1),
+                shape           = node.get('shape', None),
+                num             = node.get('num'),
+                dec_target      = self._groups.get(node.get('dec_target', None), None),
+                dt              = node.get('dt', 0.1),
                 # time            = node.get('time'),
-                coding_method=node.get('coding_method', 'poisson'),
-                coding_var_name=node.get('coding_var_name', 'O'),
-                node_type=node.get('type', None),
+                coding_method   = node.get('coding_method', 'poisson'),
+                coding_var_name = node.get('coding_var_name', 'O'),
+                node_type       = node.get('type', None),
                 **node.get('coding_param')
             )
         return_node.id = node.get('id', None)
         return return_node
 
-    def load_backend(self, device):
+    def load_backend(self, backend=None, device=None, load_weight=False, data_type=None):
         '''
             The function for load backend parameters.
 
         '''
 
-        # key_parameters_dict = ['_variables', '_parameters_dict', '_InitVariables_dict']
-        key_parameters_dict = ['_parameters_dict']
         key_parameters_list = ['dt', 'runtime', 'time', 'n_time_step']
         typical = ['_graph_var_dicts']
 
         import torch
-        # import os
 
+        if backend is None:
+            backend = Torch_Backend(device)
+        self.set_backend(backend)
+        self.set_backend_data_type(data_type=data_type)
         if self._backend_info:
-            # self._backend.data_type
             for key in key_parameters_list:
                 self._backend.__dict__[key] = self._backend_info[key]
+        self.build()
 
-            # for key in key_parameters_dict:
+        if load_weight:
             path = self._backend_info['_parameters_dict']
-            data = torch.load(path)
+            data = torch.load(path, map_location=self._backend.device0)
             for key, value in data.items():
                 # print(key, 'value:', value)
-                self._backend._parameters_dict[key] = value.to(device)
-            # self._backend.data_type = value.dtype
-        # #
-        # for key, value in self._backend.__dict__['_parameters_dict'].items():
-        #     self._backend.__dict__['_variables'][key] = value  # 这些变量的 requires_grad应该都是True
+                if key in self._backend._parameters_dict.keys():
+                    target_device = self._backend._parameters_dict[key].device
+                else:
+                    target_device = self._backend.device0
+                self._backend._parameters_dict[key] = value.to(target_device)
 
         return
 
@@ -435,18 +440,19 @@ class ReloadedNetwork(Network):
         else:
             if self._backend_info:
                 self._backend.data_type = supported_data_type[self._backend_info['data_type']]
+            else:
+                self._backend.data_type = supported_data_type['torch.float32']
 
     def load_learner(self, learner: dict):
         '''
             The function for load learners' parameters.
 
         '''
-        if '<net>' in learner[
-            'trainable']:  ## If self in net, use the whole net as the trainable traget.
+        if '<net>' in learner['trainable']:  ## If self in net, use the whole net as the trainable target.
             learner.pop('trainable')
             builded_learner = Learner(
-                algorithm=learner.get('algorithm'),
-                trainable=self,
+                algorithm = learner.get('algorithm'),
+                trainable = self,
                 **learner.get('parameters')
             )
         else:
@@ -459,19 +465,19 @@ class ReloadedNetwork(Network):
             learner.pop('trainable')
             if learner.get('parameters'):
                 builded_learner = Learner(
-                    trainable=trainable_list,
-                    algorithm=learner.get('algorithm'),
+                    trainable = trainable_list,
+                    algorithm = learner.get('algorithm'),
                     **learner.get('parameters')
-                )
+                    )
             else:
                 builded_learner = Learner(
-                    trainable=trainable_list,
-                    algorithm=learner.get('algorithm')
+                    trainable = trainable_list,
+                    algorithm = learner.get('algorithm')
                 )
         if learner.get('optim_name', None):
             builded_learner.set_optimizer(optim_name=learner.get('optim_name'),
-                                          optim_lr=learner.get('optim_lr'),
-                                          **learner.get('optim_para'))
+                                      optim_lr=learner.get('optim_lr'),
+                                      **learner.get('optim_para'))
         if learner.get('lr_schedule_name', None):
             builded_learner.set_schedule(lr_schedule_name=learner.get('lr_schedule_name'),
                                          **learner.get('lr_schedule_para'))
@@ -501,7 +507,7 @@ class ReloadedNetwork(Network):
                     break
 
             self.add_monitor(name=name,
-                             monitor=monitor_dict[mon.get('monitor_type', 'StateMonitor')](
+                                 monitor=monitor_dict[mon.get('monitor_type', 'StateMonitor')](
                                  target=mon['target'],
                                  var_name=mon['var_name'],
                                  dt=mon['dt'],
@@ -514,5 +520,5 @@ class ReloadedNetwork(Network):
             for key, value in para.items():
                 para[key] = self.trans_para(value)
         else:
-            para = torch.tensor(para, dtype=torch.float32, device=self.device)
+            para = torch.tensor(para, dtype=torch.float32, device=self.device[0])
         return para

@@ -8,7 +8,7 @@ Created on 2020/12/23
 
 @description: 
 """
-from ..Network.Assembly import Assembly
+from spaic.Network.Assembly import Assembly
 import spaic
 
 # ================= Assembly Functions used in with ==========================

@@ -13,7 +13,8 @@ from collections import OrderedDict
 import spaic
 from typing import Optional,Any,List
 from dataclasses import dataclass,field
-
+from copy import copy
+import uuid
 
 
 
@@ -30,10 +31,12 @@ class BaseModule():
         self.name = None
         self.enabled = True
         self.training = True
+        self._backend: spaic.Backend = None
         self._supers = []
         self._var_names = []
         self._var_dict = dict()
         self._ops = list()
+        self.prefer_device = None
 
     @abstractmethod
     def build(self, backend):
@@ -92,18 +95,61 @@ class BaseModule():
             self.build_level = level
 
     def variable_to_backend(self, name, shape, value=None, is_parameter=False, is_sparse=False, init=None, init_param=None,
-                            min=None, max=None, is_constant=False):
+                            min=None, max=None, is_constant=False, prefer_device=None):
         self._var_names.append(name)
-        self._var_dict[name] = self._backend.add_variable(self, name, shape, value, is_parameter, is_sparse, init, init_param, min, max, is_constant)
+        self._var_dict[name] = self._backend.add_variable(self, name, shape, value, is_parameter, is_sparse, init, init_param, min, max, is_constant, prefer_device)
         return self._var_dict[name]
 
-    def op_to_backend(self, outputs, func, inputs):
+    def op_to_backend(self, outputs:list, func:callable, inputs:list):
+        # check if the inputs and outputs variables belongs to this module object, if backend don't have this variable it will be added the module label
+        if isinstance(inputs, list):
+            for ind, input_name in enumerate(inputs):
+                if not self._backend.has_variable(input_name):
+                    input_name = self._add_label(input_name)
+                    inputs[ind] = input_name
+                    # assert self._backend.has_variable(input_name)
+        elif isinstance(inputs, str):
+            if not self._backend.has_variable(inputs):
+                inputs = self._add_label(inputs)
+                inputs = [inputs]
+                # assert self._backend.has_variable(inputs[-1])
+        else:
+            raise ValueError("the preprocessing of op_to_backend do not support this input type")
+        if isinstance(outputs, list):
+            for ind, output_name in enumerate(outputs):
+                if not self._backend.has_variable(output_name):
+                    output_name = self._add_label(output_name)
+                    outputs[ind] = output_name
+                    # assert self._backend.has_variable(output_name)
+        elif isinstance(outputs, str):
+            if not self._backend.has_variable(outputs):
+                outputs = self._add_label(outputs)
+                outputs = [outputs]
+                # assert self._backend.has_variable(outputs[-1])
+        else:
+            raise ValueError("the preprocessing of op_to_backend do not support this input type")
+
+
         addcode_op = Op(outputs, func, inputs, owner=self, operation_type='_operations')
         self._backend.add_operation(addcode_op)
 
-    def init_op_to_backend(self, outputs, func, inputs):
-        addcode_op = Op(outputs, func, inputs, owner=self, operation_type='_operations')
+    def init_op_to_backend(self, outputs, func, inputs, prefer_device=0):
+        addcode_op = Op(outputs, func, inputs, place=prefer_device, owner=self, operation_type='_operations')
         self._backend.register_initial(addcode_op)
+
+    # adding label of the module object, cut from neurongroup and generalized to all Modules
+    def _add_label(self, key):
+        if isinstance(key, str):
+            if key == '[dt]':
+                return key
+            elif '[updated]' in key:
+                return self.id + ':' + '{' + key.replace('[updated]', "") + '}' + '[updated]'
+            else:
+                return self.id + ':' + '{' + key + '}'
+        elif isinstance(key, VariableAgent):
+            return key.var_name
+        else:
+            raise ValueError(" the key data type is not supported for add_label")
 
     def get_full_name(self, name):
         name = '{'+name+'}'
@@ -161,24 +207,64 @@ class BaseModule():
 
 
 class VariableAgent(object):
-    def __init__(self, backend, var_name, is_parameter=False):
+    def __init__(self, backend, var_name, is_parameter=False, dict_label=None):
         super(VariableAgent, self).__init__()
         assert isinstance(backend, spaic.Backend)
-        self._backend = backend
+        self._backend: spaic.Backend = backend
         self._var_name = var_name
         self._is_parameter = is_parameter
+        self.data_type = None
+        self.device = None
+        self.dict_label = dict_label
+
+        self.set_funcs = []
+        self.get_funcs = []
 
     @property
     def var_name(self):
         return self._var_name
 
+    def new_labeled_agent(self, dict_label):
+        assert (dict_label=='variables_dict' or dict_label=='update_dict'
+                or dict_label=='reduce_dict' or dict_label=='temp_dict')
+        agent = copy(self)
+        agent.dict_label = dict_label
+        return agent
+
     @property
     def value(self):
-        return self._backend.get_varialble(self._var_name)
+        if self.dict_label is None:
+            return self._backend.get_varialble(self._var_name)
+        elif self.dict_label == 'variables_dict':
+            return self._backend._variables[self._var_name]
+        elif self.dict_label == 'update_dict':
+            return self._backend._update_dict[self._var_name]
+        elif self.dict_label == 'reduce_dict':
+            return self._backend._reduce_dict[self._var_name]
+        elif self.dict_label == 'temp_dict':
+            return self._backend._temp_dict[self._var_name]
+        else:
+            raise ValueError("can't find variable %s"%self._var_name)
 
     @value.setter
     def value(self, value):
-        self._backend.set_variable_value(self._var_name, value, self._is_parameter)
+        if self.dict_label is None:
+            self._backend.set_variable_value(self._var_name, value, self._is_parameter)
+        elif self.dict_label == 'update_dict':
+            self._backend._update_dict[self._var_name] = value
+        elif self.dict_label == 'reduce_dict':
+            if self._var_name in self._backend._reduce_dict:
+                self._backend._reduce_dict[self._var_name].append(value)
+            else:
+                self._backend._reduce_dict[self._var_name] = [value]
+        elif self.dict_label == 'temp_dict':
+             self._backend._temp_dict[self._var_name] = value
+        elif self.dict_label == 'variables_dict':
+            self._backend._variables[self._var_name] = value
+        else:
+            raise ValueError("can't set value of variable %s" % self._var_name)
+
+
 
 
 
@@ -211,13 +297,21 @@ class Op:
     Operation data class.
     '''
     output: Optional[List] = field(default_factory=list)
-    func: Optional[Any] = None
+    func_name: Optional[str] = None
     input: Optional[List] = field(default_factory=list)
+
     place: Optional[Any] = None
     owner: Optional[BaseModule] = None
     requires_grad: Optional[bool] = False
     operation_type : Optional[str] = None # _opertaions, _init_operations, _standalone_operations
-
+    func: Optional[Any] = None
+    
+    def set_identifier(self, nid=None):
+        """Initialize self._identifier"""
+        if nid is None:
+            self._identifier = str(uuid.uuid1())
+        else:
+            self._identifier = nid
 # class NetModule(BaseModule):
 #     '''
 #     Base class for snn network modules: assemblies, connection
