@@ -15,7 +15,7 @@ from spaic.Network.Assembly import Assembly
 from collections import OrderedDict
 from warnings import warn
 import spaic
-from ..utils.memory import get_tens_mem
+from spaic.utils.memory import get_tens_mem
 from multiprocessing.pool import ThreadPool as Pool
 
 try:
@@ -81,8 +81,8 @@ class Network(Assembly):
 
     # TODO: 这里的setattr是否有必要要，是否可以全部放到Assembly里？
     def __setattr__(self, name, value):
-        from ..Monitor.Monitor import Monitor
-        from ..Learning.Learner import Learner
+        from spaic.Monitor.Monitor import Monitor
+        from spaic.Learning.Learner import Learner
         super(Network, self).__setattr__(name, value)
         if isinstance(value, Monitor):
             self._monitors[name] = value
@@ -255,7 +255,7 @@ class Network(Assembly):
     #     unbuild_groups = {}
     #     output_groups = []
     #     level = 0
-    #     from ..Neuron.Node import Encoder, Decoder, Generator
+    #     from spaic.Neuron.Node import Encoder, Decoder, Generator
     #     # ===================从input开始按深度构建计算图==============
     #     for group in all_groups:
     #         if isinstance(group, Encoder) or isinstance(group, Generator):

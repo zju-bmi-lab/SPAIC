@@ -10,17 +10,17 @@ Created on 2022/1/18
 """
 
 
-from ..Network.BaseModule import BaseModule
-from ..Network.Assembly import Assembly
-# from ..Network.Synapse import Flatten_synapse
-from ..IO.Initializer import BaseInitializer
-from ..Network.BaseModule import VariableAgent, Op
-from ..Backend.Backend import Backend
+from spaic.Network.BaseModule import BaseModule
+from spaic.Network.Assembly import Assembly
+# from spaic.Network.Synapse import Flatten_synapse
+from spaic.IO.Initializer import BaseInitializer
+from spaic.Network.BaseModule import VariableAgent, Op
+from spaic.Backend.Backend import Backend
 from abc import abstractmethod
 from typing import List
 import numpy as np
 from abc import ABC
-from ..utils.memory import get_cpu_mem,get_object_size
+from spaic.utils.memory import get_cpu_mem,get_object_size
 
 class Projection(BaseModule):
     '''
@@ -756,7 +756,7 @@ class Connection(Projection):
         return self._backend.dt
 
     def decode_syn_op(self, syn_ops, synapse_name, op_len):
-        if op_len > 1:
+        if len(synapse_name) > 1:
             for i in range(1, op_len):
                 pre_op_return_name = syn_ops[i-1][0]
                 post_op_first_input = syn_ops[i][2]

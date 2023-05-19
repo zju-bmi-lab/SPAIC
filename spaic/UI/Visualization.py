@@ -8,7 +8,7 @@ Created on 2020/8/17
 
 @description: 
 """
-from ..Network.Assembly import NetModule
+from spaic.Network.Assembly import NetModule
 
 class Visualization(NetModule):
 

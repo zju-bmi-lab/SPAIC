@@ -12,8 +12,8 @@ wrap around deep learning module such as a cnn network lstm cell
 import torch
 
 import spaic
-from ..Network.Assembly import Assembly
-from ..Network.BaseModule import Op
+from spaic.Network.Assembly import Assembly
+from spaic.Network.BaseModule import Op
 
 class Module(Assembly):
     _class_label = '<mod>'

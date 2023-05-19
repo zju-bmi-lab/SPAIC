@@ -12,11 +12,11 @@ Created on 2020/8/5
 """
 # print('__file__={0:<35} | __name__={1:<20} | __package__={2:<20}'.format(__file__,__name__,str(__package__)))
 import numpy as np
-from ..Network import Assembly
+from spaic.Network import Assembly
 from abc import ABC, abstractmethod
 from collections import OrderedDict
-from ..Network.BaseModule import VariableAgent, Op
-from ..IO.Initializer import uniform
+from spaic.Network.BaseModule import VariableAgent, Op
+from spaic.IO.Initializer import uniform
 import re
 
 

@@ -8,7 +8,7 @@ Created on 2020/8/12
 @description:
 定义数据导入模块
 """
-from ..IO.sampler import *
+from spaic.IO.sampler import *
 import numpy as np
 
 # Dataloader class is written by referring to https://github.com/pytorch/pytorch/blob/master/torch/utils/data/dataloader.py.

@@ -10,7 +10,7 @@ Created on 2022/5/30
 A numerical analysis tool for approximating derivatives of networks using Finite Difference Method
 """
 import spaic
-from ..Network.BaseModule import Op
+from spaic.Network.BaseModule import Op
 from .Learner import Learner
 from spaic import Backend
 import torch

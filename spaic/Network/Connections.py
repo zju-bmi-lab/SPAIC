@@ -9,15 +9,15 @@ Created on 2020/8/5
 @description:
 定义神经集群间的连接，包括记录神经元集群、连接的突触前、突触后神经元编号、连接形式（全连接、稀疏连接、卷积）、权值、延迟 以及连接产生函数、重连接函数等。
 """
-from ..Network.Topology import Connection
-from ..Network.Assembly import Assembly
+from spaic.Network.Topology import Connection
+from spaic.Network.Assembly import Assembly
 import numpy as np
 import scipy.sparse as sp
 import torch
-from ..IO.Initializer import BaseInitializer
+from spaic.IO.Initializer import BaseInitializer
 import collections
 import random
-# from ..utils.memory import get_cpu_mem,get_object_size
+# from spaic.utils.memory import get_cpu_mem,get_object_size
 
 from matplotlib.pyplot import *
 import math

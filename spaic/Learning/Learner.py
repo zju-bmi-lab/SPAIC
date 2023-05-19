@@ -9,9 +9,9 @@ Created on 2020/8/12
 @description:
 定义学习模块，包括各种学习算法对仿真计算过程中插入的各种计算模块，以及记录需要学习连接的接口
 """
-# from ..Network.Connection import Connection
-# from ..Neuron.Neuron import NeuronGroup
-from ..Network.Assembly import BaseModule
+# from spaic.Network.Connection import Connection
+# from spaic.Neuron.Neuron import NeuronGroup
+from spaic.Network.Assembly import BaseModule
 from abc import ABC, abstractmethod
 from collections import OrderedDict
 import torch
@@ -105,11 +105,11 @@ class Learner(BaseModule, ABC):
             Args:
                 trainable(list) : The trainable target waiting for added.
         '''
-        from ..Network.Assembly import Assembly
-        from ..Network.Connections import Connection
-        from ..Neuron.Neuron import NeuronGroup
-        from ..Neuron.Module import Module
-        from ..Neuron.Node import Node
+        from spaic.Network.Assembly import Assembly
+        from spaic.Network.Connections import Connection
+        from spaic.Neuron.Neuron import NeuronGroup
+        from spaic.Neuron.Module import Module
+        from spaic.Neuron.Node import Node
 
         if not isinstance(trainable, list):
             trainable = [trainable]
@@ -138,11 +138,11 @@ class Learner(BaseModule, ABC):
             Args:
                 pathway(list) : The pathway target waiting for added.
         '''
-        from ..Network.Assembly import Assembly
-        from ..Network.Connections import Connection
-        from ..Neuron.Neuron import NeuronGroup
-        from ..Neuron.Module import Module
-        from ..Neuron.Node import Node
+        from spaic.Network.Assembly import Assembly
+        from spaic.Network.Connections import Connection
+        from spaic.Neuron.Neuron import NeuronGroup
+        from spaic.Neuron.Module import Module
+        from spaic.Neuron.Node import Node
 
         if not isinstance(pathway, list):
             pathway = [pathway]

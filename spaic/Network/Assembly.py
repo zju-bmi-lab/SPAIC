@@ -10,7 +10,7 @@ Created on 2020/8/5
 import spaic
 
 from collections import OrderedDict
-from ..Network.BaseModule import BaseModule, VariableAgent
+from spaic.Network.BaseModule import BaseModule, VariableAgent
 from abc import ABC, abstractmethod
 from torch import nn
 from typing import List
@@ -875,8 +875,8 @@ class Assembly(BaseModule):
         # print(keys)
 
     def __setattr__(self, name, value):
-        from ..Network.Topology import Connection
-        from ..Network.Topology import Projection
+        from spaic.Network.Topology import Connection
+        from spaic.Network.Topology import Projection
         super(Assembly, self).__setattr__(name, value)
         if (self.__class__ is spaic.NeuronGroup) or (issubclass(self.__class__, spaic.Node)):
             # If class is NeuronGroup or the subclass of Node, do not add other object to it.

@@ -12,9 +12,9 @@ import sys
 from abc import abstractmethod, ABC
 from collections import OrderedDict
 from typing import Dict
-from ..Network.BaseModule import BaseModule, VariableAgent, Op
-from ..Network.DelayQueue import DelayQueue
-from ..IO.Initializer import BaseInitializer
+from spaic.Network.BaseModule import BaseModule, VariableAgent, Op
+from spaic.Network.DelayQueue import DelayQueue
+from spaic.IO.Initializer import BaseInitializer
 import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt

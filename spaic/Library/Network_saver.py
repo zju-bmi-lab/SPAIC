@@ -11,15 +11,15 @@ Created on 2020/8/17
 """
 
 import os
-from ..Network.Assembly import Assembly
-from ..Neuron.Neuron import NeuronGroup
-from ..Neuron.Node import Node
-from ..Network.Topology import Connection
-from ..Backend.Backend import Backend
-from ..Network.Topology import Projection
-from ..Monitor.Monitor import Monitor
-from ..IO.Initializer import BaseInitializer
-from ..IO import Initializer as Initer
+from spaic.Network.Assembly import Assembly
+from spaic.Neuron.Neuron import NeuronGroup
+from spaic.Neuron.Node import Node
+from spaic.Network.Topology import Connection
+from spaic.Backend.Backend import Backend
+from spaic.Network.Topology import Projection
+from spaic.Monitor.Monitor import Monitor
+from spaic.IO.Initializer import BaseInitializer
+from spaic.IO import Initializer as Initer
 
 import time
 
