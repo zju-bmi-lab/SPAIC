@@ -331,12 +331,13 @@ def trans_connection(connection: Connection, combine: bool, save_weight: bool):
         if key in name_needed:
             para_dict[key] = para.id
         elif key in needed:
+            d_para = para
             if key == 'parameters':
-                if 'weight' in para.keys():
-                    del para['weight']
-                if 'bias' in para.keys():
-                    para['bias'] = trans_bias(para['bias'])
-            para_dict[key] = check_var_type(para)
+                if 'weight' in d_para.keys():
+                    del d_para['weight']
+                if 'bias' in d_para.keys():
+                    d_para['bias'] = trans_bias(d_para['bias'])
+            para_dict[key] = check_var_type(d_para)
     if combine:     # 是否需要在文件中存储weight
         para_dict['weight'] = check_var_type(connection.weight.value)
 
@@ -471,6 +472,8 @@ def check_var_type(var):
             for key, value in var.items():
                 var[key] = check_var_type(value)
             return var
+        if isinstance(var, str):
+            return var
         try:
             var_list = var.tolist()
             return var_list
@@ -501,7 +504,6 @@ def check_var_type(var):
     #     return var
     # else:
     #     return var
-
 
 
 def trans_bias(para: dict):

@@ -404,19 +404,22 @@ class ReloadedNetwork(Network):
 
         if backend is None:
             backend = Torch_Backend(device)
-            self.set_backend(backend)
-            self.set_backend_data_type(data_type=data_type)
-            if self._backend_info:
-                for key in key_parameters_list:
-                    self._backend.__dict__[key] = self._backend_info[key]
-            self.build()
+        self.set_backend(backend)
+        self.set_backend_data_type(data_type=data_type)
+        if self._backend_info:
+            for key in key_parameters_list:
+                self._backend.__dict__[key] = self._backend_info[key]
+        self.build()
 
         if load_weight:
             path = self._backend_info['_parameters_dict']
             data = torch.load(path, map_location=self._backend.device0)
             for key, value in data.items():
                 # print(key, 'value:', value)
-                target_device = self._backend._parameters_dict[key].device
+                if key in self._backend._parameters_dict.keys():
+                    target_device = self._backend._parameters_dict[key].device
+                else:
+                    target_device = self._backend.device0
                 self._backend._parameters_dict[key] = value.to(target_device)
 
         return
