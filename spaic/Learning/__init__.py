@@ -12,7 +12,7 @@ from .STCA_Learner import STCA
 from .STBP_Learner import STBP
 from .RSTDP import RSTDP, RSTDPET
 # from .PSD_Learner import PSD
-from .TRUE_Learner import TRUE_SpikeProp
+
 from .Rate_Modulation import Rate_Modulate
 from .Backprop_RSTDP import Backprop_RSTDP
 

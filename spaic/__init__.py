@@ -26,8 +26,7 @@ from .Monitor.Monitor import StateMonitor, SpikeMonitor
 from .Learning.Rate_Modulation import Rate_Modulate
 from .Learning.STCA_Learner import STCA
 from .Learning.SurrogateBP_Learner import SurrogateBP
-from .Learning.TRUE_Learner import TRUE_SpikeProp
-from .Learning.BioHashSTDP_Learner import BioHash
+
 from .Learning.Learner import Learner
 from .IO.Dataset import Dataset, CustomDataset, MNIST, FashionMNIST, OctMNIST, PathMNIST, MNISTVoices, cifar10, SHD, SSC, \
     DVS128Gesture
