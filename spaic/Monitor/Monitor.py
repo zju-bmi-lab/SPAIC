@@ -200,7 +200,7 @@ class SpikeMonitor(Monitor):
                 self._times.append(self.backend.time)
             else:
                 if len(self.index) == record_value.ndim:
-                    self._records.append(record_value[self.index])
+                    self._records.append(record_value[tuple(self.index)])
                     self._times.append(self.backend.time)
                 else:
                     assert len(self.index) == record_value.ndim -1
