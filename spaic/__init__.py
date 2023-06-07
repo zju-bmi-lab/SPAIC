@@ -7,6 +7,8 @@ Created on 2020/8/11
 
 @description: 
 """
+VERSION = (0, 6, 2, 2, 0)
+__version__ = '.'.join(map(lambda x: str(x), VERSION))
 
 # ============== Global variable block for network building ==================
 global_assembly_context_list = list()
