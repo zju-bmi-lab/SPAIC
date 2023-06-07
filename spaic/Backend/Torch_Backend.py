@@ -11,7 +11,7 @@ from .Backend import Backend, backends
 import torch
 import numpy as np
 # from torch import fx
-#from torch.nn import Module, Parameter
+# from torch.nn import Module, Parameter
 import torch.nn.functional as fn
 import torch.nn as nn
 from typing import Tuple, Dict, Callable
@@ -20,12 +20,13 @@ from torch.cuda.amp import autocast
 import torch.distributed
 import threading
 
+
 class Torch_Engine(torch.nn.Module):
     def __init__(self, graph_operations):
         super(Torch_Engine, self).__init__()
         self._graph_operations = graph_operations
 
-    def forward(self, variables: Dict[str,torch.Tensor]):
+    def forward(self, variables: Dict[str, torch.Tensor]):
         temp_dict = dict()
         update_dict = dict()
         reduce_dict = dict()
@@ -60,13 +61,12 @@ class Torch_Engine(torch.nn.Module):
         return update_dict
 
 
-
 class Torch_Backend(Backend):
     backend_name = 'pytorch'
 
     def __init__(self, device='cpu'):
         super(Torch_Backend, self).__init__()
-        self.device = device if isinstance(device,list) else [device]
+        self.device = device if isinstance(device, list) else [device]
         self.device0 = self.device[0]
         self.device_count = len(self.device)
         self.data_type = torch.float32
@@ -83,7 +83,7 @@ class Torch_Backend(Backend):
         # self._graph_var_dicts['update_dict']['example_temp_dict_pytorch_datatype'] = torch.empty(1)
         # self._graph_var_dicts['reduce_dict']['example_temp_dict_pytorch_datatype'] = torch.empty(1)
         #
-        #self.update_step = jit.trace(self.update_step)
+        # self.update_step = jit.trace(self.update_step)
         self.engine = Torch_Engine(self._graph_operations)
         self.engine = fx.symbolic_trace(self.engine)
 
@@ -105,24 +105,24 @@ class Torch_Backend(Backend):
             device = inputs[1].device
         else:
             device = inputs[0].device
-        for ind,t in enumerate(inputs):
+        for ind, t in enumerate(inputs):
             if torch.is_tensor(t):
                 inputs[ind] = t.to(device)
 
-    def is_insert(self,inputs):
+    def is_insert(self, inputs):
         if len(inputs) == 0:
             return False
         elif len(set(inputs)) < len(inputs):
             return True
 
-    def move_compute_and_assign_tensors(self,op):
+    def move_compute_and_assign_tensors(self, op):
         inputs = []
         for var in op.input:
             if torch.is_tensor(var.value):
                 var.value = var.value.to(op.place)
                 inputs.append(var.value)
             elif isinstance(var.value, list):
-                for ind,x in enumerate(var.value):
+                for ind, x in enumerate(var.value):
                     if torch.is_tensor(x):
                         var.value[ind] = x.to(op.place)
                 inputs.append(var.value)
@@ -143,7 +143,7 @@ class Torch_Backend(Backend):
 
         if self.partition:
             if self.partition == 'multithread':
-                threads = [threading.Thread(target=_worker,args=group) for group in self.groups]
+                threads = [threading.Thread(target=_worker, args=group) for group in self.groups]
                 for thread in threads:
                     thread.start()
                 for thread in threads:
@@ -168,7 +168,8 @@ class Torch_Backend(Backend):
         return self.enablegrad_decorator(func)
 
     #  As of now, autograd support floating point Tensor types ( half, float, double and bfloat16) and complex Tensor types (cfloat, cdouble).
-    def add_backend_variable(self, module, name, shape, value=None, grad=False, is_sparse=False, init=None, init_param=None, prefer_device=None):
+    def add_backend_variable(self, module, name, shape, value=None, grad=False, is_sparse=False, init=None,
+                             init_param=None, prefer_device=None):
         '''
         Parameters
         ----------
@@ -196,10 +197,12 @@ class Torch_Backend(Backend):
             else:
                 raise ValueError("No initialize method: %s in param_init_operate" % init)
         elif value is not None:
-        # if value is not None:
+            # if value is not None:
             if hasattr(value, "__len__"):
-                if (value.shape == torch.Size([1,]) or value.shape == torch.Size([])) and isinstance(value, torch.Tensor):
-                    self._variables[name] = (value.to(self.device0) * torch.ones(shape, dtype=self.data_type, device=self.device0)).clone()
+                if (value.shape == torch.Size([1, ]) or value.shape == torch.Size([])) and isinstance(value,
+                                                                                                      torch.Tensor):
+                    self._variables[name] = (value.to(self.device0) * torch.ones(shape, dtype=self.data_type,
+                                                                                 device=self.device0)).clone()
                     self._variables[name].requires_grad = grad
                 elif tuple(value.shape) != tuple(shape):
                     raise ValueError("Value is not scalar and the shape of Value is not equal to shape")
@@ -220,7 +223,8 @@ class Torch_Backend(Backend):
                         data = torch.empty(shape, dtype=self.data_type, device=self.device0, requires_grad=True)
                         self._variables[sparse_value] = self.param_init_operate[init](data, **init_param)
                     else:
-                        self._variables[sparse_value] = torch.tensor(v, dtype=self.data_type, requires_grad=True, device=self.device0)
+                        self._variables[sparse_value] = torch.tensor(v, dtype=self.data_type, requires_grad=True,
+                                                                     device=self.device0)
                     self._parameters_dict[sparse_value] = self._variables[sparse_value]
 
                     # The shape of sparse matrix
@@ -229,7 +233,9 @@ class Torch_Backend(Backend):
                     self._InitVariables_dict[sparse_shape] = self._variables[sparse_shape]
 
                     # Sparse matrix
-                    self._variables[name] = torch.sparse.FloatTensor(self._variables[sparse_index], self._variables[sparse_value], self._variables[sparse_shape])
+                    self._variables[name] = torch.sparse.FloatTensor(self._variables[sparse_index],
+                                                                     self._variables[sparse_value],
+                                                                     self._variables[sparse_shape])
                 else:
                     # add a non sparse matrices with all dimensions greater than 2
                     if init is not None:
@@ -245,17 +251,18 @@ class Torch_Backend(Backend):
                             self._variables[name] = value.clone().detach().to(device0)
                         else:
                             self._variables[name] = torch.tensor(value, dtype=self.data_type, device=device0,
-                                                                   requires_grad=grad)
+                                                                 requires_grad=grad)
 
             elif len(shape) == 0:
                 # add constant
-                self._variables[name] = torch.tensor(value, dtype=self.data_type, device=self.device0, requires_grad=grad)
+                self._variables[name] = torch.tensor(value, dtype=self.data_type, device=self.device0,
+                                                     requires_grad=grad)
 
             else:
                 # add a matrix through constant
                 if init is not None:
                     # self._variables[name] = self.init_param(grad, init)
-                    data = value*torch.ones(shape, dtype=self.data_type, device=device0, requires_grad=grad)
+                    data = value * torch.ones(shape, dtype=self.data_type, device=device0, requires_grad=grad)
                     init = init.lower()
                     if init in self.param_init_operate.keys():
                         self._variables[name] = self.param_init_operate[init](data, **init_param)
@@ -264,7 +271,7 @@ class Torch_Backend(Backend):
                 else:
                     # add a matrix through constant
                     self._variables[name] = (
-                                value * torch.ones(shape, dtype=self.data_type, device=self.device0)).clone()
+                            value * torch.ones(shape, dtype=self.data_type, device=self.device0)).clone()
                     self._variables[name].requires_grad = grad
         return self._variables[name]
 
@@ -273,17 +280,18 @@ class Torch_Backend(Backend):
             assert name in self._parameters_dict
             assert self._parameters_dict[name].shape == value.shape
             if not isinstance(value, torch.Tensor):
-                value = torch.tensor(value, dtype=self._parameters_dict[name].dtype, device=self._parameters_dict[name].device)
+                value = torch.tensor(value, dtype=self._parameters_dict[name].dtype,
+                                     device=self._parameters_dict[name].device)
             with torch.no_grad():
                 self._parameters_dict[name].data = value
         else:
             assert name in self._InitVariables_dict
             assert self._backend._InitVariables_dict[name].shape == value.shape
             if not isinstance(value, torch.Tensor):
-                value = torch.tensor(value, dtype=self._InitVariables_dict[name].dtype, device=self._InitVariables_dict[name].device)
+                value = torch.tensor(value, dtype=self._InitVariables_dict[name].dtype,
+                                     device=self._InitVariables_dict[name].device)
             with torch.no_grad():
                 self._InitVariables_dict[name].data = value
-
 
     # def init_param(self, grad, *init):
     #     if init[0] in self.param_init_operate:
@@ -300,38 +308,39 @@ class Torch_Backend(Backend):
     #     return init_op(*inputs)
 
     def sparse_to_dense(self, index_name, value_name, shape_name):
-        return torch.sparse.FloatTensor(self._variables[index_name], self._variables[value_name], self._variables[shape_name])
+        return torch.sparse.FloatTensor(self._variables[index_name], self._variables[value_name],
+                                        self._variables[shape_name])
 
     def get_str(self, level):
-        return level*' ' + 'torch_backend'
+        return level * ' ' + 'torch_backend'
 
     def threshold(self, x, v_th):
         return torch.gt(x, v_th).type(self.data_type)
 
     def reset(self, v, o):
-        return o.eq(0)*v
+        return o.eq(0) * v
 
     def cat(self, x, dim=1):
         return torch.cat(x, dim)
 
-    def stack(self, x, dim=1):       # 在指定维度dim上连接（concatenate）若干个张量。
+    def stack(self, x, dim=1):  # 在指定维度dim上连接（concatenate）若干个张量。
         try:
             return torch.stack(x, dim)
         except:
             # patch for SLIF 2[O]
             for ii in range(len(x)):
-                if x[ii].dim() ==2:
+                if x[ii].dim() == 2:
                     tmp = torch.zeros_like(x[ii])
                     tmp = torch.stack([x[ii], tmp], dim=1)
                     x[ii] = tmp
             return torch.stack(x, dim)
 
     def reduce_sum(self, x, *dim):
-        if len(dim)==0:
+        if len(dim) == 0:
             dim = 1
         return torch.sum(x, dim=dim)
 
-    def index_select(self, x,  indices, dim=1):
+    def index_select(self, x, indices, dim=1):
         return torch.index_select(x, dim=dim, index=indices)
 
     def permute(self, x, permute_dim):
@@ -342,7 +351,6 @@ class Torch_Backend(Backend):
         x = x.contiguous().view(view_dim)
         return x
 
-
     def scatter(self, x, indices):
         return torch.scatter(x, dim=0, index=indices)
 
@@ -352,16 +360,16 @@ class Torch_Backend(Backend):
     def conv_trans1d(self, x, kernel, bias=None):
         return torch.conv_transpose1d(x, kernel, bias)
 
-
     def conv_2d(self, x, kernel, stride, padding, dilation, groups, padding_mode='constant'):
         if x.dim() == kernel.dim() + 1:
             xshape = list(x.shape)
-            xshape[0] = xshape[0]*xshape[1]
+            xshape[0] = xshape[0] * xshape[1]
             extend_size = xshape[1]
             xshape.pop(1)
-            out = fn.conv2d(x.reshape(xshape), kernel, stride=stride, padding=padding, dilation=dilation, groups=groups, padding_mode=padding_mode)
+            out = fn.conv2d(x.reshape(xshape), kernel, stride=stride, padding=padding, dilation=dilation, groups=groups,
+                            padding_mode=padding_mode)
             outshape = list(out.shape)
-            outshape[0] = outshape[0]//extend_size
+            outshape[0] = outshape[0] // extend_size
             outshape.insert(1, extend_size)
             return out.view(outshape)
         else:
@@ -370,47 +378,47 @@ class Torch_Backend(Backend):
     def conv_2d_complex(self, x, kernel, stride, padding, dilation, groups, beta, delay=None):
         if x.dtype.is_complex:
             if delay is not None:
-                d_delay = delay/self.dt
+                d_delay = delay / self.dt
                 d_delay = torch.ceil(d_delay) - d_delay
-                x = beta ** (x.imag+d_delay) * (x.real * (0 + 1.0j))
+                x = beta ** (x.imag + d_delay) * (x.real * (0 + 1.0j))
             else:
                 x = beta ** x.imag * (x.real * (0 + 1.0j))
         else:
-            x = x*(0+1.0j)
+            x = x * (0 + 1.0j)
         real = fn.conv2d(x.real, kernel, stride=stride, padding=padding, dilation=dilation, groups=groups)
         imag = fn.conv2d(x.imag, kernel, stride=stride, padding=padding, dilation=dilation, groups=groups)
         return torch.complex(real, imag)
 
     def conv_trans2d(self, x, kernel, stride=1, padding=0, dilation=0, groups=1):
-        return torch.conv_transpose2d(x, kernel,stride=stride, padding=padding, dilation=dilation, groups=groups)
-
-
+        return torch.conv_transpose2d(x, kernel, stride=stride, padding=padding, dilation=dilation, groups=groups)
 
     def conv_max_pool2d(self, x, kernel, pool_kernel, stride, pool_stride, padding, pool_padding, dilation, groups):
         return fn.max_pool2d(fn.conv2d(x, kernel, stride=stride, padding=padding,
-                             dilation=dilation, groups=groups), kernel_size=pool_kernel,
+                                       dilation=dilation, groups=groups), kernel_size=pool_kernel,
                              stride=pool_stride, padding=pool_padding)
 
         # return fn.conv2d(fn.max_pool2d(x, int(max_kernel[0])), kernel, stride=int(stride), padding=int(padding), dilation=int(dilation), groups=int(groups))
 
     def conv_avg_pool2d(self, x, kernel, pool_kernel, stride, pool_stride, padding, pool_padding, dilation, groups):
         return fn.avg_pool2d(fn.conv2d(x, kernel, stride=stride, padding=padding,
-                             dilation=dilation, groups=groups), kernel_size=pool_kernel,
+                                       dilation=dilation, groups=groups), kernel_size=pool_kernel,
                              stride=pool_stride, padding=pool_padding)
+
     def conv_add_bias(self, x, bias):
         bias_t = bias.repeat(x.shape[-2], x.shape[-1], 1).permute(2, 1, 0)
-        return x+bias_t
+        return x + bias_t
+
     def max_pool2d(self, x, pool_kernel, pool_stride, pool_padding):
         return fn.max_pool2d(x, kernel_size=pool_kernel, stride=pool_stride, padding=pool_padding)
+
     def post_max_pool2d_complex(self, x, pool_kernel, pool_stride, pool_padding):
         pool_imag, pool_index = fn.max_pool2d(x.imag, kernel_size=pool_kernel, return_indices=True,
                                               stride=pool_stride, padding=pool_padding)
         x_shape = x.shape
         pool_shape = pool_index.shape
         pool_real = torch.gather(x.real.view(x_shape[0], x_shape[1], -1), dim=-1,
-                                 index=pool_index.view(x_shape[0], x_shape[1],-1)).view(pool_shape[0], pool_shape[1],
-                                                                                        pool_shape[2], pool_shape[3])
-
+                                 index=pool_index.view(x_shape[0], x_shape[1], -1)).view(pool_shape[0], pool_shape[1],
+                                                                                         pool_shape[2], pool_shape[3])
 
         return torch.complex(real=pool_real, imag=pool_imag)
 
@@ -477,7 +485,6 @@ class Torch_Backend(Backend):
         X = X.permute(1, 0)
         return torch.matmul(A, X)
 
-
     def mat_mult_weight_complex(self, A, X, beta, delay=None):
         '''
         Parameters
@@ -491,12 +498,12 @@ class Torch_Backend(Backend):
         if A.dtype.is_complex:
             beta = beta.unsqueeze(-1)
             if delay is not None:
-                A = A.permute(0,2,1)
+                A = A.permute(0, 2, 1)
                 real = A.real
                 imag = A.imag
-                d_delay = delay.unsqueeze(0)/self.dt
+                d_delay = delay.unsqueeze(0) / self.dt
                 d_delay = torch.ceil(d_delay) - d_delay
-                O = beta ** (imag+d_delay) * (real * (0 + 1.0j))
+                O = beta ** (imag + d_delay) * (real * (0 + 1.0j))
             else:
                 A = A.unsqueeze(-2)
                 real = A.real
@@ -511,11 +518,11 @@ class Torch_Backend(Backend):
             return torch.sum(O * X, dim=-1)
         elif delay is not None:
             A = A.permute(0, 2, 1)
-            return torch.sum(A * X, dim=-1)*(0.0+1.0j)
+            return torch.sum(A * X, dim=-1) * (0.0 + 1.0j)
         else:
             X = X.permute(1, 0)
             Out = torch.matmul(A.to(X.dtype), X)
-            Out = Out*(0.0+1.0j)
+            Out = Out * (0.0 + 1.0j)
             # if torch.any(torch.isnan(Out)):
             #     print("input:", A)
             #     print("weight:", X)
@@ -533,7 +540,7 @@ class Torch_Backend(Backend):
             return O
         else:
             A = A.unsqueeze(-2).unsqueeze(-1)
-            O = torch.sum(A*X, dim=-2)
+            O = torch.sum(A * X, dim=-2)
             return O
 
     def mat_mult_pre(self, A, X):
@@ -608,7 +615,7 @@ class Torch_Backend(Backend):
 
     def var_linear(self, A, X, b):
 
-        return A*X+b
+        return A * X + b
 
     def unsqueeze(self, X, dim):
         return torch.unsqueeze(X, dim)
@@ -621,28 +628,24 @@ class Torch_Backend(Backend):
             return data.to(torch.float).to(self.device)
         else:
             return torch.tensor(data, dtype=torch.float, device=self.device)
-    def upsample(self,x, scale):
+
+    def upsample(self, x, scale):
         return torch.nn.functional.interpolate(x, scale_factor=scale, mode='nearest')
 
     def exp(self, x):
         return torch.exp(x)
 
-
     def clamp_(self, data, min, max):
         with torch.no_grad():
             data.clamp_(min, max)
-
 
     def clamp_max_(self, data, max):
         with torch.no_grad():
             data.clamp_max_(max)
 
-
-
     def clamp_min_(self, data, min):
         with torch.no_grad():
             data.clamp_min_(min)
-
 
     def uniform(self, data, a=-0.0, b=1.0):
         '''
@@ -655,7 +658,6 @@ class Torch_Backend(Backend):
         '''
         return torch.nn.init.uniform_(data, a, b)
 
-
     def normal(self, data, mean=0.0, std=1.0):
         '''
         Args:
@@ -667,8 +669,6 @@ class Torch_Backend(Backend):
         '''
         return torch.nn.init.normal_(data, mean, std)
 
-
-
     def xavier_normal(self, data, gain=1.0):
         '''
         Args:
@@ -679,7 +679,6 @@ class Torch_Backend(Backend):
         '''
         return torch.nn.init.xavier_normal_(data, gain)
 
-
     def xavier_uniform(self, data, gain=1.0):
         '''
         Args:
@@ -689,7 +688,6 @@ class Torch_Backend(Backend):
             torch.nn.init.xavier_uniform_(data, gain=1.0)
         '''
         return torch.nn.init.xavier_uniform_(data, gain)
-
 
     def kaiming_normal(self, data, a=0, mode='fan_in', nonlinearity='leaky_relu'):
         '''
@@ -702,7 +700,6 @@ class Torch_Backend(Backend):
             torch.nn.init.kaiming_normal_(data, a=0, mode='fan_in', nonlinearity='leaky_relu')
         '''
         return torch.nn.init.kaiming_normal_(data, a, mode, nonlinearity)
-
 
     def kaiming_uniform(self, data, a=0, mode='fan_in', nonlinearity='leaky_relu'):
         '''
@@ -741,9 +738,9 @@ class Torch_Backend(Backend):
     def weight_norm(self, weight, amp):
         w_norm = torch.norm(weight, p=2, dim=1, keepdim=True)
         # print(amp.item(), w_norm.item())
-        return weight*amp/w_norm
+        return weight * amp / w_norm
 
-    #TODO: THis "TO" should be named to_device
+    # TODO: THis "TO" should be named to_device
     def to(self, x, device):
         return x.to(device)
 
@@ -785,10 +782,6 @@ class Torch_Backend(Backend):
 
 
 backends[Torch_Backend.backend_name] = Torch_Backend
-
-
-
-
 
 # test = Torch_Backend()
 # th = test.basic_operate['threshold']

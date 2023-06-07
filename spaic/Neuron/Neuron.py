@@ -12,11 +12,12 @@ Created on 2020/8/5
 """
 # print('__file__={0:<35} | __name__={1:<20} | __package__={2:<20}'.format(__file__,__name__,str(__package__)))
 import numpy as np
-from spaic.Network import Assembly
+from ..Network import Assembly
 from abc import ABC, abstractmethod
 from collections import OrderedDict
-from spaic.Network.BaseModule import VariableAgent, Op
-from spaic.IO.Initializer import uniform
+from ..Network.BaseModule import VariableAgent
+from ..Network.Operator import Op
+from ..IO.Initializer import uniform
 import re
 
 
@@ -704,7 +705,7 @@ class SELIFModel(NeuronModel):  #Exponential Model
                  **kwargs
                  ):
         super(SELIFModel, self).__init__()
-        from spaic.Learning.TRUE_Learner import TRUE_SpikeProp
+        # from spaic.Learning.TRUE_Learner import TRUE_SpikeProp
         # initial value for state variables
         self._variables['[2]O'] = 0.0
         self._variables['V'] = 0.0
@@ -870,7 +871,7 @@ class SLIFModel(NeuronModel):
                  outlayer=False,
                  ):
         super(SLIFModel, self).__init__()
-        from spaic.Learning.TRUE_Learner import TRUE_SpikeProp
+        # from spaic.Learning.TRUE_Learner import TRUE_SpikeProp
         # initial value for state variables
         self._variables['[2]O'] = 0.0
         self._variables['V'] = 0.0
@@ -1028,7 +1029,7 @@ class SELIFDebugModel(NeuronModel):
                  outlayer=False
                  ):
         super(SELIFDebugModel, self).__init__()
-        from spaic.Learning.TRUE_Learner import TRUE_SpikeProp
+        # from spaic.Learning.TRUE_Learner import TRUE_SpikeProp
         # initial value for state variables
         self._variables['[2]O'] = 0.0
         self._variables['V'] = 0.0

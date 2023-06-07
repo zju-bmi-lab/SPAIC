@@ -8,9 +8,8 @@ Created on 2022/4/27
 
 @description: 
 """
-from spaic.Learning.Learner import Learner
-from spaic.Network.BaseModule import Op
-from spaic.Backend.Backend import Backend
+from .Learner import Learner
+from ..Backend.Backend import Backend
 import numpy as np
 import torch
 

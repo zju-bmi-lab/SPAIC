@@ -9,10 +9,12 @@ Created on 2020/8/11
 @description:
 定义神经网络的输入输出接口
 """
-from spaic.Network.Assembly import Assembly
+from ..Network.Assembly import Assembly
 import torch
 import numpy as np
-from spaic.Backend.Backend import Op
+from ..Backend.Backend import Op
+
+
 class Node(Assembly):
     '''Base class for input encoder and output decoders.
     '''

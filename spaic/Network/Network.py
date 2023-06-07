@@ -10,13 +10,11 @@ Created on 2020/8/5
 定义网络以及子网络，网络包含所有的神经网络元素、如神经集群、连接以及学习算法、仿真器等，实现最终的网络仿真与学习。
 执行过程：网络定义->网络生成->网络仿真与学习
 """
-from spaic.Network.Assembly import Assembly
-# from spaic.Network.Topology import Connection
+from .Assembly import Assembly
 from collections import OrderedDict
 from warnings import warn
-import spaic
-from spaic.utils.memory import get_tens_mem
-from multiprocessing.pool import ThreadPool as Pool
+from ..Backend.Backend import Backend
+from ..Backend.Torch_Backend import Torch_Backend
 
 try:
     import torch
@@ -33,7 +31,7 @@ class Network(Assembly):
         self._monitors = OrderedDict()
         self._learners = OrderedDict()
         self._pipline = None
-        self._backend: spaic.Backend = None
+        self._backend: Backend = None
         self._forward_build = False
         pass
 
@@ -42,28 +40,28 @@ class Network(Assembly):
         if isinstance(device, str):
             device = [device]
         if backend is None:
-            self._backend = spaic.Torch_Backend(device)
+            self._backend = Torch_Backend(device)
             self._backend.partition = partition
-        elif isinstance(backend, spaic.Backend):
+        elif isinstance(backend, Backend):
             self._backend = backend
         elif isinstance(backend, str):
             if backend == 'torch' or backend == 'pytorch':
-                self._backend = spaic.Torch_Backend(device)
+                self._backend = Torch_Backend(device)
                 self._backend.partition = partition
-            elif backend == 'tensorflow':
-                self._backend = spaic.Tensorflow_Backend(device)
+            # elif backend == 'tensorflow':
+            #     self._backend = spaic.Tensorflow_Backend(device)
 
     def set_backend_dt(self, dt=0.1, partition=False):
         if self._backend is None:
             warn("have not set backend, default pytorch backend is set automatically")
-            self._backend = spaic.Torch_Backend('cpu')
+            self._backend = Torch_Backend('cpu')
             self._backend.dt = dt
         else:
             self._backend.dt = dt
             self._backend.partition = partition
 
     def set_random_seed(self, seed):
-        if isinstance(self._backend, spaic.Torch_Backend):
+        if isinstance(self._backend, Torch_Backend):
             import torch
             torch.random.manual_seed(int(seed))
             if self._backend.device == 'cuda':
@@ -76,13 +74,14 @@ class Network(Assembly):
         return self.all_Wparams
 
     def add_learner(self, name, learner):
-        assert isinstance(learner, spaic.Learner)
+        from ..Learning.Learner import Learner
+        assert isinstance(learner, Learner)
         self.__setattr__(name, learner)
 
     # TODO: 这里的setattr是否有必要要，是否可以全部放到Assembly里？
     def __setattr__(self, name, value):
-        from spaic.Monitor.Monitor import Monitor
-        from spaic.Learning.Learner import Learner
+        from ..Monitor.Monitor import Monitor
+        from ..Learning.Learner import Learner
         super(Network, self).__setattr__(name, value)
         if isinstance(value, Monitor):
             self._monitors[name] = value
@@ -147,7 +146,9 @@ class Network(Assembly):
         else:
             # 原本的构建方式，首先构建连接，每个连接都是用上一轮神经元的输出脉冲，从而存在固有延迟的问题
             # 但是可以避开环路的问题。
+            from multiprocessing.pool import ThreadPool as Pool
             self._backend.forward_build = False
+
             def build_fn(module):
                 # if con_debug:
                 #     con_syn_count += torch.count_nonzero(connection.weight.value).item()
@@ -255,7 +256,7 @@ class Network(Assembly):
     #     unbuild_groups = {}
     #     output_groups = []
     #     level = 0
-    #     from spaic.Neuron.Node import Encoder, Decoder, Generator
+    #     from ..Neuron.Node import Encoder, Decoder, Generator
     #     # ===================从input开始按深度构建计算图==============
     #     for group in all_groups:
     #         if isinstance(group, Encoder) or isinstance(group, Generator):
@@ -368,7 +369,7 @@ class Network(Assembly):
         self._backend.initial_step()
 
     def add_monitor(self, name, monitor):
-        from spaic.Monitor.Monitor import Monitor
+        from ..Monitor.Monitor import Monitor
         assert isinstance(monitor, Monitor), "Type Error, it is not monitor"
         assert monitor not in self._monitors.values(), "monitor %s is already added" % (name)
         assert name not in self._monitors.keys(), "monitor with name: %s have the same name with an already exists monitor" % (
@@ -396,6 +397,7 @@ class Network(Assembly):
             state: Connections' weight of the network.
 
         """
+        from ..Neuron.Module import Module
         state = self._backend._parameters_dict
         if not save:
             return state
@@ -429,7 +431,7 @@ class Network(Assembly):
             module_dict = {}
             module_exist = False
             for group in self.get_groups():
-                if isinstance(group, spaic.Module):
+                if isinstance(group, Module):
                     module_dict[group.id] = group.state_dict
                     module_exist = True
             if module_exist:
@@ -451,6 +453,7 @@ class Network(Assembly):
             state: Connections' weight of the network.
 
         """
+        from ..Neuron.Module import Module
         if not self._backend:
             if device:
                 self.set_backend('torch', device=device)
@@ -506,7 +509,7 @@ class Network(Assembly):
             if 'module_dict.pt' in os.listdir('./'):
                 module_data = torch.load('./module_dict.pt', map_location=self._backend.device0)
                 for group in self.get_groups():
-                    if isinstance(group, spaic.Module):
+                    if isinstance(group, Module):
                         target_key = self._backend.check_key(group.id, module_data)
                         group.load_state_dict(module_data[target_key])
         else:

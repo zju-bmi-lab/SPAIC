@@ -10,17 +10,18 @@ Created on 2022/1/18
 """
 
 
-from spaic.Network.BaseModule import BaseModule
-from spaic.Network.Assembly import Assembly
-# from spaic.Network.Synapse import Flatten_synapse
-from spaic.IO.Initializer import BaseInitializer
-from spaic.Network.BaseModule import VariableAgent, Op
-from spaic.Backend.Backend import Backend
+from ..Network.BaseModule import BaseModule
+from ..Network.Assembly import Assembly
+# from .Synapse import Flatten_synapse
+from ..IO.Initializer import BaseInitializer
+from ..Network.BaseModule import VariableAgent
+from ..Network.Operator import Op
+from ..Backend.Backend import Backend
 from abc import abstractmethod
 from typing import List
 import numpy as np
 from abc import ABC
-from spaic.utils.memory import get_cpu_mem,get_object_size
+# from ..utils.memory import get_cpu_mem, get_object_size
 
 class Projection(BaseModule):
     '''

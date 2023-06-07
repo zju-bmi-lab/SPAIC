@@ -12,12 +12,9 @@ import sys
 from abc import abstractmethod, ABC
 from collections import OrderedDict
 from typing import Dict
-from spaic.Network.BaseModule import BaseModule, VariableAgent, Op
-from spaic.Network.DelayQueue import DelayQueue
-from spaic.IO.Initializer import BaseInitializer
+# from ..Network.BaseModule import BaseModule, VariableAgent, Op
 import numpy as np
-import networkx as nx
-import matplotlib.pyplot as plt
+from ..Network.Operator import Op
 
 backends = dict()
 
@@ -73,6 +70,7 @@ class Backend(ABC):
     param_init_operate = dict()  # -> param_init_operate
 
     backend_name = 'None'
+
     def __init__(self, dt=0.1):
         super(Backend, self).__init__()
         self.device = None
@@ -93,8 +91,10 @@ class Backend(ABC):
         self._delay_dict = dict()  # store conduction delays
         self._SparseVariables_dict = dict()
         self._InitVariables_dict = dict()
-        self._variable_agent_dict: Dict[VariableAgent] = dict()
-        self._temp_agent_dict: Dict[VariableAgent] = dict()
+        # self._variable_agent_dict: Dict[VariableAgent] = dict()
+        # self._temp_agent_dict: Dict[VariableAgent] = dict()
+        self._variable_agent_dict = dict()
+        self._temp_agent_dict = dict()
 
         self._operations = list()
         self._standalone_operations = list()
@@ -103,7 +103,7 @@ class Backend(ABC):
         self._monitors = list()  # TODO: need to add to update
         self._stored_states = dict()  # TODO: store network self._variables in the dict
         self.full_enable_grad = False
-        self.forward_build = False #标识连接间有没有一步delay
+        self.forward_build = False  # 标识连接间有没有一步delay
 
         self.basic_operate['threshold'] = self.threshold
         self.basic_operate['reset'] = self.reset
@@ -200,7 +200,6 @@ class Backend(ABC):
 
         self.basic_operate[name] = op_function
 
-
     def build_graph(self):
         '''
         Build a computation graph before performing the calculation.
@@ -208,6 +207,7 @@ class Backend(ABC):
         [(dict_type, ret_var_name), operation_name, [(dict_type1, input_var_name1),(dict_type2, input_var_name2),...]].
         Traverse all basic operations and add the corresponding keyword in the _graph_var_dicts as dict_type to each variable in basic operation.
         '''
+        from ..Network.BaseModule import VariableAgent
 
         variables_index = {k: i for i, k in enumerate(self._variables.keys())}
 
@@ -318,7 +318,7 @@ class Backend(ABC):
                         for search_id in range(ind + 1, op_len):
                             if var_name in graph_operations[search_id].output:
                                 frozen = False
-                        if frozen: # all reduce_dict append ops have been done before this call
+                        if frozen:  # all reduce_dict append ops have been done before this call
                             value = self.reduce_sum(self.stack(reduce_dict[var_name]))
                             inputs.append(value)
                             agent_inputs.append(self._variable_agent_dict[var_name].new_labeled_agent('update_dict'))
@@ -390,7 +390,7 @@ class Backend(ABC):
                             for gop in self._graph_operations:
                                 # for all operations need the updated reduce_dict variable as input before reduce_sum are converted to use old variables_dict variables
                                 for tmp_input in gop.input:
-                                    if tmp_input.dict_label =='update_dict' and tmp_input.var_name == var_name:
+                                    if tmp_input.dict_label == 'update_dict' and tmp_input.var_name == var_name:
                                         tmp_input.dict_label = 'variables_dict'
                                 if InGop:
                                     for gop in self._graph_operations:
@@ -414,7 +414,6 @@ class Backend(ABC):
                         else:
                             agent_outputs.append(VariableAgent(self, var_name, dict_label='temp_dict'))
                             self._temp_agent_dict[var_name] = agent_outputs[-1]
-
 
             # add the operation to built graph
             op.input = agent_inputs
@@ -478,21 +477,23 @@ class Backend(ABC):
         self.get_place()
 
     def get_dependency(self):
+        import matplotlib.pyplot as plt
+        import networkx as nx
         if self.partition:
             g = nx.DiGraph()
-            for ind,op in enumerate(self._graph_operations):
+            for ind, op in enumerate(self._graph_operations):
                 op.set_identifier(ind)
             g.add_nodes_from([op._identifier for op in self._graph_operations])
-            for ind,op in enumerate(self._graph_operations):
+            for ind, op in enumerate(self._graph_operations):
                 for output in op.output:
                     for get_op in output.get_funcs:
                         if op._identifier < get_op._identifier:
                             g.add_edge(op._identifier, get_op._identifier)
 
-            plt.figure(figsize=(100,100))
+            plt.figure(figsize=(100, 100))
             nx.draw_networkx(g)
             # plt.savefig('test.jpg')
-            
+
             isolate = []
             leaf = []
             for i in range(len(self._graph_operations)):
@@ -505,7 +506,7 @@ class Backend(ABC):
             g = g.to_undirected()
             groups = set()
             for i in leaf:
-                group = frozenset(nx.dfs_tree(g,i))
+                group = frozenset(nx.dfs_tree(g, i))
                 groups.add(group)
         else:
             groups = [self._graph_operations]
@@ -563,18 +564,18 @@ class Backend(ABC):
 
     def get_place(self):
         if self.partition:
-            for ind,g in enumerate(self.groups):
+            for ind, g in enumerate(self.groups):
                 c = []
                 g = [self._graph_operations[x] for x in g]
                 for op in g:
                     for input in op.input:
                         if input._var_name.split(':')[-1] == '{weight}':
                             c.append(self._variables[input._var_name].device)
-                place = max(set(c),key = c.count)
+                place = max(set(c), key=c.count)
                 for op in g:
                     op.place = place
             g = [self._graph_operations[x] for x in self.isolate]
-            for ind,op in enumerate(g):
+            for ind, op in enumerate(g):
                 for input in op.input:
                     if input._var_name.split(':')[-1] == '{weight}':
                         op.place = self._variables[input._var_name].device
@@ -582,7 +583,7 @@ class Backend(ABC):
                     else:
                         op.place = self.device[ind % self.device_count]
         else:
-            for ind,op in enumerate(self._graph_operations):
+            for ind, op in enumerate(self._graph_operations):
                 for input in op.input:
                     if input._var_name.split(':')[-1] == '{weight}':
                         op.place = self._variables[input._var_name].device
@@ -803,8 +804,9 @@ class Backend(ABC):
                     if op.output in self._graph_var_dicts['reduce_dict']:
                         self._graph_var_dicts['reduce_dict'][op.output].append(op.func(*inputs))
                     else:
-                        self._graph_var_dicts['reduce_dict'][op.output] = [self._graph_var_dicts['update_dict'][op.output],
-                                                                       op.func(*inputs)]
+                        self._graph_var_dicts['reduce_dict'][op.output] = [
+                            self._graph_var_dicts['update_dict'][op.output],
+                            op.func(*inputs)]
                 else:
                     self._graph_var_dicts['update_dict'][op.output] = op.func(*inputs)
                     pass
@@ -863,7 +865,7 @@ class Backend(ABC):
         elif name in self._variables:
             return self._variables[name]
         else:
-            raise ValueError("not found variable:%s in the backend"%name)
+            raise ValueError("not found variable:%s in the backend" % name)
 
     def set_variable_value(self, name, value, is_parameter):
         '''
@@ -878,8 +880,8 @@ class Backend(ABC):
         '''
         NotImplementedError()
 
-
-    def add_variable(self, module: BaseModule, name: str, shape, value=None, is_parameter=False, is_sparse=False, init=None, init_param=None,
+    def add_variable(self, module, name: str, shape, value=None, is_parameter=False, is_sparse=False,
+                     init=None, init_param=None,
                      min=None, max=None, is_constant=False, prefer_device=None):
         '''
         Add variables from front objects to _variables of Backend and get copies to assign to _parameters_dict and _InitVariables_dict.
@@ -891,13 +893,20 @@ class Backend(ABC):
             is_parameter (bool, optional): whether the variable is trainable
             init (optional):
         '''
+        from ..IO.Initializer import BaseInitializer
+        from ..Network.BaseModule import VariableAgent
         if is_parameter:
             if isinstance(value, BaseInitializer):
-                self._parameters_dict[name] = self.add_backend_variable(module, name, shape, None, grad=True, is_sparse=is_sparse,
-                                                                        init=value.__class__.__name__, init_param=value.__dict__, prefer_device=prefer_device)
+                self._parameters_dict[name] = self.add_backend_variable(module, name, shape, None, grad=True,
+                                                                        is_sparse=is_sparse,
+                                                                        init=value.__class__.__name__,
+                                                                        init_param=value.__dict__,
+                                                                        prefer_device=prefer_device)
             else:
-                self._parameters_dict[name] = self.add_backend_variable(module, name, shape, value, grad=True, is_sparse=is_sparse,
-                                                                        init=init, init_param=init_param, prefer_device=prefer_device)
+                self._parameters_dict[name] = self.add_backend_variable(module, name, shape, value, grad=True,
+                                                                        is_sparse=is_sparse,
+                                                                        init=init, init_param=init_param,
+                                                                        prefer_device=prefer_device)
             # store clamp operations
             if min is not None and max is not None:
                 self._clamp_parameter_dict[name] = (self.clamp_, [self._parameters_dict[name], min, max])
@@ -910,17 +919,22 @@ class Backend(ABC):
         # 稀疏矩阵weight非叶子节点，反传的时候更新的是weight中的value,但前向计算的时候用的是weight,所以对于稀疏矩阵要单独用个dict记录以便初始化
         elif is_sparse:
             self._SparseVariables_dict[name] = self.add_backend_variable(module, name, shape, value, grad=True,
-                                                                         is_sparse=is_sparse, init=init,init_param=init_param, prefer_device=prefer_device)
+                                                                         is_sparse=is_sparse, init=init,
+                                                                         init_param=init_param,
+                                                                         prefer_device=prefer_device)
         elif is_constant:
             self._InitVariables_dict[name] = value
         elif isinstance(value, BaseInitializer):
             self._InitVariables_dict[name] = self.add_backend_variable(module, name, shape, None, grad=False,
-                                                                       is_sparse=is_sparse, init=value.__class__.__name__,
-                                                                       init_param=value.__dict__, prefer_device=prefer_device)
+                                                                       is_sparse=is_sparse,
+                                                                       init=value.__class__.__name__,
+                                                                       init_param=value.__dict__,
+                                                                       prefer_device=prefer_device)
         else:
             self._InitVariables_dict[name] = self.add_backend_variable(module, name, shape, value, grad=False,
                                                                        is_sparse=is_sparse, init=init,
-                                                                       init_param=init_param, prefer_device=prefer_device)
+                                                                       init_param=init_param,
+                                                                       prefer_device=prefer_device)
 
         var_agent = VariableAgent(self, name, is_parameter)
         self._variable_agent_dict[name] = var_agent
@@ -944,19 +958,22 @@ class Backend(ABC):
             return False
 
     def add_delay(self, var_name, max_delay):
+        from ..Network.DelayQueue import DelayQueue
         max_len = int(max_delay / self.dt)
         if var_name in self._delay_dict:
             if self._delay_dict[var_name].max_len < max_len:
                 self._delay_dict[var_name].max_len = max_len
         else:
             self._delay_dict[var_name] = DelayQueue(var_name, max_len, self)
-            self.register_initial(Op(None, self._delay_dict[var_name].initial, [var_name, '[batch_size]'], owner=self, requires_grad=True))
-            self.register_standalone(Op(None, self._delay_dict[var_name].push, [var_name, ], owner=self, requires_grad=True))
+            self.register_initial(Op(None, self._delay_dict[var_name].initial, [var_name, '[batch_size]'], owner=self,
+                                     requires_grad=True))
+            self.register_standalone(
+                Op(None, self._delay_dict[var_name].push, [var_name, ], owner=self, requires_grad=True))
         return self._delay_dict[var_name]
 
-
     @abstractmethod
-    def add_backend_variable(self, module: BaseModule, name, shape, value=None, grad=False, is_sparse=False, init=None, init_param=None):
+    def add_backend_variable(self, module, name, shape, value=None, grad=False, is_sparse=False, init=None,
+                             init_param=None):
         '''
         This method will be overwritten by different subclasses to add variables to _variables of specified backend.
         Args:
@@ -986,6 +1003,7 @@ class Backend(ABC):
         Add basic operations from front objects to _operations of Backend.
         '''
         # op = Op()
+        from ..Network.BaseModule import BaseModule
         assert isinstance(op, Op)
         if isinstance(op.output, str):
             op.output = [op.output]
@@ -1008,11 +1026,11 @@ class Backend(ABC):
         else:
             raise ValueError("No operation %s in basic_operate" % op.func)
 
-
     def register_standalone(self, op):
         '''
         Add standalone operations from front objects to _standalone_operations of Backend.
         '''
+        from ..Network.BaseModule import BaseModule
         assert isinstance(op, Op)
         if isinstance(op.output, str):
             op.output = [op.output]
@@ -1031,12 +1049,12 @@ class Backend(ABC):
         op.operation_type = "_operations"
         self._operations.append(op)
 
-
     def register_initial(self, op):
         '''
         Add initial operations from front objects to _initial_operations of Backend..
         op  = {output, func, input, owner, place, requires_grad}
         '''
+        from ..Network.BaseModule import BaseModule
         assert isinstance(op, Op)
         if isinstance(op.func, str):
             if op.func_name in self.basic_operate:
@@ -1047,7 +1065,7 @@ class Backend(ABC):
             assert callable(op.func_name)
             op.func = op.func_name
         if isinstance(op.input, str):
-            op.input  = [op.input]
+            op.input = [op.input]
         elif op.input is None:
             op.input = []
         if isinstance(op.output, str):
@@ -1096,7 +1114,6 @@ class Backend(ABC):
 
         import warnings
         warnings.warn('Key error occurs, please check keys.')
-
 
         # result = [key for key in target_dict.keys() if key.endswith(variables[variables.find('<net>'):])]
         # if result:
@@ -1263,6 +1280,7 @@ class Backend(ABC):
         Returns
         -------
         '''
+
     @abstractmethod
     def conv_2d_complex(self, x, kernel, stride, padding, dilation, groups, beta, delay=None):
         '''
@@ -1291,6 +1309,7 @@ class Backend(ABC):
             Returns
             -------
             '''
+
     @abstractmethod
     def conv_trans1d(self, x, kernel):
         '''
@@ -1404,6 +1423,7 @@ class Backend(ABC):
     @abstractmethod
     def mat_mult_weight_complex(self, A, X, beta, delay=None):
         NotImplementedError()
+
     @abstractmethod
     def mat_mult_weight_2complex(self, A, X, beta):
         NotImplementedError()
@@ -1432,8 +1452,9 @@ class Backend(ABC):
         '''
 
     @abstractmethod
-    def upsample(self,x, scale):
+    def upsample(self, x, scale):
         NotImplementedError()
+
     @abstractmethod
     def mat_mult(self, A, X):
         '''
@@ -1773,7 +1794,6 @@ class Backend(ABC):
     #     '''
     #     NotImplementedError()
 
-
     def exp(self, x):
         '''
         Args:
@@ -1836,9 +1856,6 @@ class Backend(ABC):
            return exp(x)
         '''
         NotImplementedError()
-
-
-
 
 # class Darwin_Backend(Backend):
 #

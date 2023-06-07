@@ -10,7 +10,7 @@ Created on 2020/8/12
 定义强化学习的环境交互模块
 """
 from abc import ABC, abstractmethod
-from spaic.IO.utils import RGBtoGray, GraytoBinary, reshape
+from .utils import RGBtoGray, GraytoBinary, reshape
 # import gym
 import numpy as np
 

@@ -9,9 +9,8 @@ Created on 2021/6/1
 @description: 
 """
 
-from spaic.Network.BaseModule import Op
 from .Learner import Learner
-from spaic import Backend
+from ..Backend.Backend import Backend
 import torch
 
 class Rate_Modulate(Learner):

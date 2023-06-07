@@ -7,15 +7,22 @@ Created on 2020/8/5
 @contact: hongchf@gmail.com
 @description:
 """
-import spaic
+# import spaic
 
 from collections import OrderedDict
-from spaic.Network.BaseModule import BaseModule, VariableAgent
+from .BaseModule import BaseModule, VariableAgent
+# from .Topology import Projection, Connection
+from ..Backend.Backend import Backend
+# from ..Neuron.Neuron import NeuronGroup
+# from ..Neuron.Node import Node
 from abc import ABC, abstractmethod
 from torch import nn
 from typing import List
 import inspect
 
+from .. import global_assembly_context_list, global_assembly_init_count
+from .. import global_assembly_context_omit_start, global_assembly_context_omit_end
+global global_assembly_context_list, global_assembly_init_count
 
 # class ContextMetaClass(type):
 #
@@ -83,14 +90,17 @@ class Assembly(BaseModule):
             _var_names: The backend variable names this assembly and its members contains
         '''
         super(Assembly, self).__init__()
-        context = spaic.global_assembly_context_list
-        init_count = spaic.global_assembly_init_count
+        context = global_assembly_context_list
+        init_count = global_assembly_init_count
 
         self.set_name(name)
-        self._backend: spaic.Backend = None
-        self._groups: OrderedDict[str, Assembly] = OrderedDict()
-        self._connections: OrderedDict[str, spaic.Connection] = OrderedDict()
-        self._projections: OrderedDict[str, spaic.Projection] = OrderedDict()
+        self._backend: Backend = None
+        # self._groups: OrderedDict[str, Assembly] = OrderedDict()
+        # self._connections: OrderedDict[str, Connection] = OrderedDict()
+        # self._projections: OrderedDict[str, Projection] = OrderedDict()
+        self._groups: OrderedDict[str] = OrderedDict()
+        self._connections: OrderedDict[str] = OrderedDict()
+        self._projections: OrderedDict[str] = OrderedDict()
         self._supers = list()
         self._input_connections = list()
         self._output_connections = list()
@@ -840,7 +850,8 @@ class Assembly(BaseModule):
 
     def __enter__(self):
         import __main__
-        spaic.global_assembly_context_list.append(self)
+
+        global_assembly_context_list.append(self)
         main_vars = vars(__main__)
         NoInMain = True
         for key in main_vars:
@@ -858,27 +869,30 @@ class Assembly(BaseModule):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         import __main__
+
+        global global_assembly_context_omit_start, global_assembly_context_omit_end
         main_vars = vars(__main__)
         endpoint_num = main_vars.__len__() -1
 
         # depending on the feature that python >=3.7 , dict is insertion ordered, so we can get the subunits by order
         for ind, key in enumerate(main_vars):
-            if ind > self.context_enterpoint and ind <= spaic.global_assembly_context_omit_start:
+            if ind > self.context_enterpoint and ind <= global_assembly_context_omit_start:
                 self.__setattr__(key, main_vars[key])
-            elif ind > self.context_enterpoint and ind > spaic.global_assembly_context_omit_end:
+            elif ind > self.context_enterpoint and ind > global_assembly_context_omit_end:
                 self.__setattr__(key, main_vars[key])
 
-        spaic.global_assembly_context_list.pop()
-        spaic.global_assembly_context_omit_start = self.context_enterpoint
-        spaic.global_assembly_context_omit_end = endpoint_num
+        global_assembly_context_list.pop()
+        global_assembly_context_omit_start = self.context_enterpoint
+        global_assembly_context_omit_end = endpoint_num
         # keys = list(globals().keys())
         # print(keys)
 
     def __setattr__(self, name, value):
-        from spaic.Network.Topology import Connection
-        from spaic.Network.Topology import Projection
         super(Assembly, self).__setattr__(name, value)
-        if (self.__class__ is spaic.NeuronGroup) or (issubclass(self.__class__, spaic.Node)):
+        from ..Network.Topology import Connection, Projection
+        from ..Neuron.Neuron import NeuronGroup
+        from ..Neuron.Node import Node
+        if (self.__class__ is NeuronGroup) or (issubclass(self.__class__, Node)):
             # If class is NeuronGroup or the subclass of Node, do not add other object to it.
             return
 

@@ -9,10 +9,11 @@ Created on 2022/5/30
 @description:
 A numerical analysis tool for approximating derivatives of networks using Finite Difference Method
 """
-import spaic
-from spaic.Network.BaseModule import Op
+from ..Network import BaseModule
+from ..Network.BaseModule import Op
 from .Learner import Learner
-from spaic import Backend
+from ..Backend.Backend import Backend
+from ..Network.Topology import Connection
 import torch
 
 class FiniteDifference(Learner):
@@ -25,7 +26,7 @@ class FiniteDifference(Learner):
         self.var_name = kwargs.get('var_name', None)
         assert isinstance(self.index, list)
         assert isinstance(self.index[0], list)
-        assert len(trainable) == 1 and isinstance(trainable[0], spaic.Connection)
+        assert len(trainable) == 1 and isinstance(trainable[0], Connection)
         assert isinstance(self.var_name, str)
         self.record_values = []
 
@@ -53,8 +54,8 @@ class FiniteDifference(Learner):
         pass
 
     def build(self, backend):
-        assert isinstance(self.target, spaic.BaseModule)
-        assert isinstance(backend, spaic.Backend)
+        assert isinstance(self.target, BaseModule)
+        assert isinstance(backend, Backend)
         self._backend = backend
         self.var_name = self.target.get_full_name(self.var_name)
         self.op_to_backend(None, self.record_target, self.var_name)

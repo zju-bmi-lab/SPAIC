@@ -10,12 +10,16 @@ Created on 2020/9/9
 """
 from abc import abstractmethod
 from collections import OrderedDict
-import spaic
-from typing import Optional,Any,List
-from dataclasses import dataclass,field
+from typing import Optional, Any, List
+from dataclasses import dataclass, field
 from copy import copy
 import uuid
+from ..Backend.Backend import Backend
+from .Operator import Op
 
+from .. import global_module_name_count
+
+global global_module_name_count
 
 
 class BaseModule():
@@ -31,7 +35,7 @@ class BaseModule():
         self.name = None
         self.enabled = True
         self.training = True
-        self._backend: spaic.Backend = None
+        self._backend: Backend = None
         self._supers = []
         self._var_names = []
         self._var_dict = dict()
@@ -47,7 +51,7 @@ class BaseModule():
         NotImplementedError()
 
     def set_name(self, given_name):
-
+        global global_module_name_count
         if isinstance(given_name, str):
             if self.name is None:
                 self.name = given_name
@@ -60,8 +64,8 @@ class BaseModule():
         #     self.name = context.name +'subgroup' + str(spaic.global_module_name_count)
 
         else:
-            spaic.global_module_name_count += 1
-            self.name = 'autoname' + str(spaic.global_module_name_count)
+            global_module_name_count += 1
+            self.name = 'autoname' + str(global_module_name_count)
 
         return self.name
 
@@ -94,13 +98,15 @@ class BaseModule():
         elif self.build_level > level:
             self.build_level = level
 
-    def variable_to_backend(self, name, shape, value=None, is_parameter=False, is_sparse=False, init=None, init_param=None,
+    def variable_to_backend(self, name, shape, value=None, is_parameter=False, is_sparse=False, init=None,
+                            init_param=None,
                             min=None, max=None, is_constant=False, prefer_device=None):
         self._var_names.append(name)
-        self._var_dict[name] = self._backend.add_variable(self, name, shape, value, is_parameter, is_sparse, init, init_param, min, max, is_constant, prefer_device)
+        self._var_dict[name] = self._backend.add_variable(self, name, shape, value, is_parameter, is_sparse, init,
+                                                          init_param, min, max, is_constant, prefer_device)
         return self._var_dict[name]
 
-    def op_to_backend(self, outputs:list, func:callable, inputs:list):
+    def op_to_backend(self, outputs: list, func: callable, inputs: list):
         # check if the inputs and outputs variables belongs to this module object, if backend don't have this variable it will be added the module label
         if isinstance(inputs, list):
             for ind, input_name in enumerate(inputs):
@@ -129,7 +135,6 @@ class BaseModule():
         else:
             raise ValueError("the preprocessing of op_to_backend do not support this input type")
 
-
         addcode_op = Op(outputs, func, inputs, owner=self, operation_type='_operations')
         self._backend.add_operation(addcode_op)
 
@@ -152,7 +157,7 @@ class BaseModule():
             raise ValueError(" the key data type is not supported for add_label")
 
     def get_full_name(self, name):
-        name = '{'+name+'}'
+        name = '{' + name + '}'
         full_name = None
         for key in self._var_names:
             if name in key:
@@ -165,7 +170,7 @@ class BaseModule():
     def get_value(self, name):
         full_name = self.get_full_name(name)
         if full_name is None:
-            raise  ValueError("No such variable name in this module")
+            raise ValueError("No such variable name in this module")
         else:
             return self._var_dict[full_name].value
 
@@ -203,14 +208,11 @@ class BaseModule():
                 self._backend._InitVariables_dict[full_name] = variable
 
 
-
-
-
 class VariableAgent(object):
     def __init__(self, backend, var_name, is_parameter=False, dict_label=None):
         super(VariableAgent, self).__init__()
-        assert isinstance(backend, spaic.Backend)
-        self._backend: spaic.Backend = backend
+        assert isinstance(backend, Backend)
+        self._backend: Backend = backend
         self._var_name = var_name
         self._is_parameter = is_parameter
         self.data_type = None
@@ -225,8 +227,8 @@ class VariableAgent(object):
         return self._var_name
 
     def new_labeled_agent(self, dict_label):
-        assert (dict_label=='variables_dict' or dict_label=='update_dict'
-                or dict_label=='reduce_dict' or dict_label=='temp_dict')
+        assert (dict_label == 'variables_dict' or dict_label == 'update_dict'
+                or dict_label == 'reduce_dict' or dict_label == 'temp_dict')
         agent = copy(self)
         agent.dict_label = dict_label
         return agent
@@ -244,7 +246,7 @@ class VariableAgent(object):
         elif self.dict_label == 'temp_dict':
             return self._backend._temp_dict[self._var_name]
         else:
-            raise ValueError("can't find variable %s"%self._var_name)
+            raise ValueError("can't find variable %s" % self._var_name)
 
     @value.setter
     def value(self, value):
@@ -258,16 +260,11 @@ class VariableAgent(object):
             else:
                 self._backend._reduce_dict[self._var_name] = [value]
         elif self.dict_label == 'temp_dict':
-             self._backend._temp_dict[self._var_name] = value
+            self._backend._temp_dict[self._var_name] = value
         elif self.dict_label == 'variables_dict':
             self._backend._variables[self._var_name] = value
         else:
             raise ValueError("can't set value of variable %s" % self._var_name)
-
-
-
-
-
 
 
 class OperationCommand(object):
@@ -291,27 +288,8 @@ class OperationCommand(object):
         else:
             return self.front_module.enabled
 
-@dataclass
-class Op:
-    '''
-    Operation data class.
-    '''
-    output: Optional[List] = field(default_factory=list)
-    func_name: Optional[str] = None
-    input: Optional[List] = field(default_factory=list)
 
-    place: Optional[Any] = None
-    owner: Optional[BaseModule] = None
-    requires_grad: Optional[bool] = False
-    operation_type : Optional[str] = None # _opertaions, _init_operations, _standalone_operations
-    func: Optional[Any] = None
-    
-    def set_identifier(self, nid=None):
-        """Initialize self._identifier"""
-        if nid is None:
-            self._identifier = str(uuid.uuid1())
-        else:
-            self._identifier = nid
+
 # class NetModule(BaseModule):
 #     '''
 #     Base class for snn network modules: assemblies, connection
@@ -324,5 +302,3 @@ class Op:
 #
 #     def add_trainable_names(self, name):
 #         pass
-
-

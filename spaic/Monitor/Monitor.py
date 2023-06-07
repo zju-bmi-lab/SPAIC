@@ -9,10 +9,10 @@ Created on 2020/8/12
 @description:
 定义神经集群放电以及神经元状态量、连接状态量的仿真记录模块
 """
-from spaic.Network.Assembly import BaseModule, Assembly
-from spaic.Network.Connections import Connection
-from spaic.Learning.Learner import Learner
-from spaic.Backend.Backend import Backend
+from ..Network.Assembly import BaseModule, Assembly
+from ..Network.Connections import Connection
+from ..Learning.Learner import Learner
+from ..Backend.Backend import Backend
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
