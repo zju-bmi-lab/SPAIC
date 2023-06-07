@@ -8,9 +8,9 @@
 @description:
 """
 from .Learner import Learner
-from spaic.Network.Connections import conv_connect
-from spaic.IO.utils import im2col
-from spaic.Network.BaseModule import Op
+from ..Network.Connections import conv_connect
+from ..IO.utils import im2col
+
 import numpy as np
 import torch
 

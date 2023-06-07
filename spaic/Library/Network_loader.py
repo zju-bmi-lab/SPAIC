@@ -13,18 +13,18 @@ Created on 2020/8/17
 import yaml
 import json
 
-from spaic.Network.Network import Network
-from spaic.Network.Assembly import Assembly
-from spaic.Neuron.Neuron import NeuronGroup
-from spaic.Neuron.Node import Node, Decoder, Encoder, Action, Generator, Reward
-from spaic.Network.Topology import Connection
-from spaic.Backend.Backend import Backend
-from spaic.Backend.Torch_Backend import Torch_Backend
-from spaic.Learning.Learner import Learner
-from spaic.Network.Topology import Projection
-from spaic.Monitor.Monitor import Monitor, StateMonitor, SpikeMonitor
-from spaic.IO.Initializer import BaseInitializer
-from spaic.IO import Initializer as Initer
+from ..Network.Network import Network
+from ..Network.Assembly import Assembly
+from ..Neuron.Neuron import NeuronGroup
+from ..Neuron.Node import Node, Decoder, Encoder, Action, Generator, Reward
+from ..Network.Topology import Connection
+from ..Backend.Backend import Backend
+from ..Backend.Torch_Backend import Torch_Backend
+from ..Learning.Learner import Learner
+from ..Network.Topology import Projection
+from ..Monitor.Monitor import Monitor, StateMonitor, SpikeMonitor
+from ..IO.Initializer import BaseInitializer
+from ..IO import Initializer as Initer
 
 import torch
 
@@ -276,7 +276,6 @@ class ReloadedNetwork(Network):
                     method = bias.get('method')
                     con['parameters']['bias'] = Initer.__dict__[method](**bias.get('para'))
 
-
         # con.pop('weight_path')
         return_conn = Connection(
             pre              = con.get('pre'),
@@ -333,7 +332,7 @@ class ReloadedNetwork(Network):
 
 
         # prj['policies'] = []
-        # from Network.ConnectPolicy import IndexConnectPolicy, ExcludedTypePolicy, IncludedTypePolicy
+        # from ..Network.ConnectPolicy import IndexConnectPolicy, ExcludedTypePolicy, IncludedTypePolicy
         # policy_dict = {'Included_policy': IncludedTypePolicy,
         #                'Excluded_policy': ExcludedTypePolicy}
         #

@@ -13,6 +13,44 @@ from .Node import Node, Decoder
 import torch
 import numpy as np
 
+class Spike_Rate(Decoder):
+    def __init__(self, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'), coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
+        super(Spike_Rate, self).__init__(num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
+        self.pop_size = kwargs.get('pop_size', 1)
+        self.bias = kwargs.get('bias', 0.0)
+        self.scale = kwargs.get('scale', 1.0)
+
+    def numpy_coding(self, record, target, device):
+        # the shape of record is (time_step, batch_size, n_neurons)
+        spike_rate = record.mean(0)
+        pop_num = int(self.num / self.pop_size)
+        pop_spikes_temp = (
+            [
+                np.sum(spike_rate[:, (i * self.pop_size): (i * self.pop_size) + self.pop_size], axis=1)
+                for i in range(pop_num)
+            ]
+        )
+        pop_spikes = np.stack(pop_spikes_temp, axis=1)
+        return pop_spikes
+
+    def torch_coding(self, record, target, device):
+        # the shape of record is (time_step, batch_size, n_neurons)
+        if '[2]' in self.coding_var_name:
+            pop_spikes = record[:,:,0,:].mean(0).to(device=device)
+        else:
+            spike_rate = record.mean(0).to(device=device)
+            pop_num = int(self.num / self.pop_size)
+            pop_spikes_temp = (
+                [
+                    spike_rate[:, (i * self.pop_size): (i * self.pop_size) + self.pop_size].sum(dim=1)
+                    for i in range(pop_num)
+                ]
+            )
+            pop_spikes = torch.stack(pop_spikes_temp, dim=-1)
+        return (pop_spikes + self.bias)*self.scale
+
+Decoder.register('spike_rate', Spike_Rate)
+
 
 class Spike_Counts(Decoder):
 

@@ -8,8 +8,8 @@ Created on 2020/8/17
 
 @description: 
 """
-from spaic.Network.Assembly import BaseModule
-from spaic.Network.Network import Network
+from ..Network.Assembly import BaseModule
+from ..Network.Network import Network
 
 
 class NetLibrary(BaseModule):

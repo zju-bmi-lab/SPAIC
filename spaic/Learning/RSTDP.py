@@ -7,7 +7,7 @@
 @time:2021/4/8 10:46
 @description:
 """
-from spaic.Network.BaseModule import Op
+
 from .Learner import Learner
 import numpy as np
 import torch

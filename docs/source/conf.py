@@ -37,7 +37,7 @@ extensions = [
     'sphinx.ext.viewcode',
     'sphinx.ext.intersphinx',
     'sphinx.ext.napoleon',
-    'sphinx.ext.imgmath',
+    # 'sphinx.ext.imgmath',
     'sphinx.ext.githubpages',
     'sphinx.ext.mathjax',
 ]

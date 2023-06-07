@@ -9,11 +9,8 @@ Created on 2021/5/10
 @description: 
 """
 
-from spaic.Network.Assembly import Assembly
-from spaic.Network.Topology import ConnectPolicy, Projection
-# from spaic.Neuron.Neuron import NeuronGroup
-# from spaic.Neuron.Node import Node
-
+from .Assembly import Assembly
+from .Topology import ConnectPolicy, Projection
 
 
 # class ConnectInformation():
@@ -248,8 +245,6 @@ from spaic.Network.Topology import ConnectPolicy, Projection
 #             return assb_connections
 
 
-
-
 class IncludedTypePolicy(ConnectPolicy):
 
     def __init__(self, pre_types=None, post_types=None, level=-1):
@@ -269,7 +264,6 @@ class IncludedTypePolicy(ConnectPolicy):
         else:
             self.post_types = None
 
-
     def checked_connection(self, new_connection: Projection):
 
         leaf_connections = new_connection.expand_connection(self.level)
@@ -287,7 +281,7 @@ class IncludedTypePolicy(ConnectPolicy):
                 fit_type = self.pre_types.intersection(con.pre.type)
                 if not fit_type:
                     con.del_connection()
-                    
+
         return new_connection
 
 
@@ -360,18 +354,17 @@ class IndexConnectPolicy(ConnectPolicy):
         for ind in range(self.index_len):
             pre_ind = self.pre_indexs[ind]
             post_ind = self.post_indexs[ind]
-            if not hasattr(pre_ind,'__iter__'):
+            if not hasattr(pre_ind, '__iter__'):
                 pre_group = pre_level_groups[2][pre_ind]
             else:
                 pre_group = pre_level_groups[pre_ind[0]][pre_ind[1]]
-            if not hasattr(post_ind,'__iter__'):
+            if not hasattr(post_ind, '__iter__'):
                 post_group = post_level_groups[2][post_ind]
             else:
                 post_group = post_level_groups[post_ind[0]][post_ind[1]]
             new_connection.add_connection(Projection(pre_group, post_group, level=1))
 
         return new_connection
-
 
 #
 # asb1 = Assembly()
@@ -411,12 +404,3 @@ class IndexConnectPolicy(ConnectPolicy):
 # c = p1.generate_connection(asb1, asb2)
 # print(c)
 #
-
-
-
-
-
-
-
-
-

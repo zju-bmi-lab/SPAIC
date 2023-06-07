@@ -11,15 +11,15 @@ Created on 2020/8/17
 """
 
 import os
-from spaic.Network.Assembly import Assembly
-from spaic.Neuron.Neuron import NeuronGroup
-from spaic.Neuron.Node import Node
-from spaic.Network.Topology import Connection
-from spaic.Backend.Backend import Backend
-from spaic.Network.Topology import Projection
-from spaic.Monitor.Monitor import Monitor
-from spaic.IO.Initializer import BaseInitializer
-from spaic.IO import Initializer as Initer
+from ..Network.Assembly import Assembly
+from ..Neuron.Neuron import NeuronGroup
+from ..Neuron.Node import Node
+from ..Network.Topology import Connection
+from ..Backend.Backend import Backend
+from ..Network.Topology import Projection
+from ..Monitor.Monitor import Monitor
+from ..IO.Initializer import BaseInitializer
+from ..IO import Initializer as Initer
 
 import time
 
@@ -333,9 +333,9 @@ def trans_connection(connection: Connection, combine: bool, save_weight: bool):
         elif key in needed:
             d_para = para
             if key == 'parameters':
-                if 'weight' in d_para.keys():
+                if 'weight' in para.keys():
                     del d_para['weight']
-                if 'bias' in d_para.keys():
+                if 'bias' in para.keys():
                     d_para['bias'] = trans_bias(d_para['bias'])
             para_dict[key] = check_var_type(d_para)
     if combine:     # 是否需要在文件中存储weight
@@ -384,8 +384,11 @@ def trans_backend(backend: Backend, save: bool):
     for key in key_parameters_dict:
         if save:
             save_path = sim_path + '/' + key + '.pt'
-            data = backend.__dict__[key]
-            torch.save(data, save_path)
+            result_dict[key] = dict()
+            for parakey in backend.__dict__[key].keys():
+                result_dict[key][parakey] = backend._variables[parakey]
+            # data = backend.__dict__[key]
+            torch.save(result_dict[key], save_path)
             result_dict[key] = './parameters/' + key + '.pt'
         else:
             result_dict = backend._parameter_dict
@@ -446,7 +449,7 @@ def trans_monitor(monitor: Monitor):
     Returns:
         result(dict): Contain the parameters of learner to be saved.
     """
-    from spaic.Monitor.Monitor import StateMonitor, SpikeMonitor
+    from ..Monitor.Monitor import StateMonitor, SpikeMonitor
     needed = ['var_name', 'index', 'dt', 'get_grad', 'nbatch']
     name, mon = monitor
     result_dict = dict()
@@ -506,6 +509,7 @@ def check_var_type(var):
     #     return var
 
 
+
 def trans_bias(para: dict):
     if isinstance(para, BaseInitializer):
         n_para = dict()
@@ -517,7 +521,6 @@ def trans_bias(para: dict):
         return n_para
     else:
         return para
-
 
 
 

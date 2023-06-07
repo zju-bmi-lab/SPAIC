@@ -8,7 +8,8 @@ Created on 2020/10/23
 
 @description: 
 """
-from spaic.IO.Pipeline import Pipline
+from .Pipeline import Pipline
+
 
 class SigGenerator(Pipline):
     '''
