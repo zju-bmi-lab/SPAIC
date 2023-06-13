@@ -575,8 +575,8 @@ class IFModel(NeuronModel):
         self._variables['V'] = 0.0
         self._variables['Isyn'] = 0.0
 
-        self._parameter_variables['ConstantDecay'] = kwargs.get('ConstantDecay', 0.0)
-        self._parameter_variables['Vth'] = kwargs.get('v_th', 1.0)
+        self._constant_variables['ConstantDecay'] = kwargs.get('ConstantDecay', 0.0)
+        self._constant_variables['Vth'] = kwargs.get('v_th', 1.0)
 
         self._operations.append(('Vtemp', 'add', 'V', 'Isyn[updated]'))
         self._operations.append(('Vtemp1', 'minus', 'Vtemp', 'ConstantDecay'))
@@ -585,6 +585,37 @@ class IFModel(NeuronModel):
         self._operations.append(('V', 'minus', 'Vtemp1', 'Resetting'))
 
 NeuronModel.register("if", IFModel)
+
+class IFBModel(NeuronModel):
+    """
+    IF model:
+    V(t) = V(t-1) * (1 - O(t-1)) + Isyn[t] - ConstantDecay
+
+    O^n[t] = spike_func(V^n[t-1])
+    """
+
+    def __init__(self, **kwargs):
+        super(IFBModel, self).__init__()
+        # self.neuron_parameters['ConstantDecay'] = kwargs.get('ConstantDecay', 0.0)
+        # self.neuron_parameters['v_th'] = kwargs.get('v_th', 1.0)
+
+        self._variables['O'] = 0.0
+        self._variables['V'] = 0.0
+        self._variables['Isyn'] = 0.0
+
+        self._constant_variables['Vth'] = kwargs.get('v_th', 1.0)
+        self._constant_variables['bias'] = kwargs.get('bias', 0)
+
+        # self._operations.append(('Vtemp', 'add', 'V', 'Isyn[updated]'))
+        self._operations.append(('Itemp', 'add', 'Isyn[updated]', 'bias'))
+        self._operations.append(('Vtemp', 'add', 'V', 'Itemp'))
+        # self._operations.append(('Vtemp1', 'minus', 'Vtemp', 'ConstantDecay'))
+        self._operations.append(('O', 'threshold', 'Vtemp', 'Vth'))
+        self._operations.append(('Resetting', 'var_mult', 'Vtemp', 'O[updated]'))
+        self._operations.append(('V', 'minus', 'Vtemp', 'Resetting'))
+
+
+NeuronModel.register("ifb", IFBModel)
 
 class NullModel(NeuronModel):
     """
@@ -1124,7 +1155,7 @@ class LIFModel(NeuronModel):
         self._variables['Isyn'] = 0.0
 
 
-        self._parameter_variables['Vth'] = kwargs.get('v_th', 1)
+        self._constant_variables['Vth'] = kwargs.get('v_th', 1)
         self._constant_variables['Vreset'] = kwargs.get('v_reset', 0.0)
 
         self._tau_variables['tauM'] = kwargs.get('tau_m', 8.0)
@@ -1275,7 +1306,7 @@ class NonSpikingLIFModel(NeuronModel):
         self._tau_variables['tauQ'] = np.asarray(kwargs.get('tau_q', 1.0))
         beta = self._tau_variables['tauP'] / self._tau_variables['tauQ']
         V0 = (1 / (beta - 1)) * (beta ** (beta / (beta - 1)))
-        self._parameter_variables['V0'] = V0
+        self._constant_variables['V0'] = V0
 
         self._membrane_variables['tauM'] = kwargs.get('tau_m', 1.0)
         # self._tau_constant_variables['tauM'] = kwargs.get('tau_m', 1.0)
@@ -1318,7 +1349,7 @@ class LIFMModel(NeuronModel):
         # self._variables['I_ele'] = 0.0
         self._variables['I'] = 0.0
 
-        self._parameter_variables['Vth'] = kwargs.get('v_th', 1.0)
+        self._constant_variables['Vth'] = kwargs.get('v_th', 1.0)
         # self._constant_variables['Vreset'] = v_reset
 
         self._tau_variables['tauM'] = kwargs.get('tau_m', 10.0)
@@ -1366,9 +1397,9 @@ class IZHModel(NeuronModel):
 
         self._constant_variables['a'] = kwargs.get('a', 0.02)
         self._constant_variables['b'] = kwargs.get('b', 0.2)
-        self._parameter_variables['Vth'] = np.asarray(kwargs.get('v_th', 30))# 30.0
-        self._parameter_variables['Vreset'] = np.asarray(kwargs.get('Vreset', -65.0))
-        self._parameter_variables['d'] = kwargs.get('d', 8.0)  # 8.0
+        self._constant_variables['Vth'] = np.asarray(kwargs.get('v_th', 30))# 30.0
+        self._constant_variables['Vreset'] = np.asarray(kwargs.get('Vreset', -65.0))
+        self._constant_variables['d'] = kwargs.get('d', 8.0)  # 8.0
         self._constant_variables['C1'] = 0.04
         self._constant_variables['C2'] = 5
         self._constant_variables['C3'] = 140
