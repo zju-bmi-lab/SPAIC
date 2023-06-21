@@ -30,6 +30,29 @@ class NullEncoder(Encoder):
 
 Encoder.register('null', NullEncoder)
 
+class FloatEncoding(Encoder):
+
+    def __init__(self, shape=None, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'),
+                 coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
+        super(FloatEncoding, self).__init__(shape, num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
+        # self.unit_conversion = kwargs.get('unit_conversion', 0.1)
+        # self.run_time = kwargs.get('run_time', 20)
+        # self.sim_name = None
+
+    def torch_coding(self, source, device):
+        # assert (source >= 0).all(), "Inputs must be non-negative"
+        if source.__class__.__name__ == 'ndarray':
+            source = torch.tensor(source, device=device, dtype=self._backend.data_type)
+        spk_shape = [self.time_step] + list(source.shape)
+        spikes = torch.rand(spk_shape, device=device)
+        for i in range(self.time_step):
+            spikes[i]=source
+
+        spikes=spikes.float()
+        return spikes
+
+Encoder.register('float', FloatEncoding)
+
 class SigleSpikeToBinary(Encoder):
     '''
         Transform the spike train (each neuron firing one spike) into a binary matrix

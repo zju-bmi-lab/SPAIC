@@ -408,8 +408,8 @@ class conv_connect(Connection):
                 self.bias_value = np.empty(self.out_channels)
 
             else:
-                assert (bias.size == self.out_channels), f"The size of the given bias {bias.shape} does not correspond" \
-                                                         f" to the size of output_channels {self.out_channels} "
+                # assert (bias.size == self.out_channels), f"The size of the given bias {bias.shape} does not correspond" \
+                #                                          f" to the size of output_channels {self.out_channels} "
                 self.bias_value = bias
 
             self._variables['bias[link]'] = self.bias_value
