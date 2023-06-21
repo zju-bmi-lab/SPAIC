@@ -21,39 +21,73 @@ class Basic_synapse(SynapseModel):
     def __init__(self, conn, **kwargs):
         super(Basic_synapse, self).__init__(conn)
 
+        # if conn.is_sparse:
+        #     self._syn_operations.append([conn.post_var_name + '[post]', 'sparse_mat_mult_weight', 'weight[link]',
+        #                                  self.input_name])
+        # elif 'complex' in conn.post.model_name and conn.post.model_name != 'double_complex':
+        #     if conn.max_delay > 0:
+        #         self._syn_operations.append(
+        #             [conn.post_var_name + '[post]', 'mat_mult_weight_complex', self.input_name,
+        #              'weight[link]', 'complex_beta[post]', 'delay[link]'])
+        #     else:
+        #         self._syn_operations.append(
+        #             [conn.post_var_name + '[post]', 'mat_mult_weight_complex', self.input_name,
+        #              'weight[link]', 'complex_beta[post]'])
+        # elif conn.post.model_name == 'double_complex':
+        #     if conn.max_delay > 0:
+        #         self._syn_operations.append(
+        #             [conn.post_var_name + '[post]', 'mat_mult_weight_2complex', self.input_name,
+        #              'weight[link]', 'complex_beta[post]', 'delay[link]'])
+        #     else:
+        #         self._syn_operations.append(
+        #             [conn.post_var_name + '[post]', 'mat_mult_weight_2complex', self.input_name,
+        #              'weight[link]', 'complex_beta[post]'])
+        # elif conn.max_delay > 0:
+        #     self._syn_operations.append(
+        #         [conn.post_var_name + '[post]', 'mult_sum_weight', self.input_name, 'weight[link]'])
+        # else:
+        #     self._syn_operations.append(
+        #         [conn.post_var_name + '[post]', 'mat_mult_weight', self.input_name,
+        #          'weight[link]'])
+
+        if 'bias_flag' in conn.__dict__.keys() and conn.bias_flag:
+            # if conn.bias_flag:
+            post_var_name = conn.post_var_name + '_temp'
+        else:
+            post_var_name = conn.post_var_name + '[post]'
+
         if conn.is_sparse:
-            self._syn_operations.append([conn.post_var_name + '[post]', 'sparse_mat_mult_weight', 'weight[link]',
+            self._syn_operations.append([post_var_name, 'sparse_mat_mult_weight', 'weight[link]',
                                          self.input_name])
         elif 'complex' in conn.post.model_name and conn.post.model_name != 'double_complex':
             if conn.max_delay > 0:
                 self._syn_operations.append(
-                    [conn.post_var_name + '[post]', 'mat_mult_weight_complex', self.input_name,
+                    [post_var_name, 'mat_mult_weight_complex', self.input_name,
                      'weight[link]', 'complex_beta[post]', 'delay[link]'])
             else:
                 self._syn_operations.append(
-                    [conn.post_var_name + '[post]', 'mat_mult_weight_complex', self.input_name,
+                    [post_var_name, 'mat_mult_weight_complex', self.input_name,
                      'weight[link]', 'complex_beta[post]'])
         elif conn.post.model_name == 'double_complex':
             if conn.max_delay > 0:
                 self._syn_operations.append(
-                    [conn.post_var_name + '[post]', 'mat_mult_weight_2complex', self.input_name,
+                    [post_var_name, 'mat_mult_weight_2complex', self.input_name,
                      'weight[link]', 'complex_beta[post]', 'delay[link]'])
             else:
                 self._syn_operations.append(
-                    [conn.post_var_name + '[post]', 'mat_mult_weight_2complex', self.input_name,
+                    [post_var_name, 'mat_mult_weight_2complex', self.input_name,
                      'weight[link]', 'complex_beta[post]'])
         elif conn.max_delay > 0:
             self._syn_operations.append(
-                [conn.post_var_name + '[post]', 'mult_sum_weight', self.input_name, 'weight[link]'])
+                [post_var_name, 'mult_sum_weight', self.input_name, 'weight[link]'])
         else:
             self._syn_operations.append(
-                [conn.post_var_name + '[post]', 'mat_mult_weight', self.input_name,
+                [post_var_name, 'mat_mult_weight', self.input_name,
                  'weight[link]'])
 
-        if 'bias_flag' in conn.__dict__.keys():
-            if conn.bias_flag:
-                self._syn_operations.append(
-                    [conn.post_var_name + '[post]', 'add', conn.post_var_name + '[post]', 'bias[link]'])
+        if 'bias_flag' in conn.__dict__.keys() and conn.bias_flag:
+            self._syn_operations.append(
+                [conn.post_var_name + '[post]', 'add', post_var_name, 'bias[link]'])
 
 
 # SynapseModel.register('basic_synapse', Basic_synapse)
@@ -68,20 +102,38 @@ class conv_synapse(SynapseModel):
 
     def __init__(self, conn, **kwargs):
         super(conv_synapse, self).__init__(conn)
-        if conn.post.model_name == 'complex':
-            self._syn_operations.append(
-                [conn.post_var_name + '[post]', 'conv_2d_complex', self.input_name, 'weight[link]',
-                 'stride[link]', 'padding[link]', 'dilation[link]', 'groups[link]', 'complex_beta[post]'])
-        else:
-            self._syn_operations.append(
-                [conn.post_var_name + '[post]', 'conv_2d', self.input_name, 'weight[link]',
-                 'stride[link]', 'padding[link]', 'dilation[link]',
-                 'groups[link]'])  # every time a new parameter will be added to all conditions, that's silly
-
-        if 'bias_flag' in conn.__dict__.keys():
-            if conn.bias_flag:
+        # if conn.post.model_name == 'complex':
+        #     self._syn_operations.append(
+        #         [conn.post_var_name + '[post]', 'conv_2d_complex', self.input_name, 'weight[link]',
+        #          'stride[link]', 'padding[link]', 'dilation[link]', 'groups[link]', 'complex_beta[post]'])
+        # else:
+        #     self._syn_operations.append(
+        #         [conn.post_var_name + '[post]', 'conv_2d', self.input_name, 'weight[link]',
+        #          'stride[link]', 'padding[link]', 'dilation[link]',
+        #          'groups[link]'])  # every time a new parameter will be added to all conditions, that's silly
+        #
+        # if 'bias_flag' in conn.__dict__.keys():
+        #     if conn.bias_flag:
+        #         self._syn_operations.append(
+        #             [conn.post_var_name + '[post]', 'conv_add_bias', conn.post_var_name + '[post]', 'bias[link]'])
+        if 'bias_flag' in conn.__dict__.keys() and conn.bias_flag:
+            if conn.post.model_name == 'complex':
                 self._syn_operations.append(
-                    [conn.post_var_name + '[post]', 'conv_add_bias', conn.post_var_name + '[post]', 'bias[link]'])
+                    [conn.post_var_name + '[post]', 'conv_2d_complex', self.input_name, 'weight[link]', 'stride[link]',
+                     'padding[link]', 'dilation[link]', 'groups[link]', 'complex_beta[post]', 'bias[link]'])
+            else:
+                self._syn_operations.append(
+                    [conn.post_var_name + '[post]', 'conv_2d', self.input_name, 'weight[link]',
+                     'stride[link]', 'padding[link]', 'dilation[link]', 'groups[link]', 'bias[link]'])  # every time a new parameter will be added to all conditions, that's silly
+        else:
+            if conn.post.model_name == 'complex':
+                self._syn_operations.append(
+                    [conn.post_var_name + '[post]', 'conv_2d_complex', self.input_name, 'weight[link]', 'stride[link]',
+                     'padding[link]', 'dilation[link]', 'groups[link]', 'complex_beta[post]'])
+            else:
+                self._syn_operations.append(
+                    [conn.post_var_name + '[post]', 'conv_2d', self.input_name, 'weight[link]',
+                     'stride[link]', 'padding[link]', 'dilation[link]', 'groups[link]'])  # every time a new parameter will be added to all conditions, that's silly
 
 
 # SynapseModel.register('conv_synapse', conv_synapse)

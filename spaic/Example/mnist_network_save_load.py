@@ -46,8 +46,7 @@ class TestNet(spaic.Network):
             spaic.Connection(self.input, self.layer1,
                              link_type=conn1_link_type, syn_type=['conv'], in_channels=conn1_in_channels,
                              out_channels=conn1_out_channels, kernel_size=conn1_kernel_size, stride=conn1_stride,
-                             padding=conn1_padding,
-                             maxpool_on=False)
+                             padding=conn1_padding)
 
         self.connection3 = spaic.Connection(self.layer1, self.layer3,
                                             link_type=conn3_link_type, syn_type=['flatten', 'basic'])
@@ -59,7 +58,7 @@ class TestNet(spaic.Network):
 
 
 dt = 0.1
-run_time = 1
+run_time = 3
 # 设备设置
 if torch.cuda.is_available():
     device = 'cuda'
@@ -80,7 +79,7 @@ net.set_backend(backend)
 net.set_backend_dt(dt)
 net.build(backend)  # 创建网络
 param = net.get_testparams()  # 得到网络模型参数
-optim = torch.optim.Adam(param, lr=0.01)  # 创建优化器对象，并传入网络模型的参数
+optim = torch.optim.Adam(param, lr=0.001)  # 创建优化器对象，并传入网络模型的参数
 print("Start running")
 losses = []
 acces = []
@@ -94,7 +93,7 @@ for epoch in range(1):
     for i, item in enumerate(train_loader):
         # 前向传播
         data, label = item
-        print(train_loader.batch_size)
+        # print(train_loader.batch_size)
         data = data.reshape((data.shape[0], 1, 28, 28))
         net.input(data)
         net.output(label)

@@ -617,6 +617,29 @@ class IFBModel(NeuronModel):
 
 NeuronModel.register("ifb", IFBModel)
 
+class NonSpikingIFBModel(NeuronModel):
+    """
+    IF model:
+    V(t) = V(t-1) * (1 - O(t-1)) + Isyn[t] - ConstantDecay
+
+    O^n[t] = spike_func(V^n[t-1])
+    """
+
+    def __init__(self, **kwargs):
+        super(NonSpikingIFBModel, self).__init__()
+        # self.neuron_parameters['ConstantDecay'] = kwargs.get('ConstantDecay', 0.0)
+        # self.neuron_parameters['v_th'] = kwargs.get('v_th', 1.0)
+
+        self._variables['V'] = 0.0
+        self._variables['Isyn'] = 0.0
+
+        self._constant_variables['bias'] = kwargs.get('bias', 0)
+
+        self._operations.append(('Itemp', 'add', 'Isyn[updated]', 'bias'))
+        self._operations.append(('V', 'add', 'V', 'Itemp'))
+
+NeuronModel.register("nonspikingifb", NonSpikingIFBModel)
+
 class NullModel(NeuronModel):
     """
     return 'O'

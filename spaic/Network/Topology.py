@@ -756,17 +756,34 @@ class Connection(Projection):
     def dt(self):
         return self._backend.dt
 
-    def decode_syn_op(self, syn_ops, synapse_name, op_len):
+    # def decode_syn_op(self, syn_ops, synapse_name, op_len):
+    #     if len(synapse_name) > 1:
+    #         for i in range(1, op_len):
+    #             pre_op_return_name = syn_ops[i-1][0]
+    #             post_op_first_input = syn_ops[i][2]
+    #             if '[updated]' in post_op_first_input:
+    #                 post_op_first_input = post_op_first_input.replace('[updated]', '')
+    #             if post_op_first_input == pre_op_return_name:
+    #                 temp_name = synapse_name[i-1]+'_' + str(i-1)
+    #                 syn_ops[i-1][0] = temp_name
+    #                 syn_ops[i][2] = temp_name
+    #     return syn_ops
+
+    def decode_syn_op(self, syn_cls, synapse_name):
         if len(synapse_name) > 1:
-            for i in range(1, op_len):
-                pre_op_return_name = syn_ops[i-1][0]
-                post_op_first_input = syn_ops[i][2]
+            for i in range(1, len(synapse_name)):
+                pre_op_return_name = syn_cls[i - 1]._syn_operations[-1][0]  # 前一个突触最后一条操作的返回名
+                post_op_first_input = syn_cls[i]._syn_operations[0][2]   # 后一个突触第一条操作的第一个输入名
                 if '[updated]' in post_op_first_input:
                     post_op_first_input = post_op_first_input.replace('[updated]', '')
                 if post_op_first_input == pre_op_return_name:
                     temp_name = synapse_name[i-1]+'_' + str(i-1)
-                    syn_ops[i-1][0] = temp_name
-                    syn_ops[i][2] = temp_name
+                    syn_cls[i - 1]._syn_operations[-1][0] = temp_name
+                    syn_cls[i]._syn_operations[0][2] = temp_name
+        syn_ops = []
+        for cls in syn_cls:
+            for op in cls._syn_operations:
+                syn_ops.append(op)
         return syn_ops
 
     def decode_initializer(self, initial):
@@ -877,7 +894,7 @@ class Connection(Projection):
             self.updated_input = True
         else:
             self.updated_input = False
-        syn_ops = []
+        # syn_ops = []
         for i in range(len(self.synapse_class)):
             if self.synapse_class[i] is not None:
                 self.synapse.append(self.synapse_class[i](self, **self.syn_kwargs))
@@ -895,12 +912,13 @@ class Connection(Projection):
                 tau_value = np.exp(-dt / value)
                 # 暂时只考虑scalar值
                 self.variable_to_backend(key, shape=[1, ], value=tau_value)
-            for op in self.synapse[i]._syn_operations:
-                syn_ops.append(op)
+            # for op in self.synapse[i]._syn_operations:
+            #     syn_ops.append(op)
 
         #toDO: make sure synapse with multiple ops
         # if 'basic' in self.synapse_name:
-        syn_ops = self.decode_syn_op(syn_ops, self.synapse_name, len(syn_ops))
+        # syn_ops = self.decode_syn_op(syn_ops, self.synapse_name, len(syn_ops))
+        syn_ops = self.decode_syn_op(self.synapse, self.synapse_name)
 
         for sop in syn_ops:
             addcode_op = Op(owner=self)

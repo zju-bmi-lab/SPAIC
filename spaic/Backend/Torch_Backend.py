@@ -360,22 +360,22 @@ class Torch_Backend(Backend):
     def conv_trans1d(self, x, kernel, bias=None):
         return torch.conv_transpose1d(x, kernel, bias)
 
-    def conv_2d(self, x, kernel, stride, padding, dilation, groups, padding_mode='constant'):
+    def conv_2d(self, x, kernel, stride, padding, dilation, groups, bias=None, padding_mode='constant'):
         if x.dim() == kernel.dim() + 1:
             xshape = list(x.shape)
             xshape[0] = xshape[0] * xshape[1]
             extend_size = xshape[1]
             xshape.pop(1)
-            out = fn.conv2d(x.reshape(xshape), kernel, stride=stride, padding=padding, dilation=dilation, groups=groups,
+            out = fn.conv2d(x.reshape(xshape), kernel, bias=bias, stride=stride, padding=padding, dilation=dilation, groups=groups,
                             padding_mode=padding_mode)
             outshape = list(out.shape)
             outshape[0] = outshape[0] // extend_size
             outshape.insert(1, extend_size)
             return out.view(outshape)
         else:
-            return fn.conv2d(x, kernel, stride=stride, padding=padding, dilation=dilation, groups=groups)
+            return fn.conv2d(x, kernel, bias=bias, stride=stride, padding=padding, dilation=dilation, groups=groups)
 
-    def conv_2d_complex(self, x, kernel, stride, padding, dilation, groups, beta, delay=None):
+    def conv_2d_complex(self, x, kernel, stride, padding, dilation, groups, beta, bias=None, delay=None):
         if x.dtype.is_complex:
             if delay is not None:
                 d_delay = delay / self.dt
@@ -385,8 +385,8 @@ class Torch_Backend(Backend):
                 x = beta ** x.imag * (x.real * (0 + 1.0j))
         else:
             x = x * (0 + 1.0j)
-        real = fn.conv2d(x.real, kernel, stride=stride, padding=padding, dilation=dilation, groups=groups)
-        imag = fn.conv2d(x.imag, kernel, stride=stride, padding=padding, dilation=dilation, groups=groups)
+        real = fn.conv2d(x.real, kernel, bias=bias, stride=stride, padding=padding, dilation=dilation, groups=groups)
+        imag = fn.conv2d(x.imag, kernel, bias=bias, stride=stride, padding=padding, dilation=dilation, groups=groups)
         return torch.complex(real, imag)
 
     def conv_trans2d(self, x, kernel, stride=1, padding=0, dilation=0, groups=1):
@@ -457,8 +457,8 @@ class Torch_Backend(Backend):
         return x.view(x.shape[0], -1)
 
     def add(self, x, y):
-
         return x + y
+
 
     def minus(self, x, y):
         return x - y
