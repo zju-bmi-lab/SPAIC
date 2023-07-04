@@ -569,7 +569,7 @@ class Connection(Projection):
             if isinstance(self.synapse_type[i], str):
                 self.synapse_class.append(SynapseModel.apply_model(self.synapse_type[i]))
                 self.synapse_name.append(self.synapse_type[i])  # self.model -> self.model_name
-                self.synapse = []
+                # self.synapse = []
             else:
                 raise ValueError("only support set synapse model with string")
 
@@ -795,7 +795,8 @@ class Connection(Projection):
         '''
         add the connection variable, variable name and operation to the backend.
         '''
-
+        
+        self.synapse = []
         self._backend = backend
         # Add weight
         self.assigned_weight = False
