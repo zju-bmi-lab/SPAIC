@@ -113,7 +113,7 @@ class ExampleNet(spaic.Network):
         
         
         # 建立输入节点并选择输入编码形式
-        self.input = spaic.Node(dataloader, encoding='latency')
+        self.input = spaic.Encoder(dataloader, encoding='latency')
               
         # 建立神经元集群，选择神经元类型，并可以设置 放电阈值、膜电压时间常数等神经元参数值
         self.layer1 = spaic.NeuronGroup(100, neuron_model='clif')
@@ -124,7 +124,7 @@ class ExampleNet(spaic.Network):
         self.connection2 = spaic.Connection(self.layer1, self.layer2, link_type='full')
         
         # 建立输出节点，并选择输出解码形式
-        self.output = spaic.Node(decoding='spike_counts',target=self.layer2)
+        self.output = spaic.Decoder(decoding='spike_counts',target=self.layer2)
 
         # 建立状态检测器，可以Monitor神经元、输入输出节点、连接等多种单元的状态量
         self.monitor1 = spaic.StateMonitor(self.layer1, 'V')
@@ -149,7 +149,7 @@ Net = spaic.Network()
 # 通过把网络单元在with内定义，建立网络结构
 with Net:
     # 建立输入节点并选择输入编码形式
-    input1 = spaic.Node(dataloader, encoding='latency')
+    input = spaic.Encoder(dataloader, encoding='latency')
 
 
     # 建立神经元集群，选择神经元类型，并可以设置 放电阈值、膜电压时间常数等神经元参数值
@@ -161,7 +161,7 @@ with Net:
     connection2 = spaic.Connection(layer1, layer2, link_type='full')
 
     # 建立输出节点，并选择输出解码形式
-    output1 = spaic.Node(decoding='spike_counts',target=layer2)
+    output = spaic.Decoder(decoding='spike_counts',target=layer2)
 
     # 建立状态检测器，可以Monitor神经元、输入输出节点、连接等多种单元的状态量
     monitor1 = spaic.StateMonitor(layer1, 'V')

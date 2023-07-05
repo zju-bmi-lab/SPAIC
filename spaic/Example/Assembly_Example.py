@@ -101,9 +101,9 @@ class TestNet(spaic.Network):
         self.input = spaic.Encoder(num=784, coding_method='poisson')
 
         self.layer1 = spaic.NeuronGroup(10, model='mylif')
-        self.layer2_part1 = Assemb1()
-        self.layer2_part2 = Assemb2()
-        self.layer3 = Assemb2()
+        # self.layer2_part1 = Assemb1()
+        # self.layer2_part2 = Assemb2()
+        self.layer3 = Assemb1()
         self.layer4 = spaic.NeuronGroup(10, model='lif')
         self.output = spaic.Decoder(num=10, dec_target=self.layer4, coding_method='spike_counts')
 

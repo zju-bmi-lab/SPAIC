@@ -13,6 +13,44 @@ from .Node import Node, Decoder
 import torch
 import numpy as np
 
+class Spike_Rate(Decoder):
+    def __init__(self, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'), coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
+        super(Spike_Rate, self).__init__(num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
+        self.pop_size = kwargs.get('pop_size', 1)
+        self.bias = kwargs.get('bias', 0.0)
+        self.scale = kwargs.get('scale', 1.0)
+
+    def numpy_coding(self, record, target, device):
+        # the shape of record is (time_step, batch_size, n_neurons)
+        spike_rate = record.mean(0)
+        pop_num = int(self.num / self.pop_size)
+        pop_spikes_temp = (
+            [
+                np.sum(spike_rate[:, (i * self.pop_size): (i * self.pop_size) + self.pop_size], axis=1)
+                for i in range(pop_num)
+            ]
+        )
+        pop_spikes = np.stack(pop_spikes_temp, axis=1)
+        return pop_spikes
+
+    def torch_coding(self, record, target, device):
+        # the shape of record is (time_step, batch_size, n_neurons)
+        if '[2]' in self.coding_var_name:
+            pop_spikes = record[:,:,0,:].mean(0).to(device=device)
+        else:
+            spike_rate = record.mean(0).to(device=device)
+            pop_num = int(self.num / self.pop_size)
+            pop_spikes_temp = (
+                [
+                    spike_rate[:, (i * self.pop_size): (i * self.pop_size) + self.pop_size].sum(dim=1)
+                    for i in range(pop_num)
+                ]
+            )
+            pop_spikes = torch.stack(pop_spikes_temp, dim=-1)
+        return (pop_spikes + self.bias)*self.scale
+
+Decoder.register('spike_rate', Spike_Rate)
+
 
 class Spike_Counts(Decoder):
 
@@ -45,9 +83,9 @@ class Spike_Counts(Decoder):
     def torch_coding(self, record, target, device):
         # the shape of record is (time_step, batch_size, n_neurons)
         if '[2]' in self.coding_var_name:
-            pop_spikes = record[:,:,0,:].mean(0).to(device=device)
+            pop_spikes = record[:,:,0,:].sum(0).to(device=device)
         else:
-            spike_rate = record.mean(0).to(device=device)
+            spike_rate = record.sum(0).to(device=device)
             pop_num = int(self.num / self.pop_size)
             pop_spikes_temp = (
                 [
@@ -286,17 +324,22 @@ Decoder.register('voltage_sum', Voltage_Sum)
 class Complex_Count(Decoder):
     def __init__(self, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'), coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
         super(Complex_Count, self).__init__(num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
-
+        self.tlen = None
     def torch_coding(self, record: torch.Tensor, target, device):
         assert record.dtype.is_complex
-        tlen = record.shape[0]
-        time_array = torch.arange(0, tlen, device=device, dtype=torch.float)
-        # count = record.real
-        count = record.imag.gt(0)*record.real
-        t = time_array.view(-1,1,1)
-        out = torch.sum(count*torch.exp(-2.0*(t-record.imag)/tlen), dim=0) + 1.0e-6
-        rate = torch.sum(count, dim=0)/self._backend.time
-        return out, rate
+        if self.tlen is None:
+            self.tlen = record.shape[0]*1.0
+        time_array = torch.arange(0, self.tlen, device=device, dtype=torch.float).view(-1,1,1)
+        spk = record.real.gt(0.0)
+        # for gradient test
+        sum_spk = torch.cumsum(spk, dim=0)
+        spk = spk*sum_spk.lt(5)
+
+        # count = record.imag.gt(0)
+        out = torch.sum(spk*(-(time_array-record.imag)/self.tlen), dim=0) + 1.0e-6
+        # out = torch.sum(count, dim=0) + 1.0e-6
+        # rate = torch.sum(count, dim=0)/self._backend.time
+        return out
 
 Decoder.register('complex_count', Complex_Count)
 
@@ -306,41 +349,28 @@ class Complex_Phase(Decoder):
         super(Complex_Phase, self).__init__(num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
         self.trange = kwargs.get('trange',2.0)
         self.period = kwargs.get('period', 20.0)
-        class TransClamp(torch.autograd.Function):
-            @staticmethod
-            def forward(ctx, x, min=None, max=None):
-                return torch.clamp(x, min, max)
-
-            @staticmethod
-            def backward(ctx, grad_outputs):
-                return grad_outputs, None, None
-        self.clamp = TransClamp.apply
-
-
+        # class TransClamp(torch.autograd.Function):
+        #     @staticmethod
+        #     def forward(ctx, x, min=None, max=None):
+        #         return torch.clamp(x, min, max)
+        #
+        #     @staticmethod
+        #     def backward(ctx, grad_outputs):
+        #         return grad_outputs, None, None
+        # self.clamp = TransClamp.apply
 
 
 
 
     def torch_coding(self,  record: torch.Tensor, target, device):
+        assert record.dtype.is_complex
+        # record.shape = (time, batch, num)
         tlen = record.shape[0]
-        time_array = self.dt * torch.arange(0, tlen, device=device, dtype=torch.float)
-        spk = record.real.gt(0.0)
-        count = torch.cumsum(spk, dim=0)
-        spk_count = (spk*count + 1.0e6*(1-spk.to(torch.float))).detach()
-        sort_spk_count, sort_spk_index = torch.sort(spk_count, dim=0)
-        sort_spk = torch.gather(spk, dim=0, index=sort_spk_index)
-
-        rate = torch.sum(spk, dim=0) / self._backend.time
-
-        time = time_array.view(-1,1,1) - record.imag
-        sort_time = torch.gather(time, dim=0, index=sort_spk_index)
-        sort_time_aim = sort_time
-        sort_time_target = torch.amin(sort_time, dim=-1, keepdim=True).detach()
-        sort_time_diff = torch.exp((sort_time_target-sort_time_aim)/self.trange)*sort_spk
-        out_time_score = torch.sum(sort_time_diff, dim=0) + 1.0e-4 + rate
-        # (0.9 ** sort_spk_count) *
-
-        return out_time_score, rate
+        reference = torch.mean(record.abs(), dim=-1, keepdim=True)
+        reference = torch.softmax(reference, dim=0)*self.dt
+        phase = record.real/(record.abs()+1.0)
+        phase = torch.sum(phase*reference, dim=0)
+        return phase
 
     def torch_coding2(self, record, target, device):
         import torch.nn.functional as F
@@ -364,8 +394,64 @@ class Complex_Phase(Decoder):
         return out_phase, conv_i
 
 
-
 Decoder.register('complex_phase', Complex_Phase)
+
+class Complex_Latency(Decoder):
+    def __init__(self, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'), coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
+        super(Complex_Latency, self).__init__(num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
+        self.tlen = None
+
+    def torch_coding(self,  record: torch.Tensor, target, device):
+        assert record.dtype.is_complex
+        # if self.tlen is None:
+        self.tlen = record.shape[0]
+        time_array = torch.arange(0, self.tlen, device=device, dtype=torch.float).view(-1,1,1)
+        spk = record.real.gt(0)
+        spk_time = (self.tlen-(time_array - record.imag))*spk
+        spk_time = torch.exp(1*(spk_time-torch.amax(spk_time, dim=(0,2), keepdim=True).detach())/self.tlen)
+        spk_rate = record.real
+        spk_weight = torch.exp(-torch.cumsum(record.real.detach(),dim=0)/5.0)
+        weighted_spk_time = torch.sum(spk_weight*spk_rate*spk_time*spk,dim=0)
+        return weighted_spk_time
+
+Decoder.register('complex_latency', Complex_Latency)
+
+class Complex_TimingDistance(Decoder):
+    def __init__(self, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'), coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
+        super(Complex_TimingDistance, self).__init__(num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
+        from matplotlib import pyplot as plt
+        self.tlen = None
+        self.filter_time = kwargs.get("filter_time", 10.0)
+
+
+    def build(self, backend):
+        super(Complex_TimingDistance, self).build(backend)
+        tdt = 6.0*self.dt/(1.0*self.filter_time)
+        tt = torch.arange(0, 6.0+tdt, tdt)
+        self.rate_filter = (torch.exp(-(tt - 2) ** 2)).view(1, 1, -1)
+        self.d_rate_filter = (0.5*(tt-2)*torch.exp(-(tt - 1) ** 2)).view(1, 1, -1)*tdt*0.01
+
+
+    def torch_coding(self, record: torch.Tensor, target: torch.Tensor , device: str):
+        from torch.nn.functional import mse_loss
+        # record shape (time, batch, neuron)
+        # target shape (batch, neuron, time)
+        assert record.dtype.is_complex
+        n_time, n_batch, n_neuron = record.shape
+        self.rate_filter = self.rate_filter.to(device)
+        self.d_rate_filter = self.d_rate_filter.to(device)
+        target = target.view(-1, 1, n_time)
+        record = record.permute(1,2,0).view(-1, 1, n_time)
+
+        target_rate = torch.conv1d(target, self.rate_filter, padding='same')
+        record_rate = torch.conv1d(record.real, self.rate_filter, padding='same') - torch.conv1d(record.imag, self.d_rate_filter, padding='same')
+        rate_loss = mse_loss(record_rate, target_rate)
+        return rate_loss, record_rate, target_rate
+
+Decoder.register('complex_timing_distance', Complex_TimingDistance)
+
+
+
 
 class Complex_Trajectory(Decoder):
 

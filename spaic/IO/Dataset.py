@@ -6,12 +6,13 @@ import numpy as np
 import json
 import pickle
 
-from spaic.IO.utils import load_kp_data, save_kp_feature, save_mfcc_feature, load_mfcc_data, load_aedat_v3, un_tar, \
+from .utils import load_kp_data, save_kp_feature, save_mfcc_feature, load_mfcc_data, load_aedat_v3, un_tar, \
     create_same_directory_structure, integrate_events_file_to_frames_file_by_fixed_frames_number, \
     integrate_events_file_to_frames_file_by_fixed_duration
 from concurrent.futures import ThreadPoolExecutor
 import multiprocessing
 import time
+
 
 class Dataset(object):
     r"""
@@ -32,6 +33,7 @@ class Dataset(object):
     # 返回数据集大小
     def __len__(self):
         raise NotImplementedError
+
 
 class CustomDataset(Dataset):
     r"""
@@ -56,6 +58,7 @@ class CustomDataset(Dataset):
 
     def __len__(self):
         return len(self.data)
+
 
 class CustomSpikeDataset(Dataset):
     r"""
@@ -89,10 +92,10 @@ class CustomSpikeDataset(Dataset):
 
 
 class SpecifiedDataset(Dataset):
-
     r"""
     labels load from json file
     """
+
     def __init__(self, image_file, label_file):
         super().__init__()
         # 加载数据集
@@ -121,6 +124,7 @@ class SpecifiedDataset(Dataset):
 
     def __len__(self):
         return len(self.filenames)
+
 
 class cifar10(Dataset):
     files = {
@@ -155,7 +159,7 @@ class cifar10(Dataset):
         std = (0.2023, 0.1994, 0.2010)
 
         if self._is_train:
-            img = (self.data['train_images'][index]/255.0 - mean)/std
+            img = (self.data['train_images'][index] / 255.0 - mean) / std
             # img = (self.data['train_images'][index])
             img = np.float32(img.transpose(2, 0, 1))
             # img = np.float32(self.data['train_images'][index])
@@ -213,7 +217,8 @@ class cifar10(Dataset):
 
         with open(self.root + '/test_batch', mode='rb') as f:
             batch = pickle.load(f, encoding='latin1')
-            self.data['test_images'] = batch['data'].reshape((len(batch['data']), 3, 32, 32)).transpose(0, 2, 3, 1)  # batch['data']
+            self.data['test_images'] = batch['data'].reshape((len(batch['data']), 3, 32, 32)).transpose(0, 2, 3,
+                                                                                                        1)  # batch['data']
             self.data['test_labels'] = batch['labels']
 
         print(">> Dataset loaded")
@@ -325,7 +330,8 @@ class ImageNet(Dataset):
         devkit_dir_name = os.path.join(self.root, devkit_dir)
         synset = io.loadmat(os.path.join(devkit_dir_name, 'ILSVRC2012_devkit_t12', 'data', 'meta.mat'))
 
-        ground_truth = open(os.path.join(devkit_dir_name, 'ILSVRC2012_devkit_t12', 'data', 'ILSVRC2012_validation_ground_truth.txt'))
+        ground_truth = open(
+            os.path.join(devkit_dir_name, 'ILSVRC2012_devkit_t12', 'data', 'ILSVRC2012_validation_ground_truth.txt'))
         lines = ground_truth.readlines()
         labels = [int(line[:-1]) for line in lines]
 
@@ -369,7 +375,7 @@ class MNIST(Dataset):
             otherwise from ``test.pt``.
     """
     class_number = 10
-    maxNum = 28*28
+    maxNum = 28 * 28
     resources = [
         "http://yann.lecun.com/exdb/mnist/train-images-idx3-ubyte.gz",
         "http://yann.lecun.com/exdb/mnist/train-labels-idx1-ubyte.gz",
@@ -487,7 +493,7 @@ class FashionMNIST(Dataset):
     A 10-class multi-class classfication
     """
     class_number = 10
-    maxNum = 28*28
+    maxNum = 28 * 28
     resources = [
         "http://fashion-mnist.s3-website.eu-central-1.amazonaws.com/train-images-idx3-ubyte.gz",
         "http://fashion-mnist.s3-website.eu-central-1.amazonaws.com/train-labels-idx1-ubyte.gz",
@@ -598,7 +604,8 @@ class PathMNIST(Dataset):
     """
     resources = 'https://drive.google.com/drive/folders/1Tl_SP-ffDQg-jDG_EWPlWKgZTmGbvFXU'
     class_number = 9
-    maxNum = 28*28*3
+    maxNum = 28 * 28 * 3
+
     def __init__(self, root, is_train=True):
         super().__init__()
         self.root = root
@@ -926,13 +933,13 @@ class MNISTVoices(Dataset):
                 if self._classfile_exists():
                     if self.preprocessing == 'kp':
                         self.npz_name = save_kp_feature(root=self.root, npz_name=self.npz_name, sample_rate=16e3,
-                                                   class_labels=MNISTVoices.classes)
+                                                        class_labels=MNISTVoices.classes)
                         self.data = load_kp_data(self.root, self.npz_name)
                         self.maxTime = int(np.ceil(self.data['Time'] * self.scale))
                         self.maxNum = int(self.data['neuron_num'])
                     elif self.preprocessing == 'mfcc':
                         self.npz_name = save_mfcc_feature(root=self.root, npz_name=self.npz_name, sample_rate=16e3,
-                                                     class_labels=MNISTVoices.classes)
+                                                          class_labels=MNISTVoices.classes)
                         self.data = load_mfcc_data(self.root, self.npz_name)
                         self.maxTime = 50
                         self.maxNum = int(self.data['neuron_num'])
@@ -1007,7 +1014,6 @@ class MNISTVoices(Dataset):
                 self.npz_name = ''
 
 
-
 class TIDIGITS(Dataset):
     r"""
     Used to load any type of 0-9 and oh audio dataset
@@ -1068,7 +1074,7 @@ class TIDIGITS(Dataset):
                 if self._classfile_exists():
                     if self.preprocessing == 'kp':
                         self.npz_name = save_kp_feature(root=self.root, npz_name=self.npz_name, sample_rate=16e3,
-                                                   class_labels=TIDIGITS.classes)
+                                                        class_labels=TIDIGITS.classes)
                         self.data = load_kp_data(self.root, self.npz_name)
                         self.maxTime = int(np.ceil(self.data['Time'] * self.scale))
                         self.maxNum = int(self.data['neuron_num'])
@@ -1149,8 +1155,6 @@ class TIDIGITS(Dataset):
                 self.npz_name = ''
 
 
-
-
 class SHD(Dataset):
     '''
     Spiking Heidelberg Digits Dataset
@@ -1168,6 +1172,7 @@ class SHD(Dataset):
         "train_dataset": 'shd_train.h5',
         "test_dataset": 'shd_test.h5'
     }
+
     def __init__(self, root, is_train=True, **kwargs):
         super().__init__()
         self.scale = kwargs.get('scale', 100)
@@ -1197,7 +1202,6 @@ class SHD(Dataset):
             spiking = [self.data['test_spiking'][index] * self.scale, self.data['test_ids'][index]]
             label = np.int64(self.data['test_labels'][index])
         return spiking, label
-
 
     def __len__(self):
         if self._is_train:
@@ -1307,7 +1311,6 @@ class SSC(Dataset):
         else:
             raise ValueError(">> Failed to load the set, file not exist. You should download the dataset firstly.")
 
-
     def __getitem__(self, index):
         if self._is_train:
             spiking = [self.data['train_spiking'][index] * self.scale, self.data['train_ids'][index]]
@@ -1383,6 +1386,7 @@ class SSC(Dataset):
             return True
         else:
             return False
+
 
 class DVS128Gesture(Dataset):
     """

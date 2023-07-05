@@ -8,7 +8,6 @@
 @description:
 """
 from .Learner import Learner
-from ..Network.BaseModule import Op
 from ..Network.Connections import conv_connect
 from ..IO.utils import im2col
 import numpy as np

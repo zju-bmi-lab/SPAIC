@@ -9,7 +9,7 @@ Created on 2020/8/17
 @description:
 """
 from abc import abstractmethod
-from spaic.Neuron.Node import Action, Encoder, Reward
+from ..Neuron.Node import Action, Encoder, Reward
 import numpy as np
 from tqdm import tqdm
 import torch

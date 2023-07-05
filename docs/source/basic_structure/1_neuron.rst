@@ -31,8 +31,8 @@ LIF神经元
 **LIF(Leaky Integrated-and-Fire Model)** 神经元的公式以及参数：
 
 .. math::
-    V &= tua\_m * V + I \\
-    O &= spike\_func(V^n)
+    V & = tua\_m * V + I \\
+    O & = spike\_func(V^n)
 
 
 以建立一层含有100个 **LIF** 神经元的layer为例:
@@ -67,12 +67,12 @@ CLIF神经元
 
 .. math::
 
-    V(t) &= M(t) - S(t) - E(t) \\
-    I &= V0 * I \\
-    M &= tau\_p * M + I \\
-    S &= tau\_q * S + I \\
-    E &= tau\_p * E + Vth * O \\
-    O &= spike\_func(V^n)
+    V(t) & = M(t) - S(t) - E(t) \\
+    I & = V0 * I \\
+    M & = tau\_p * M + I \\
+    S & = tau\_q * S + I \\
+    E & = tau\_p * E + Vth * O \\
+    O & = spike\_func(V^n)
 
 
 - **tau_p, tau_q** - 突触的时间常量，默认为12.0和8.0
@@ -101,15 +101,14 @@ aEIF神经元
 **aEIF(Adaptive Exponential Integrated-and-Fire Model)** [#f2]_ 神经元公式以及参数:
 
 .. math::
-    V &= V + dt / C * (gL * (EL - V + EXP) - w + I^n[t]) \\
-    w &= w + dt / tau\_w * (a * (V - EL) - w) \\
-    EXP &= delta\_t * exp(dv\_th/delta\_t) \\
-    dv &= V - EL \\
-    dv\_th &= V - Vth \\
-    O &= spike\_func(V^n)
-
-    If V > 20: \\
-    then V &= EL, w = w + b
+    V & = V + dt / C * (gL * (EL - V + EXP) - w + I^n[t]) \\
+    w & = w + dt / tau\_w * (a * (V - EL) - w) \\
+    EXP & = delta\_t * exp(dv\_th/delta\_t) \\
+    dv & = V - EL \\
+    dv\_th & = V - Vth \\
+    O & = spike\_func(V^n) \\
+    if\quad V & > 20: \\
+    then\quad V & = EL, w = w + b
 
 - **C, gL** - 膜电容与泄漏电导系数
 - **tau_w** - 自适应时间常量
@@ -128,10 +127,9 @@ IZH神经元
     V &= V + dt / tau\_M * (C1 * V * V + C2 * V + C3 - U + I)  \\
     V &= V + dt / tau\_M * (V* (C1 * V + C2) + C3 - U + I) \\
     U &= U + a. * (b. * V - U) \\
-    O &= spike\_func(V^n)
-
-    if V &> Vth, \\
-    then V &= Vreset, U = U + d
+    O &= spike\_func(V^n) \\
+    if\quad V &> Vth, \\
+    then\quad V &= Vreset, U = U + d
 
 - **tau_m**
 - **C1, C2, C3**
@@ -145,30 +143,24 @@ HH神经元
 **HH(Hodgkin-Huxley Model)**  [#f4]_ 神经元模型及参数:
 
 .. math::
-
-    V &= V + dt/tau\_v * (I - Ik) \\
-    Ik &= NA + K + L \\
-    NA &= g\_NA * m^3 * h * (V - V_NA) \\
-    K &= g\_K * n^4 * (V - V_K) \\
-    L &= g\_L * (V - V_L) \\
-
-    K\ activation: \\
-    n &= n + dt/tau\_n * (alpha\_n * (1-n) - beta\_n * n) \\
-
-    Na\ activation: \\
-    m &= m + dt/tau\_m * (alpha\_m * (1-m) - beta\_m * m) \\
-
-    Na\ inactivation: \\
-    h &= h + dt/tau\_h * (alpha\_h * (1-h) - beta\_h * h) \\
-
-    alpha\_m &= 0.1 * (-V + 25) / (exp((-V+25)/10) - 1) \\
-    beta\_m &= 4 * exp(-V/18) \\
-    alpha\_n &= 0.01 * (-V + 10) / (exp((-V+10)/10) - 1) \\
-    beta\_n &= 0.125 * exp(-V/80) \\
-    alpha\_h &= 0.07 * exp(-V/20) \\
-    beta\_h &= 1/(exp((-V+30)/10) + 1)
-
-    O &= spike\_func(V^n)
+    V & = V + dt/tau\_v * (I - Ik) \\
+    Ik & = NA + K + L \\
+    NA & = g\_NA * m^3 * h * (V - V_NA) \\
+    K & = g\_K * n^4 * (V - V_K) \\
+    L & = g\_L * (V - V_L) \\
+    K\quad activation: \\
+    n & = n + dt/tau\_n * (alpha\_n * (1-n) - beta\_n * n) \\
+    Na\quad activation: \\
+    m & = m + dt/tau\_m * (alpha\_m * (1-m) - beta\_m * m) \\
+    Na\quad inactivation: \\
+    h & = h + dt/tau\_h * (alpha\_h * (1-h) - beta\_h * h) \\
+    alpha\_m & = 0.1 * (-V + 25) / (exp((-V+25)/10) - 1) \\
+    beta\_m & = 4 * exp(-V/18) \\
+    alpha\_n & = 0.01 * (-V + 10) / (exp((-V+10)/10) - 1) \\
+    beta\_n & = 0.125 * exp(-V/80) \\
+    alpha\_h & = 0.07 * exp(-V/20) \\
+    beta\_h & = 1/(exp((-V+30)/10) + 1) \\
+    O & = spike\_func(V^n)
 
 
 - **dt**

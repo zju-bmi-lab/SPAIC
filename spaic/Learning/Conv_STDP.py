@@ -10,7 +10,7 @@
 from .Learner import Learner
 from ..Network.Connections import conv_connect
 from ..IO.utils import im2col
-from ..Network.BaseModule import Op
+
 import numpy as np
 import torch
 

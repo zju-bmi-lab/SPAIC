@@ -8,16 +8,20 @@ Created on 2022/1/18
 
 @description: 
 """
+
+
 from ..Network.BaseModule import BaseModule
 from ..Network.Assembly import Assembly
-# from ..Network.Synapse import Flatten_synapse
-from ..Network.BaseModule import VariableAgent, Op
+# from .Synapse import Flatten_synapse
+from ..IO.Initializer import BaseInitializer
+from ..Network.BaseModule import VariableAgent
+from ..Network.Operator import Op
 from ..Backend.Backend import Backend
 from abc import abstractmethod
 from typing import List
 import numpy as np
 from abc import ABC
-
+# from ..utils.memory import get_cpu_mem, get_object_size
 
 class Projection(BaseModule):
     '''
@@ -310,6 +314,8 @@ class Projection(BaseModule):
         repr_str += "pre:{}, ".format(self.pre.name)
         repr_str += "post:{}\n ".format(self.post.name)
         level += 1
+        for c in self._projections.values():
+            repr_str += c.get_str(level)
         for c in self._connections.values():
             repr_str += c.get_str(level)
         return repr_str
@@ -329,13 +335,18 @@ class Projection(BaseModule):
             for super_asb in self._supers:
                 for con in self._connections:
                     super_asb.del_connection(con)
-        if self._connections and not self._policies:
+        for sub_proj in self._projections.values():
+            sub_proj.build(backend)
+        # if not policy is not given then it does not have connection policy (no default policy)
+        if not self._policies:
             return
-        connection_inforamtion = self
-        connection_inforamtion.expand_connection()
+        connection_inforamtion = None
         for p in self._policies:
-            connection_inforamtion = connection_inforamtion & p.generate_connection(self.pre,
-                                                                                    self.post)
+            if connection_inforamtion is None:
+                connection_inforamtion = p.generate_connection(self.pre, self.post)
+            else:
+                connection_inforamtion = connection_inforamtion & p.generate_connection(self.pre,
+                                                                                        self.post)
 
         self._connections = connection_inforamtion._connections
         self._projections = connection_inforamtion._projections
@@ -403,8 +414,7 @@ class SynapseModel(ABC):
             The synapse model object, e.g. an `Basic_synapse`.
         '''
 
-        # only deal with lower case names -- we don't want to have 'LIF' and
-        # 'lif', for example
+        # only deal with lower case names
         name = name.lower()
         if name in SynapseModel.synapse_models:
             raise ValueError(('A synapse_model with the name "%s" has already been registered') % name)
@@ -476,21 +486,22 @@ class Connection(Projection):
 
     def __init__(self, pre: Assembly, post: Assembly, name=None,
                  link_type=('full', 'sparse_connection', 'conv', '...'),
-                 syn_type=['basic'], max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='Isyn',
-                 syn_kwargs=None, **kwargs):
+                 syn_type=None, max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='Isyn',
+                 syn_kwargs=None, prefer_device=None, **kwargs):
 
         super(Connection, self).__init__(pre, post)
         # self.param_init = kwargs.get('param_init', None)
         self.con_kwargs = kwargs
         self.is_parameter = kwargs.get('is_parameter', True)
         self.is_sparse = kwargs.get('is_sparse', False)
+        self.weight_quantization = kwargs.get('weight_quantization', False)
         if syn_kwargs is None:
             self.syn_kwargs = dict()
         else:
             self.syn_kwargs = syn_kwargs
         # assert pre._is_terminal
         # assert post._is_terminal
-
+        self.prefer_device = prefer_device
         self.pre = pre  # .get_assemblies()
         self.post = post  # .get_assemblies()
         self.pre_var_name = pre_var_name
@@ -510,7 +521,7 @@ class Connection(Projection):
 
         self.link_type = link_type
         self.max_delay = max_delay
-        self.min_delay = kwargs.get('min_delay', 0.0)
+        self.min_delay = kwargs.get('min_delay', 1.0)
         self.sparse_with_mask = sparse_with_mask
         self._var_names = list()
         self._var_dict = dict()
@@ -529,7 +540,7 @@ class Connection(Projection):
         self.parameters = kwargs
         # self.bias = kwargs.get('bias', False)
 
-        self.updated_input = kwargs.get('updated_input', True)
+        # self.updated_input = kwargs.get('updated_input', True)
         self.weight_norm = kwargs.get('weight_norm', False)
 
         self.w_max = None
@@ -544,15 +555,15 @@ class Connection(Projection):
 
         self.flatten = kwargs.get('flatten', False)
 
-        if len(syn_type) == 0:
-            raise ValueError('Please set the param syn_type, you can set it as \'basic\'')
+        # if len(syn_type) == 0:
+        #     raise ValueError('Please set the param syn_type, you can set it as \'basic\'')
 
         if isinstance(syn_type, list):
             self.synapse_type = syn_type
         else:
             self.synapse_type = [syn_type]
-        self.synapse_class = []
         self.synapse_name = []
+        self.synapse_class = []
 
         for i in range(len(self.synapse_type)):
             if isinstance(self.synapse_type[i], str):
@@ -563,7 +574,7 @@ class Connection(Projection):
                 raise ValueError("only support set synapse model with string")
 
     def __new__(cls, pre, post, name=None, link_type=('full', 'sparse_connection', 'conv', '...'),
-                syn_type=['basic'], max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='Isyn',
+                syn_type=None, max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='Isyn',
                 syn_kwargs=None, **kwargs):
         if cls is not Connection:
             return super().__new__(cls)
@@ -675,25 +686,28 @@ class Connection(Projection):
             ini_delay = (self.max_delay-self.min_delay) * np.random.rand(*self.shape) + self.min_delay
             # ==============================================
             self.variable_to_backend(delay_name, self.shape, ini_delay, True)
+            self.variable_to_backend(delay_output_name, (1, *self.shape), 0)
 
             # add delay index
             self._backend.register_standalone(Op(delay_output_name, delay_queue.select, [delay_name] ,owner=self))
 
             # add inital to transform initial delay_output
-            self.init_op_to_backend(delay_output_name, delay_queue.transform_delay_output,
-                                           [delay_input_name, delay_name])
+            # self.init_op_to_backend(delay_output_name, delay_queue.transform_delay_output,
+            #                                [delay_input_name, delay_name])
 
         else:
             return
 
     def clamp_weight(self, weight):
-
-        if (self.w_max is not None) and (self.w_min is not None):
-            self._backend.clamp_(weight, self.w_min, self.w_max)
-        elif self.w_max is not None:
-            self._backend.clamp_max_(weight, self.w_max)
-        elif self.w_min is not None:
-            self._backend.clamp_min_(weight, self.w_min)
+        if not weight.is_sparse:
+            if (self.w_max is not None) and (self.w_min is not None):
+                self._backend.clamp_(weight, self.w_min, self.w_max)
+            elif self.w_max is not None:
+                self._backend.clamp_max_(weight, self.w_max)
+            elif self.w_min is not None:
+                self._backend.clamp_min_(weight, self.w_min)
+    def quantize_weight(self, weight):
+        return np.round(np.clip(weight + 2 ** 7, 0, 2 ** 8)) - 2 ** 7
 
     def _add_label(self, var_name: str):
         if '[pre]' in var_name:
@@ -743,17 +757,34 @@ class Connection(Projection):
     def dt(self):
         return self._backend.dt
 
-    def decode_syn_op(self, syn_ops, synapse_name, op_len):
-        if op_len > 1:
-            for i in range(1, op_len):
-                pre_op_return_name = syn_ops[i-1][0]
-                post_op_first_input = syn_ops[i][2]
+    # def decode_syn_op(self, syn_ops, synapse_name, op_len):
+    #     if len(synapse_name) > 1:
+    #         for i in range(1, op_len):
+    #             pre_op_return_name = syn_ops[i-1][0]
+    #             post_op_first_input = syn_ops[i][2]
+    #             if '[updated]' in post_op_first_input:
+    #                 post_op_first_input = post_op_first_input.replace('[updated]', '')
+    #             if post_op_first_input == pre_op_return_name:
+    #                 temp_name = synapse_name[i-1]+'_' + str(i-1)
+    #                 syn_ops[i-1][0] = temp_name
+    #                 syn_ops[i][2] = temp_name
+    #     return syn_ops
+
+    def decode_syn_op(self, syn_cls, synapse_name):
+        if len(synapse_name) > 1:
+            for i in range(1, len(synapse_name)):
+                pre_op_return_name = syn_cls[i - 1]._syn_operations[-1][0]  # 前一个突触最后一条操作的返回名
+                post_op_first_input = syn_cls[i]._syn_operations[0][2]   # 后一个突触第一条操作的第一个输入名
                 if '[updated]' in post_op_first_input:
                     post_op_first_input = post_op_first_input.replace('[updated]', '')
                 if post_op_first_input == pre_op_return_name:
                     temp_name = synapse_name[i-1]+'_' + str(i-1)
-                    syn_ops[i-1][0] = temp_name
-                    syn_ops[i][2] = temp_name
+                    syn_cls[i - 1]._syn_operations[-1][0] = temp_name
+                    syn_cls[i]._syn_operations[0][2] = temp_name
+        syn_ops = []
+        for cls in syn_cls:
+            for op in cls._syn_operations:
+                syn_ops.append(op)
         return syn_ops
 
     def decode_initializer(self, initial):
@@ -763,13 +794,17 @@ class Connection(Projection):
 
     def build(self, backend):
         '''
-        add the connection variable, variable name and opperation to the backend.
+        add the connection variable, variable name and operation to the backend.
         '''
 
         self._backend = backend
         # Add weight
+        self.assigned_weight = False
+        self.assigned_bias = False
+        prefer_device=self.prefer_device if self.prefer_device != None else None
 
         self.set_delay(self.pre, self.post)
+
 
         for (key, value) in self._variables.items():
             var_name = self.add_conn_label(key)
@@ -788,42 +823,55 @@ class Connection(Projection):
                 shape = ()
 
             if 'weight' in key:
-                self.variable_to_backend(name=var_name, shape=self.shape, value=value, is_parameter=self.is_parameter,
-                                         is_sparse=self.is_sparse, init=self.w_init,
-                                         init_param=self.w_init_param)  # (var_name, shape, value, is_parameter, is_sparse, init)
+                if self.assigned_weight is False:
+                    self.assigned_weight = True
+                else:
+                    raise ValueError("connection have multiple weight variable")
+                if self.weight_quantization:
+                    value = self.quantize_weight(value)
+                self.weight = self.variable_to_backend(name=var_name, shape=self.shape, value=value, is_parameter=self.is_parameter,
+                                         is_sparse=self.is_sparse, init=self.w_init, init_param=self.w_init_param, prefer_device=prefer_device)  # (var_name, shape, value, is_parameter, is_sparse, init)
             elif 'bias' in key:
-                self.variable_to_backend(name=var_name, shape=value.shape, value=value, is_parameter=self.is_parameter,
-                                         init=self.b_init, init_param=self.b_init_param)
+                if self.assigned_bias is False:
+                    self.assigned_bias = True
+                else:
+                    raise ValueError("connection have multiple bias variable")
+                self.bias = self.variable_to_backend(name=var_name, shape=value.shape, value=value, is_parameter=self.is_parameter,
+                                         init=self.b_init, init_param=self.b_init_param, prefer_device=prefer_device)
+            elif hasattr(value, 'requires_grad'):
+                self.variable_to_backend(var_name, shape=value.shape, value=value, is_parameter=value.requires_grad,
+                                         prefer_device=prefer_device)
             else:
-                self.variable_to_backend(var_name, shape, value=value)
-            # del[self._variables[key]]
+                self.variable_to_backend(var_name, shape, value=value, prefer_device=prefer_device)
             # self._var_names.append(var_name)
             # self._var_dict[var_name] = VariableAgent(backend, var_name)
 
         for (key, value) in self._constant_variables.items():
             var_name = self.add_conn_label(key)
-            self.variable_to_backend(name=var_name, shape=None, value=value, is_constant=True)
+            self.variable_to_backend(name=var_name, shape=None, value=value, is_constant=True, prefer_device=prefer_device)
 
         weight_name = self.get_link_name(self.pre, self.post, 'weight')
         if self.sparse_with_mask:
             mask = (self.weight != 0)
             mask_name = self.get_link_name(self.pre, self.post, 'mask')
-            self.variable_to_backend(mask_name, self.shape, mask)
-            self.init_op_to_backend(weight_name, self.mask_operation, [weight_name, mask_name])
+            self.variable_to_backend(mask_name, self.shape, mask, prefer_device=prefer_device)
+            self.init_op_to_backend(weight_name, self.mask_operation, [weight_name, mask_name], prefer_device)
+            # del self.sparse_with_mask
 
-
+        # del self.weight
         if (self.w_min is not None) or (self.w_max is not None):
-            self.init_op_to_backend(None, self.clamp_weight, [weight_name])
+            self.init_op_to_backend(None, self.clamp_weight, [weight_name], prefer_device)
 
+        # TODO: 这里input 和 output的 name 默认没有加label,同时都加上conn的label是不是过于局限了？
         for op in self._operations:
             addcode_op = Op(owner=self)
-            addcode_op.func = op[1]
+            addcode_op.func_name = op[1]
             addcode_op.output = self.add_conn_label(op[0])
             if len(op) > 3:  # 为了解决历史的单一list格式的问题
                 addcode_op.input = self.add_conn_label(op[2:])
             else:
                 addcode_op.input = self.add_conn_label(op[2])
-
+            addcode_op.place = prefer_device
             # if len(op) > 3:
             #     addcode_op[2] = addcode_op[2:]
             #     addcode_op = addcode_op[:3]
@@ -840,9 +888,14 @@ class Connection(Projection):
                 addcode_op[2] = addcode_op[2:]
                 addcode_op = addcode_op[:3]
 
-            self.init_op_to_backend(addcode_op[0], addcode_op[1], addcode_op[2])
+            self.init_op_to_backend(addcode_op[0], addcode_op[1], addcode_op[2], self.prefer_device)
 
-        syn_ops = []
+        # the initialzation of synapse with forward_build kwarg can be read
+        if backend.forward_build:
+            self.updated_input = True
+        else:
+            self.updated_input = False
+        # syn_ops = []
         for i in range(len(self.synapse_class)):
             if self.synapse_class[i] is not None:
                 self.synapse.append(self.synapse_class[i](self, **self.syn_kwargs))
@@ -860,21 +913,23 @@ class Connection(Projection):
                 tau_value = np.exp(-dt / value)
                 # 暂时只考虑scalar值
                 self.variable_to_backend(key, shape=[1, ], value=tau_value)
-            for op in self.synapse[i]._syn_operations:
-                syn_ops.append(op)
+            # for op in self.synapse[i]._syn_operations:
+            #     syn_ops.append(op)
 
         #toDO: make sure synapse with multiple ops
         # if 'basic' in self.synapse_name:
-        syn_ops = self.decode_syn_op(syn_ops, self.synapse_name, len(syn_ops))
+        # syn_ops = self.decode_syn_op(syn_ops, self.synapse_name, len(syn_ops))
+        syn_ops = self.decode_syn_op(self.synapse, self.synapse_name)
 
         for sop in syn_ops:
             addcode_op = Op(owner=self)
-            addcode_op.func = sop[1]
+            addcode_op.func_name = sop[1]
             addcode_op.output = self.add_conn_label(sop[0])
             if len(sop) > 3:  # 为了解决历史的单一list格式的问题
                 addcode_op.input = self.add_conn_label(sop[2:])
             else:
                 addcode_op.input = self.add_conn_label(sop[2])
+            addcode_op.place = prefer_device
             backend.add_operation(addcode_op)
 
     @abstractmethod

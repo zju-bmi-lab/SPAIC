@@ -126,7 +126,7 @@ class ExampleNet(spaic.Network):
         
         
         # Create an input node and select the input encoding method
-        self.input = spaic.Node(dataloader, encoding='latency')
+        self.input = spaic.Encoder(dataloader, encoding='latency')
               
         # Establish neurongroups, select neuron types, and set neuron parameter values
         self.layer1 = spaic.NeuronGroup(100, model='clif')
@@ -137,7 +137,7 @@ class ExampleNet(spaic.Network):
         self.connection2 = spaic.Connection(self.layer1, self.layer2, link_type='full')
         
         # Create an output node and select the output decoding method
-        self.output = spaic.Node(decoding='spike_counts',target=self.layer2)
+        self.output = spaic.Decoder(decoding='spike_counts',target=self.layer2)
 
         # Establish a state detector, which can monitor the state of various objects
         self.monitor1 = spaic.StateMonitor(self.layer1, 'V')
@@ -162,7 +162,7 @@ Net = spaic.Network()
 # Create a network structure by defining network components in with
 with Net:
     # Create an input node and select the input encoding method
-    input1 = spaic.Node(dataloader, encoding='latency')
+    input = spaic.Encoder(dataloader, encoding='latency')
 
 
     # Establish neurongroups, select neuron types, and set neuron parameter values
@@ -174,7 +174,7 @@ with Net:
     connection2 = spaic.Connection(layer1, layer2, link_type='full')
 
     # Create an output node and select the output decoding method
-    output1 = spaic.Node(decoding='spike_counts',target=layer2)
+    output = spaic.Decoder(decoding='spike_counts',target=layer2)
 
     # Establish a state detector, which can monitor the state of various objects
     monitor1 = spaic.StateMonitor(layer1, 'V')
