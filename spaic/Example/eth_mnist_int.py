@@ -114,24 +114,11 @@ class DiehlAndCook2015Int(spaic.Network):
         self.exc_layer = spaic.NeuronGroup(n_neurons, model='diehlAndCook')
         self.inh_layer = spaic.NeuronGroup(n_neurons, model='lifint')
 
-        # decoding
-        # self.output = spaic.Decoder(num=n_neurons, dec_target=self.exc_layer, coding_method='spike_counts')
-
         # Connection
         self.connection1 = spaic.Connection(self.input, self.exc_layer, link_type='full',
-                                            # weight=torch.load(r'D:\Projects\SPAIC\spaic\Example\w.pt').contiguous(),
                                             weight=np.random.randint(0, wmax_initial, (n_neurons, n_inpt)),
                                             w_min=wmin, w_max=wmax, is_parameter=False)
-        # self.connection2 = spaic.Connection(self.exc_layer, self.inh_layer, link_type='full',
-        #                                     weight=w_exc_inh * torch.ones(n_neurons, n_neurons, dtype=torch.int32),
-        #                                     # weight=(np.diag(np.ones(n_neurons))) * w_exc_inh,
-        #                                     w_min=w_exc_inh, w_max=w_exc_inh, is_parameter=False)
-        # self.connection3 = spaic.Connection(self.inh_layer, self.exc_layer, link_type='full',
-        #                                     # weight=w_inh_exc*(np.ones((n_neurons, n_neurons)) - np.diag(np.ones(n_neurons))),
-        #                                     weight=w_inh_exc * (
-        #                                             -torch.ones(n_neurons, n_neurons, dtype=torch.int32)
-        #                                     ),
-        #                                     w_min=w_inh_exc, w_max=w_inh_exc, is_parameter=False)
+
         self.connection2 = spaic.Connection(self.exc_layer, self.inh_layer, link_type='full',
                                             weight=np.diag(np.ones(n_neurons)) * w_exc_inh,
                                             w_min=0, w_max=w_exc_inh, is_parameter=False)
