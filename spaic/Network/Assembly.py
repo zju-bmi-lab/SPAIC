@@ -686,7 +686,7 @@ class Assembly(BaseModule):
         Returns:
             String representations
         """
-
+        import numpy as np
         level_space = "" + '-'*level
         repr_str = level_space + "|name:{}, type:{}, ".format(self.name, type(self).__name__)
         repr_str += "total_neuron_num:{}\n ".format(self.num)
@@ -696,7 +696,11 @@ class Assembly(BaseModule):
             repr_str += g.get_str(level)
         for c in self._connections.values():
             repr_str += c.get_str(level)
-            self.synapse_num = self.synapse_num + c.weight.size
+            if hasattr(c, 'weight'):
+                if isinstance(c.weight, np.ndarray):
+                    self.synapse_num = self.synapse_num + c.weight.size
+                else:
+                    self.synapse_num = self.synapse_num + c.weight.value.size().numel()
         for p in self._projections.values():
             repr_str += p.get_str(level)
         return repr_str

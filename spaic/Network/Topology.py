@@ -664,7 +664,12 @@ class Connection(Projection):
         repr_str = level_space + "|name:{}, type:{}, ".format(self.name, type(self).__name__)
         repr_str += "pre:{}, ".format(self.pre.name)
         repr_str += "post:{}, ".format(self.post.name)
-        repr_str += "total_synapse_num:{}\n ".format(self.weight.size)
+        if hasattr(self, 'weight'):
+            if isinstance(self.weight, np.ndarray):
+                repr_str += "total_synapse_num:{}\n ".format(self.weight.size)
+            else:
+                repr_str += "total_synapse_num:{}\n ".format(self.weight.value.size().numel())
+
         # for c in self._connections.values():
         #     repr_str += c.get_str(level)
         return repr_str
