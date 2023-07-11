@@ -127,7 +127,7 @@ class DiehlAndCook2015Int(spaic.Network):
                                             w_min=w_inh_exc, w_max=0, is_parameter=False)
 
         # Learner
-        self._learner = Learner(algorithm='postpreint', trainable=self.connection1)
+        self._learner = Learner(algorithm='postpreintstdp', trainable=self.connection1)
 
         # Minitor
         self.mon_weight = spaic.StateMonitor(self.connection1, 'weight', nbatch=-1)

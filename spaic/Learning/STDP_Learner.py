@@ -360,7 +360,7 @@ class Meta_nearest_online_STDP(Base_STDP):
 Learner.register("meta_nearest_online_stdp", Meta_nearest_online_STDP)
 
 
-class PostPreInt(Base_STDP):
+class PostPreIntSTDP(Base_STDP):
     # language=rst
     """
     Simple STDP rule involving both pre- and post-synaptic spiking activity, based on integer
@@ -368,7 +368,7 @@ class PostPreInt(Base_STDP):
     positive.
     """
     def __init__(self, trainable=None, *args, **kwargs):
-        super(PostPreInt, self).__init__(trainable=trainable)
+        super(PostPreIntSTDP, self).__init__(trainable=trainable)
         self.prefered_backend = ['pytorch']
         self.name = 'postpreint'
         self._constant_variables = dict()
@@ -427,7 +427,7 @@ class PostPreInt(Base_STDP):
         return input_trace, output_trace, weight
 
     def build(self, backend):
-        super(PostPreInt, self).build(backend)
+        super(PostPreIntSTDP, self).build(backend)
         self.dt = backend.dt
 
         for (key, var) in self._constant_variables.items():
@@ -474,4 +474,4 @@ class PostPreInt(Base_STDP):
                                 output_trace_name, 'trace_decay', 'trace_scale',
                                 'shift_spike_trace', 'max_threshold', post_thresh_name, weight_name])
 
-Learner.register('postpreint', PostPreInt)
+Learner.register('postpreintstdp', PostPreIntSTDP)
