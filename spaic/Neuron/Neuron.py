@@ -587,6 +587,32 @@ class IFModel(NeuronModel):
 
 NeuronModel.register("if", IFModel)
 
+class IFSoftModel(NeuronModel):
+    """
+    IF model:
+    V(t) = V(t-1) * (1 - O(t-1)) + Isyn[t] - ConstantDecay
+
+    O^n[t] = spike_func(V^n[t-1])
+    """
+
+    def __init__(self, **kwargs):
+        super(IFSoftModel, self).__init__()
+
+        self._variables['O'] = 0.0
+        self._variables['V'] = 0.0
+        self._variables['Isyn'] = 0.0
+
+        self._constant_variables['ConstantDecay'] = kwargs.get('ConstantDecay', 0.0)
+        self._constant_variables['Vth'] = kwargs.get('v_th', 1.0)
+
+        self._operations.append(('Vtemp', 'add', 'V', 'Isyn[updated]'))
+        self._operations.append(('Vtemp1', 'minus', 'Vtemp', 'ConstantDecay'))
+        self._operations.append(('O', 'threshold', 'Vtemp1', 'Vth'))
+        self._operations.append(('Resetting', 'var_mult', 'Vtemp1', 'O[updated]'))
+        self._operations.append(('V', 'minus', 'Vtemp1', 'Resetting'))
+
+NeuronModel.register("ifsoftreset", IFSoftModel)
+
 class IFBModel(NeuronModel):
     """
     IF model:
