@@ -366,7 +366,8 @@ class Torch_Backend(Backend):
             xshape[0] = xshape[0] * xshape[1]
             extend_size = xshape[1]
             xshape.pop(1)
-            out = fn.conv2d(x.reshape(xshape), kernel, bias=bias, stride=stride, padding=padding, dilation=dilation, groups=groups,
+            out = fn.conv2d(x.reshape(xshape), kernel, bias=bias, stride=stride, padding=padding, dilation=dilation,
+                            groups=groups,
                             padding_mode=padding_mode)
             outshape = list(out.shape)
             outshape[0] = outshape[0] // extend_size
@@ -457,8 +458,8 @@ class Torch_Backend(Backend):
         return x.view(x.shape[0], -1)
 
     def add(self, x, y):
-        return x + y
 
+        return x + y
 
     def minus(self, x, y):
         return x - y

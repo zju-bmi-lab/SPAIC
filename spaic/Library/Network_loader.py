@@ -56,7 +56,7 @@ def network_load(filename=None, path=None, device='cpu', load_weight=True):
         # filedir = path + filename
     file = filename.split('.')[0]
     origin_path = os.getcwd()
-    os.chdir(path+'/'+file)
+    os.chdir(path + '/' + file)
     if os.path.exists(filename):
         with open(filename, 'r') as f:
             data = f.read()
@@ -66,16 +66,16 @@ def network_load(filename=None, path=None, device='cpu', load_weight=True):
                 data = yaml.load(data, Loader=yaml.FullLoader)
 
     else:
-        if os.path.exists(filename+'.yml'):
-            with open(filename+'.yml', 'r') as f:
+        if os.path.exists(filename + '.yml'):
+            with open(filename + '.yml', 'r') as f:
                 data = yaml.load(f, Loader=yaml.FullLoader)
 
-        elif os.path.exists(filename+'.json'):
-            with open(filename+'.json', 'r') as f:
+        elif os.path.exists(filename + '.json'):
+            with open(filename + '.json', 'r') as f:
                 data = json.load(f)
 
-        elif os.path.exists(filename+'.txt'):
-            with open(filename+'.txt', 'r') as f:
+        elif os.path.exists(filename + '.txt'):
+            with open(filename + '.txt', 'r') as f:
                 data = f.read()
                 if data.startswith('{'):
                     data = json.loads(data)
@@ -124,12 +124,14 @@ class ReloadedNetwork(Network):
                 'STCA', 0.5)
 
     '''
+
     def __init__(self, net_data: dict, backend=None, device='cpu', load_weight=True, data_type=None):
         super(ReloadedNetwork, self).__init__()
 
         self.device = device
         self.name = list(net_data)[0]
-        self._backend_info = []
+        self._backend_info = dict()
+        self._diff_para = dict()
 
         self.load_net(net_data)
 
@@ -150,6 +152,12 @@ class ReloadedNetwork(Network):
         '''
         setid = 0
         data = data[list(data)[0]]
+        for g1 in data:
+            if list(g1)[0] == 'backend':
+                self._backend_info = g1[list(g1)[0]]
+                break
+        if 'diff_para_dict' in self._backend_info.keys():
+            self._diff_para = torch.load(self._backend_info['diff_para_dict'])
         for g in data:
             if list(g)[0] == 'monitor':
                 monitors = g.get('monitor')
@@ -157,7 +165,7 @@ class ReloadedNetwork(Network):
                     self.load_monitor(monitor)
                 continue
             if list(g)[0] == 'backend':
-                self._backend_info = g[list(g)[0]]
+                # self._backend_info = g[list(g)[0]]
                 continue
             para = g[list(g)[0]]
             if type(para) is dict:
@@ -187,6 +195,7 @@ class ReloadedNetwork(Network):
             else:
                 self.add_assembly(name=list(g)[0], assembly=self.load_assembly(list(g)[0], para))
 
+        del self._diff_para
 
     def load_assembly(self, name, assembly: list):
         target = Assembly(name=name)
@@ -195,19 +204,19 @@ class ReloadedNetwork(Network):
             if para.get('_class_label') == '<neg>':
                 lay_name = para.get('name')
                 target.add_assembly(name=lay_name,
-                                  assembly=self.load_layer(para))
+                                    assembly=self.load_layer(para))
             elif para.get('_class_label') == '<nod>':
                 nod_name = para.get('name')
                 target.add_assembly(name=nod_name,
-                                  assembly=self.load_node(para))
+                                    assembly=self.load_node(para))
             elif para.get('_class_label') == '<con>':
                 con_name = para.get('name')
                 target.add_connection(name=con_name,
-                                    connection=self.load_connection(pnet=target, con=para))
+                                      connection=self.load_connection(pnet=target, con=para))
             elif para.get('_class_label') == '<prj>':
                 prj_name = para.get('name')
                 target.add_projection(name=prj_name,
-                                    projection=self.load_projection(prj=para))
+                                      projection=self.load_projection(prj=para))
         return target
 
     def load_layer(self, layer: dict):
@@ -224,13 +233,17 @@ class ReloadedNetwork(Network):
         # layer.pop('_class_label')
         # parameters = self.trans_para(layer.get('parameters'))
         parameters = layer.get('parameters')
+        for key, value in parameters.items():
+            if isinstance(value, str):
+                if value in self._diff_para.keys():
+                    parameters[key] = self._diff_para[value]
         return_neuron = NeuronGroup(
-            num= layer.get('num', 100),
-            shape= layer.get('shape', [100]),
-            neuron_type     = layer.get('type', 'non_type'),
-            neuron_position = layer.get('position', 'x, y, z'),
-            model= layer.get('model_name', 'clif'),
-            name            = layer.get('name'),
+            num=layer.get('num', 100),
+            shape=layer.get('shape', [100]),
+            neuron_type=layer.get('type', 'non_type'),
+            neuron_position=layer.get('position', 'x, y, z'),
+            model=layer.get('model_name', 'clif'),
+            name=layer.get('name'),
             **parameters
         )
         return_neuron.id = layer.get('id', None)
@@ -278,15 +291,15 @@ class ReloadedNetwork(Network):
 
         # con.pop('weight_path')
         return_conn = Connection(
-            pre              = con.get('pre'),
-            post             = con.get('post'),
-            name             = con.get('name'),
-            link_type        = con.get('link_type', 'full'),
-            syn_type         = con.get('synapse_type', ['basic_synapse']),
-            max_delay        = con.get('max_delay', 0),
-            sparse_with_mask = con.get('sparse_with_mask', False),
-            pre_var_name     = con.get('pre_var_name', 'O'),
-            post_var_name    = con.get('post_var_name', 'WgtSum'),
+            pre=con.get('pre'),
+            post=con.get('post'),
+            name=con.get('name'),
+            link_type=con.get('link_type', 'full'),
+            syn_type=con.get('synapse_type', ['basic_synapse']),
+            max_delay=con.get('max_delay', 0),
+            sparse_with_mask=con.get('sparse_with_mask', False),
+            pre_var_name=con.get('pre_var_name', 'O'),
+            post_var_name=con.get('post_var_name', 'WgtSum'),
             **con.get('parameters')
         )
         return_conn.id = con.get('id', None)
@@ -305,7 +318,7 @@ class ReloadedNetwork(Network):
         '''
         if prj['pre'] in self._groups.keys() and \
                 prj['post'] in self._groups.keys():
-            prj['pre']  = self._groups[prj['pre']]
+            prj['pre'] = self._groups[prj['pre']]
             prj['post'] = self._groups[prj['post']]
         else:
             print("Trans_error")
@@ -315,12 +328,12 @@ class ReloadedNetwork(Network):
         assert not isinstance(prj['post'], str)
 
         this_prj = Projection(
-            pre                  = prj.get('pre'),
-            post                 = prj.get('post'),
-            name                 = prj.get('name'),
-            link_type            = prj.get('link_type', 'full'),
+            pre=prj.get('pre'),
+            post=prj.get('post'),
+            name=prj.get('name'),
+            link_type=prj.get('link_type', 'full'),
             # policies             = prj.get('policies', []),
-            ConnectionParameters = prj.get('ConnectionParameters'),
+            ConnectionParameters=prj.get('ConnectionParameters'),
         )
 
         for conn in prj['conns']:
@@ -330,9 +343,8 @@ class ReloadedNetwork(Network):
                     name=key,
                 )
 
-
         # prj['policies'] = []
-        # from ..Network.ConnectPolicy import IndexConnectPolicy, ExcludedTypePolicy, IncludedTypePolicy
+        # from spaic.Network.ConnectPolicy import IndexConnectPolicy, ExcludedTypePolicy, IncludedTypePolicy
         # policy_dict = {'Included_policy': IncludedTypePolicy,
         #                'Excluded_policy': ExcludedTypePolicy}
         #
@@ -366,25 +378,25 @@ class ReloadedNetwork(Network):
 
         if node.get('kind') == '<decoder>':
             return_node = Node_dict[node.get('kind')](
-                num             = node.get('num'),
-                dec_target      = self._groups.get(node.get('dec_target', None), None),
-                dt              = node.get('dt', 0.1),
+                num=node.get('num'),
+                dec_target=self._groups.get(node.get('dec_target', None), None),
+                dt=node.get('dt', 0.1),
                 # time            = node.get('time'),
-                coding_method   = node.get('coding_method', 'poisson'),
-                coding_var_name = node.get('coding_var_name', 'O'),
-                node_type       = node.get('type', None),
+                coding_method=node.get('coding_method', 'poisson'),
+                coding_var_name=node.get('coding_var_name', 'O'),
+                node_type=node.get('type', None),
                 **node.get('coding_param')
             )
         else:
             return_node = Node_dict[node.get('kind')](
-                shape           = node.get('shape', None),
-                num             = node.get('num'),
-                dec_target      = self._groups.get(node.get('dec_target', None), None),
-                dt              = node.get('dt', 0.1),
+                shape=node.get('shape', None),
+                num=node.get('num'),
+                dec_target=self._groups.get(node.get('dec_target', None), None),
+                dt=node.get('dt', 0.1),
                 # time            = node.get('time'),
-                coding_method   = node.get('coding_method', 'poisson'),
-                coding_var_name = node.get('coding_var_name', 'O'),
-                node_type       = node.get('type', None),
+                coding_method=node.get('coding_method', 'poisson'),
+                coding_var_name=node.get('coding_var_name', 'O'),
+                node_type=node.get('type', None),
                 **node.get('coding_param')
             )
         return_node.id = node.get('id', None)
@@ -450,8 +462,8 @@ class ReloadedNetwork(Network):
         if '<net>' in learner['trainable']:  ## If self in net, use the whole net as the trainable target.
             learner.pop('trainable')
             builded_learner = Learner(
-                algorithm = learner.get('algorithm'),
-                trainable = self,
+                algorithm=learner.get('algorithm'),
+                trainable=self,
                 **learner.get('parameters')
             )
         else:
@@ -464,19 +476,19 @@ class ReloadedNetwork(Network):
             learner.pop('trainable')
             if learner.get('parameters'):
                 builded_learner = Learner(
-                    trainable = trainable_list,
-                    algorithm = learner.get('algorithm'),
+                    trainable=trainable_list,
+                    algorithm=learner.get('algorithm'),
                     **learner.get('parameters')
-                    )
+                )
             else:
                 builded_learner = Learner(
-                    trainable = trainable_list,
-                    algorithm = learner.get('algorithm')
+                    trainable=trainable_list,
+                    algorithm=learner.get('algorithm')
                 )
         if learner.get('optim_name', None):
             builded_learner.set_optimizer(optim_name=learner.get('optim_name'),
-                                      optim_lr=learner.get('optim_lr'),
-                                      **learner.get('optim_para'))
+                                          optim_lr=learner.get('optim_lr'),
+                                          **learner.get('optim_para'))
         if learner.get('lr_schedule_name', None):
             builded_learner.set_schedule(lr_schedule_name=learner.get('lr_schedule_name'),
                                          **learner.get('lr_schedule_para'))
@@ -506,7 +518,7 @@ class ReloadedNetwork(Network):
                     break
 
             self.add_monitor(name=name,
-                                 monitor=monitor_dict[mon.get('monitor_type', 'StateMonitor')](
+                             monitor=monitor_dict[mon.get('monitor_type', 'StateMonitor')](
                                  target=mon['target'],
                                  var_name=mon['var_name'],
                                  dt=mon['dt'],

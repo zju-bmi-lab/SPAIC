@@ -110,6 +110,8 @@ class BaseModule():
         # check if the inputs and outputs variables belongs to this module object, if backend don't have this variable it will be added the module label
         if isinstance(inputs, list):
             for ind, input_name in enumerate(inputs):
+                if '[updated]' in input_name:
+                    input_name = input_name.replace('[updated]', '')
                 if not self._backend.has_variable(input_name):
                     input_name = self._add_label(input_name)
                     inputs[ind] = input_name

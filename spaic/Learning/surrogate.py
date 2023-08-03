@@ -131,6 +131,38 @@ class AtanGrad(SurrogateFunctionBase):
 
 
 '''
+    rectangle surrogate fucntion. 
+'''
+
+
+class rectangle(torch.autograd.Function):
+    '''
+    Here we use the Rectangle surrogate gradient as was done
+    in Yu et al. (2018).
+    '''
+
+    @staticmethod
+    def forward(ctx, input, alpha):
+        ctx.save_for_backward(input, alpha)
+        return input.gt(0).type_as(input)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        input, alpha = ctx.saved_tensors
+        grad_input = grad_output.clone()
+        sur_grad = (torch.abs(input) < alpha).float()
+        return grad_input * sur_grad, None
+
+class RectangleGrad(SurrogateFunctionBase):
+    def __init__(self, alpha=2., requires_grad=True):
+        super().__init__(alpha, requires_grad)
+
+    @staticmethod
+    def firing_func(input, alpha):
+        return rectangle.apply(input, alpha)
+
+
+'''
     gate surrogate fucntion. 
 '''
 
