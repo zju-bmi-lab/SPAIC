@@ -136,6 +136,7 @@ class ReloadedNetwork(Network):
         self.load_net(net_data)
 
         self.load_backend(backend, device=device, load_weight=load_weight, data_type=data_type)
+        self._backend.initial_step()
 
         # self._learner = Learner(algorithm='STCA', lr=0.5, trainable=self)
 

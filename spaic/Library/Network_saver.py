@@ -147,6 +147,8 @@ def trans_net(Net: Assembly, path: str, combine: bool, save: bool, save_weight: 
     if '_learners' in dir(Net):
         for key, g in Net._learners.items():  # translate learners
             result_dict[net_name].append({key: trans_learner(g, key)})
+            # 对网络中的参数进行内部同步
+            g.optim_step()
     # result_dict[net_name].append({'learners':trans_learner(Net._learners)})
 
     if (not combine) and save_weight:
