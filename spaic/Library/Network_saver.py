@@ -18,6 +18,8 @@ from ..Network.Topology import Connection
 from ..Backend.Backend import Backend
 from ..Network.Topology import Projection
 from ..Monitor.Monitor import Monitor
+from ..IO.Initializer import BaseInitializer
+from ..IO import Initializer as Initer
 
 import time
 
@@ -188,16 +190,18 @@ def trans_node(node: Node):
     if node.__dict__['dec_target']:
         para_dict['dec_target'] = node.__dict__['dec_target'].name
 
-    if 'action' in node.__dict__.keys():
-        para_dict['kind'] = 'Action'
-    elif 'reward' in node.__dict__.keys():
-        para_dict['kind'] = 'Reward'
-    elif 'gen_first' in node.__dict__.keys():
-        para_dict['kind'] = 'Generator'
-    elif 'predict' in node.__dict__.keys():
-        para_dict['kind'] = 'Decoder'
-    else:
-        para_dict['kind'] = 'Encoder'
+    para_dict['kind'] = node._node_sub_class
+
+    # if 'action' in node.__dict__.keys():
+    #     para_dict['kind'] = 'Action'
+    # elif 'reward' in node.__dict__.keys():
+    #     para_dict['kind'] = 'Reward'
+    # elif 'gen_first' in node.__dict__.keys():
+    #     para_dict['kind'] = 'Generator'
+    # elif 'predict' in node.__dict__.keys():
+    #     para_dict['kind'] = 'Decoder'
+    # else:
+    #     para_dict['kind'] = 'Encoder'
 
     para_dict['_class_label'] = '<nod>'
     result_dict[node.name] = para_dict
@@ -327,12 +331,15 @@ def trans_connection(connection: Connection, combine: bool, save_weight: bool):
         if key in name_needed:
             para_dict[key] = para.id
         elif key in needed:
+            d_para = para
             if key == 'parameters':
                 if 'weight' in para.keys():
-                    del para['weight']
-            para_dict[key] = check_var_type(para)
+                    del d_para['weight']
+                if 'bias' in para.keys():
+                    d_para['bias'] = trans_bias(d_para['bias'])
+            para_dict[key] = check_var_type(d_para)
     if combine:     # 是否需要在文件中存储weight
-        para_dict['weight'] = check_var_type(connection.weight)
+        para_dict['weight'] = check_var_type(connection.weight.value)
 
     para_dict['_class_label'] = '<con>'
     result_dict[connection.name] = para_dict
@@ -377,11 +384,15 @@ def trans_backend(backend: Backend, save: bool):
     for key in key_parameters_dict:
         if save:
             save_path = sim_path + '/' + key + '.pt'
-            data = backend.__dict__[key]
-            torch.save(data, save_path)
+            result_dict[key] = dict()
+            for parakey in backend.__dict__[key].keys():
+                result_dict[key][parakey] = backend._variables[parakey]
+            # data = backend.__dict__[key]
+            torch.save(result_dict[key], save_path)
             result_dict[key] = './parameters/' + key + '.pt'
         else:
             result_dict = backend._parameter_dict
+            # pass
             # raise ValueError("Wrong save choosen, since parameters can be get from network"
             #                  "unneeded to use network_save function.")
 
@@ -438,7 +449,7 @@ def trans_monitor(monitor: Monitor):
     Returns:
         result(dict): Contain the parameters of learner to be saved.
     """
-    from spaic.Monitor.Monitor import StateMonitor, SpikeMonitor
+    from ..Monitor.Monitor import StateMonitor, SpikeMonitor
     needed = ['var_name', 'index', 'dt', 'get_grad', 'nbatch']
     name, mon = monitor
     result_dict = dict()
@@ -463,6 +474,8 @@ def check_var_type(var):
         if isinstance(var, dict):
             for key, value in var.items():
                 var[key] = check_var_type(value)
+            return var
+        if isinstance(var, str):
             return var
         try:
             var_list = var.tolist()
@@ -497,8 +510,17 @@ def check_var_type(var):
 
 
 
-# def
-
+def trans_bias(para: dict):
+    if isinstance(para, BaseInitializer):
+        n_para = dict()
+        for key in Initer.__all__:
+            if Initer.__dict__[key] == para.__class__:
+                n_para['method'] = key
+                break
+        n_para['para'] = para.__dict__
+        return n_para
+    else:
+        return para
 
 
 

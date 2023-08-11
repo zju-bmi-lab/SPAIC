@@ -19,10 +19,10 @@ Custom connection method need to inherit :code:`Connection` class and modify the
 
 .. code-block:: python
 
-    def __init__(self, pre_assembly, post_assembly, name=None, link_type=('full', 'sparse_connect', 'conv','...'),
+    def __init__(self, pre, post, name=None, link_type=('full', 'sparse_connect', 'conv','...'),
                  syn_type=['basic_synapse'], max_delay=0, sparse_with_mask=False, pre_var_name='O', post_var_name='Isyn',
                  syn_kwargs=None, **kwargs):
-        super(FullConnection, self).__init__(pre_assembly=pre_assembly, post_assembly=post_assembly, name=name,
+        super(FullConnection, self).__init__(pre=pre, post=post, name=name,
                                              link_type=link_type, syn_type=syn_type, max_delay=max_delay,
                                              sparse_with_mask=sparse_with_mask,
                                              pre_var_name=pre_var_name, post_var_name=post_var_name, syn_kwargs=syn_kwargs, **kwargs)

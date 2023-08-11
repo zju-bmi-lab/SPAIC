@@ -46,9 +46,11 @@ In :code:`network_save` :
 
 - **Net** -- the specific network object in **SPAIC**
 - **filename** -- filename, ``network_save`` will save the ``Net`` with this name
+- **path** -- file storage path, a new folder will be created based on the filename if target path doesn't have such folder
 - **trans_format** -- save format, can choose ``json`` or ``yaml`` , default as ``json``
 - **combine** -- this parameters decides whether save the weight and network structure in one file, default as ``False``
 - **save** -- this parameters decides whether save the structure locally, if choose ``True`` , this function will save locally and return the file name. If choose ``False`` , it will only return the structure as a dict.
+- **save_weight** -- this parameters decides whether save the backend information and weights of the model
 
 Then, I will give some example to explain the meaning of saved file:
 
@@ -97,9 +99,9 @@ Then, I will give some example to explain the meaning of saved file:
                 max_delay: 0 # the maximum delay step of this Connection
                 name: connection0 # name of this Connection
                 parameters: {} # parameters of kwargs, like some parameters of convolution connection
-                post_assembly: layer3   # postsynaptic neuron, here is point to Assembly layer3
+                post: layer3   # postsynaptic neuron, here is point to Assembly layer3
                 post_var_name: Isyn   # the output of this synapse, here is 'Isyn', a default value
-                pre_assembly: layer2    # presynaptic neuron, here is point to layer2
+                pre: layer2    # presynaptic neuron, here is point to layer2
                 pre_var_name: O         # input of this synapse, here is 'O', a default value
                 sparse_with_mask: false # whether use mask, details will be explained in chapter 'Basic Structure.Connection'
                 weight: # weight matrix
@@ -115,9 +117,9 @@ Then, I will give some example to explain the meaning of saved file:
             parameters:  # parameters of kwargs, like some parameters of convolution connection, here is the parameter for randomly initializing the weight
                 w_mean: 0.02
                 w_std: 0.05
-            post_assembly: layer1   # postsynaptic neuron, here is point to layer1
+            post: layer1   # postsynaptic neuron, here is point to layer1
             post_var_name: Isyn   # the output of this synapse, here is 'Isyn', a default value
-            pre_assembly: input     # presynaptic neuron, here is point to input node
+            pre: input     # presynaptic neuron, here is point to input node
             pre_var_name: O         # input of this synapse, here is 'O', a default value
             sparse_with_mask: false # whether use mask, details will be explained in chapter 'Basic Structure.Connection'
             weight: # weight matrix

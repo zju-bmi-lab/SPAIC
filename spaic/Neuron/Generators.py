@@ -66,15 +66,16 @@ class Poisson_Generator(Generator):
     def next_stage(self):
         if self.new_input:
             self.get_input()
+            self.shape[0] = self.inp_source.shape[0]
             self.new_input = False
 
         if (self.start_time is None or self.start_time< self.index*self.dt) \
             and (self.end_time is None or self.end_time> self.index*self.dt):
-            spikes = self.weight*torch.rand(self.shape, device=self._backend.device).le(
+            spikes = self.weight*torch.rand(self.shape, device=self._backend.device[0]).le(
                 self.inp_source*self.unit_conversion)
             return spikes.type(self._backend.data_type)
         else:
-            return torch.zeros(0).type(self._backend.data_type)
+            return torch.zeros(self.shape, dtype=self._backend.data_type, device=self._backend.device)
 
 Generator.register('poisson_generator', Poisson_Generator)
 

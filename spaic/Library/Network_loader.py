@@ -13,7 +13,19 @@ Created on 2020/8/17
 import yaml
 import json
 
-import spaic
+from ..Network.Network import Network
+from ..Network.Assembly import Assembly
+from ..Neuron.Neuron import NeuronGroup
+from ..Neuron.Node import Node, Decoder, Encoder, Action, Generator, Reward
+from ..Network.Topology import Connection
+from ..Backend.Backend import Backend
+from ..Backend.Torch_Backend import Torch_Backend
+from ..Learning.Learner import Learner
+from ..Network.Topology import Projection
+from ..Monitor.Monitor import Monitor, StateMonitor, SpikeMonitor
+from ..IO.Initializer import BaseInitializer
+from ..IO import Initializer as Initer
+
 import torch
 
 
@@ -80,7 +92,7 @@ def network_load(filename=None, path=None, device='cpu', load_weight=True):
     return net
 
 
-class ReloadedNetwork(spaic.Network):
+class ReloadedNetwork(Network):
     '''
         The network rebuild from the yaml file.
 
@@ -120,15 +132,10 @@ class ReloadedNetwork(spaic.Network):
         self._backend_info = []
 
         self.load_net(net_data)
-        if backend is None:
-            backend = spaic.Torch_Backend(device)
 
-        self.set_backend(backend)
-        self.set_backend_data_type()
+        self.load_backend(backend, device=device, load_weight=load_weight, data_type=data_type)
+
         # self._learner = Learner(algorithm='STCA', lr=0.5, trainable=self)
-        self.build()
-        if load_weight:
-            self.load_backend(device)
 
         del self._backend_info
 
@@ -182,7 +189,7 @@ class ReloadedNetwork(spaic.Network):
 
 
     def load_assembly(self, name, assembly: list):
-        target = spaic.Assembly(name=name)
+        target = Assembly(name=name)
         for g in assembly:
             para = g[list(g)[0]]
             if para.get('_class_label') == '<neg>':
@@ -217,7 +224,7 @@ class ReloadedNetwork(spaic.Network):
         # layer.pop('_class_label')
         # parameters = self.trans_para(layer.get('parameters'))
         parameters = layer.get('parameters')
-        return_neuron = spaic.NeuronGroup(
+        return_neuron = NeuronGroup(
             num= layer.get('num', 100),
             shape= layer.get('shape', [100]),
             neuron_type     = layer.get('type', 'non_type'),
@@ -229,8 +236,7 @@ class ReloadedNetwork(spaic.Network):
         return_neuron.id = layer.get('id', None)
         return return_neuron
 
-    @staticmethod
-    def load_connection(pnet, con: dict):
+    def load_connection(self, pnet, con: dict):
         '''
             The function for load connections,
 
@@ -241,15 +247,7 @@ class ReloadedNetwork(spaic.Network):
                 Connection with needed parameters.
 
         '''
-        # con.pop('_class_label')
 
-        # if con['pre'] in net._groups.keys() and \
-        #         con['post'] in net._groups.keys():
-        #     con['pre']  = net._groups[con['pre']]
-        #     con['post'] = net._groups[con['post']]
-        # else:
-        #     print("Trans_error")
-        #     print(net._groups.keys())
         if pnet._class_label == '<prj>':
             for pretarget in pnet.pre.get_groups():
                 if con['pre'] == pretarget.id:
@@ -264,11 +262,22 @@ class ReloadedNetwork(spaic.Network):
                 if con['post'] == target.id:
                     con['post'] = target
 
+        for con_tar in ['pre', 'post']:
+            if isinstance(con[con_tar], str):
+                con[con_tar] = self.get_elements()[con[con_tar]] if con[con_tar] in self.get_elements().keys() else None
+
         assert not isinstance(con['pre'], str)
         assert not isinstance(con['post'], str)
 
+        if 'bias' in con['parameters'].keys():
+            bias = con['parameters']['bias']
+            if isinstance(con['parameters']['bias'], dict):
+                if 'method' in con['parameters']['bias'].keys():
+                    method = bias.get('method')
+                    con['parameters']['bias'] = Initer.__dict__[method](**bias.get('para'))
+
         # con.pop('weight_path')
-        return_conn = spaic.Connection(
+        return_conn = Connection(
             pre              = con.get('pre'),
             post             = con.get('post'),
             name             = con.get('name'),
@@ -305,7 +314,7 @@ class ReloadedNetwork(spaic.Network):
         assert not isinstance(prj['pre'], str)
         assert not isinstance(prj['post'], str)
 
-        this_prj = spaic.Projection(
+        this_prj = Projection(
             pre                  = prj.get('pre'),
             post                 = prj.get('post'),
             name                 = prj.get('name'),
@@ -323,7 +332,7 @@ class ReloadedNetwork(spaic.Network):
 
 
         # prj['policies'] = []
-        # from spaic.Network.ConnectPolicy import IndexConnectPolicy, ExcludedTypePolicy, IncludedTypePolicy
+        # from ..Network.ConnectPolicy import IndexConnectPolicy, ExcludedTypePolicy, IncludedTypePolicy
         # policy_dict = {'Included_policy': IncludedTypePolicy,
         #                'Excluded_policy': ExcludedTypePolicy}
         #
@@ -352,10 +361,10 @@ class ReloadedNetwork(spaic.Network):
 
         '''
 
-        Node_dict = {'Decoder': spaic.Decoder, 'Action': spaic.Action, 'Reward': spaic.Reward,
-                     'Generator': spaic.Generator, 'Encoder': spaic.Encoder}
+        Node_dict = {'<decoder>': Decoder, '<action>': Action, '<reward>': Reward,
+                     '<generator>': Generator, '<encoder>': Encoder}
 
-        if node.get('kind') == 'Decoder':
+        if node.get('kind') == '<decoder>':
             return_node = Node_dict[node.get('kind')](
                 num             = node.get('num'),
                 dec_target      = self._groups.get(node.get('dec_target', None), None),
@@ -381,36 +390,36 @@ class ReloadedNetwork(spaic.Network):
         return_node.id = node.get('id', None)
         return return_node
 
-    def load_backend(self, device):
+    def load_backend(self, backend=None, device=None, load_weight=False, data_type=None):
         '''
             The function for load backend parameters.
 
         '''
 
-        # key_parameters_dict = ['_variables', '_parameters_dict', '_InitVariables_dict']
-        key_parameters_dict = ['_parameters_dict']
         key_parameters_list = ['dt', 'runtime', 'time', 'n_time_step']
         typical = ['_graph_var_dicts']
 
-
         import torch
-        # import os
 
+        if backend is None:
+            backend = Torch_Backend(device)
+        self.set_backend(backend)
+        self.set_backend_data_type(data_type=data_type)
         if self._backend_info:
-            # self._backend.data_type
             for key in key_parameters_list:
                 self._backend.__dict__[key] = self._backend_info[key]
+        self.build()
 
-            # for key in key_parameters_dict:
+        if load_weight:
             path = self._backend_info['_parameters_dict']
-            data = torch.load(path)
+            data = torch.load(path, map_location=self._backend.device0)
             for key, value in data.items():
                 # print(key, 'value:', value)
-                self._backend._parameters_dict[key] = value.to(device)
-            # self._backend.data_type = value.dtype
-        # #
-        # for key, value in self._backend.__dict__['_parameters_dict'].items():
-        #     self._backend.__dict__['_variables'][key] = value  # 这些变量的 requires_grad应该都是True
+                if key in self._backend._parameters_dict.keys():
+                    target_device = self._backend._parameters_dict[key].device
+                else:
+                    target_device = self._backend.device0
+                self._backend._parameters_dict[key] = value.to(target_device)
 
         return
 
@@ -430,15 +439,17 @@ class ReloadedNetwork(spaic.Network):
         else:
             if self._backend_info:
                 self._backend.data_type = supported_data_type[self._backend_info['data_type']]
+            else:
+                self._backend.data_type = supported_data_type['torch.float32']
 
     def load_learner(self, learner: dict):
         '''
             The function for load learners' parameters.
 
         '''
-        if '<net>' in learner['trainable']:  ## If self in net, use the whole net as the trainable traget.
+        if '<net>' in learner['trainable']:  ## If self in net, use the whole net as the trainable target.
             learner.pop('trainable')
-            builded_learner = spaic.Learner(
+            builded_learner = Learner(
                 algorithm = learner.get('algorithm'),
                 trainable = self,
                 **learner.get('parameters')
@@ -452,13 +463,13 @@ class ReloadedNetwork(spaic.Network):
                     trainable_list.append(self._connections[trains])
             learner.pop('trainable')
             if learner.get('parameters'):
-                builded_learner = spaic.Learner(
+                builded_learner = Learner(
                     trainable = trainable_list,
                     algorithm = learner.get('algorithm'),
                     **learner.get('parameters')
                     )
             else:
-                builded_learner = spaic.Learner(
+                builded_learner = Learner(
                     trainable = trainable_list,
                     algorithm = learner.get('algorithm')
                 )
@@ -481,8 +492,8 @@ class ReloadedNetwork(spaic.Network):
 
 
         '''
-        monitor_dict = {'StateMonitor': spaic.StateMonitor,
-                        'SpikeMonitor': spaic.SpikeMonitor}
+        monitor_dict = {'StateMonitor': StateMonitor,
+                        'SpikeMonitor': SpikeMonitor}
 
         for name, mon in monitor.items():
             for target in self.get_groups():
@@ -508,5 +519,5 @@ class ReloadedNetwork(spaic.Network):
             for key, value in para.items():
                 para[key] = self.trans_para(value)
         else:
-            para = torch.tensor(para, dtype=torch.float32, device=self.device)
+            para = torch.tensor(para, dtype=torch.float32, device=self.device[0])
         return para

@@ -44,7 +44,8 @@ class nearest_online_STDP(Base_STDP):
         self._constant_variables = dict()
         self._constant_variables['Apost'] = kwargs.get('Apost', 1e-2)
         self._constant_variables['Apre'] = kwargs.get('Apre', 1e-4)
-        self._constant_variables['trace_decay'] = kwargs.get('trace_decay', np.exp(-1/20))
+        self._constant_variables['trace_pre'] = kwargs.get('trace_pre', np.exp(-1/20))
+        self._constant_variables['trace_post'] = kwargs.get('trace_post', np.exp(-1/20))
         self._constant_variables['spike'] = kwargs.get('spike', 1)
         self.lr = kwargs.get('lr', 0.01)
         self.w_norm = 78.4
@@ -62,17 +63,16 @@ class nearest_online_STDP(Base_STDP):
 
         '''
         with torch.no_grad():
+            # weight = weight + dw
             weight.add_(dw)
 
             # if self._backend.n_time_step < self.total_step:
             #     pass
             # else:
-                # for i in range(weight.shape[0]):
-                #     weight[i] = (weight[i] * self.w_norm) / torch.sum(torch.abs(weight[i]))
+            #     for i in range(weight.shape[0]):
+            #         weight[i] = (weight[i] * self.w_norm) / torch.sum(torch.abs(weight[i]))
 
             weight[...] = (self.w_norm * torch.div(weight, torch.sum(torch.abs(weight), 1, keepdim=True)))
-
-
             weight.clamp_(0.0, 1.0)
             return weight
 
@@ -132,11 +132,11 @@ class nearest_online_STDP(Base_STDP):
             # dw = self.Apost * torch.matmul(output_spike.permute(1, 0), input_trace_s) \
             #              - self.Apre * torch.matmul(output_trace_s.permute(1, 0), input_spike)  #
 
-            self.op_to_backend('input_trace_s', 'var_mult', [input_trace_name, 'trace_decay'])
+            self.op_to_backend('input_trace_s', 'var_mult', [input_trace_name, 'trace_pre'])
             self.op_to_backend('input_temp', 'minus', ['spike', pre_name])
             self.op_to_backend(input_trace_name, 'var_linear', ['input_temp', 'input_trace_s', pre_name])
 
-            self.op_to_backend('output_trace_s', 'var_mult', [output_trace_name, 'trace_decay'])
+            self.op_to_backend('output_trace_s', 'var_mult', [output_trace_name, 'trace_post'])
             self.op_to_backend('output_temp', 'minus', ['spike', post_name])
             self.op_to_backend(output_trace_name, 'var_linear', ['output_temp', 'output_trace_s', post_name])
 
@@ -310,11 +310,6 @@ class Meta_nearest_online_STDP(Base_STDP):
                 self.w_mean = self.w_mean - 0.1*Apre * (
                             torch.mean(output_trace, 0) - torch.mean(output_trace)).unsqueeze(1)
                 self.w_mean = self.w_mean*self.aw_mean/torch.mean(self.w_mean)
-            with torch.no_grad():
-                self.w_mean = self.w_mean - 0.1 * Apre * (
-                        torch.mean(output_trace, 0) - torch.mean(output_trace)).unsqueeze(1)
-                self.w_mean = self.w_mean * self.aw_mean / torch.mean(self.w_mean)
-
             soft_clamp = (dw.lt(0)*torch.exp(-0.2/torch.clamp_min(weight-self.w_min, 1.0e-4))
                           + dw.gt(0)*torch.exp(-0.2/torch.clamp_min(self.w_max-weight, 1.0e-4))).detach()
             weight = weight*self.w_mean/(torch.clamp_min(torch.mean(weight, dim=1, keepdim=True), 1e-6)).detach() + dw*soft_clamp

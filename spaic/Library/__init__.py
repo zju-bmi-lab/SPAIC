@@ -9,5 +9,7 @@ Created on 2020/8/11
 文件夹内包含所有预定义的网络结构和模型
 Model Zoo
 """
-import spaic as sf
+# import spaic as sf
 
+from .Network_saver import network_save
+from .Network_loader import network_load

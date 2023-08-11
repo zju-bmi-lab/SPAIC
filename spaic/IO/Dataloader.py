@@ -8,8 +8,9 @@ Created on 2020/8/12
 @description:
 定义数据导入模块
 """
-from ..IO.sampler import *
+from .sampler import *
 import numpy as np
+
 
 # Dataloader class is written by referring to https://github.com/pytorch/pytorch/blob/master/torch/utils/data/dataloader.py.
 class _BaseDatasetFetcher(object):
@@ -22,6 +23,7 @@ class _BaseDatasetFetcher(object):
     def fetch(self, possibly_batched_index):
         raise NotImplementedError()
 
+
 class _MapDatasetFetcher(_BaseDatasetFetcher):
     def __init__(self, dataset, auto_collation, collate_fn, drop_last):
         super(_MapDatasetFetcher, self).__init__(dataset, auto_collation, collate_fn, drop_last)
@@ -33,6 +35,7 @@ class _MapDatasetFetcher(_BaseDatasetFetcher):
             data = self.dataset[possibly_batched_index]
         return self.collate_fn(data)
 
+
 def default_collate(batch):
     # shape of data is [batch_size, *shape]
     data = [item[0] for item in batch]
@@ -41,13 +44,14 @@ def default_collate(batch):
     target = np.array(target)
     return [data, target]
 
-class Dataloader(object):
 
+class Dataloader(object):
     """
     sampler的作用是生成一系列的index
     而batch_sampler则是将sampler生成的indices打包分组，得到一个又一个batch的index
     """
     __initialized = False
+
     def __init__(self, dataset, batch_size=1, shuffle=False,
                  sampler=None, batch_sampler=None, collate_fn=None, drop_last=False):
         self.dataset = dataset
@@ -134,6 +138,7 @@ class Dataloader(object):
     def __len__(self):
         return len(self._index_sampler)
 
+
 class _BaseDataLoaderIter(object):
     def __init__(self, loader: Dataloader):
         self._dataset = loader.dataset
@@ -164,11 +169,13 @@ class _BaseDataLoaderIter(object):
         # but signalling the end is tricky without a non-blocking API
         raise NotImplementedError("{} cannot be pickled", self.__class__.__name__)
 
+
 class _SingleProcessDataLoaderIter(_BaseDataLoaderIter):
     def __init__(self, loader):
         super(_SingleProcessDataLoaderIter, self).__init__(loader)
 
-        self._dataset_fetcher = _MapDatasetFetcher(self._dataset, self._auto_collation, self._collate_fn, self._drop_last)
+        self._dataset_fetcher = _MapDatasetFetcher(self._dataset, self._auto_collation, self._collate_fn,
+                                                   self._drop_last)
 
     def __next__(self):
         index = self._next_index()  # may raise StopIteration
@@ -176,5 +183,3 @@ class _SingleProcessDataLoaderIter(_BaseDataLoaderIter):
         return data
 
     next = __next__
-
-

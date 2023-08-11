@@ -49,7 +49,7 @@ class STBP(Learner):
                 backend: The backend we used to compute.
         '''
         super(STBP, self).build(backend)
-        self.device = backend.device
+        self.device = backend.device0
         if backend.backend_name == 'pytorch':
             import torch
             import math
@@ -78,6 +78,7 @@ class STBP(Learner):
                 ):
                     input, = ctx.saved_tensors
                     grad_input = grad_output.clone()
+                    ctx.alpha = ctx.alpha.to(input)
                     temp = torch.exp(-(input - ctx.thresh) ** 2 / (2 * ctx.alpha)) \
                            / (2 * math.pi * ctx.alpha)
                     result = grad_input * temp.type_as(input)

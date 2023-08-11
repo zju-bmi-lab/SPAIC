@@ -6,7 +6,30 @@ spaic平台仿真训练平台是针对脉冲神经网络开发的网络构建、
 
 依赖包：pytorch, numpy, 
 
-SPAIC平台的教程文档： https://spaic.readthedocs.io/en/latest/index.html
+# 如何安装
+
+最近，SPAIC使用PyTorch作为后端进行计算。如果你想使用CUDA，请确保你已经安装了CUDA版本的PyTorch。
+
+**SPAIC平台的教程文档：** https://spaic.readthedocs.io/en/latest/index.html
+
+**从** [**PyPI**](https://pypi.org/project/SPAIC/) **安装最新的稳定版本:**
+
+```bash
+pip install SPAIC
+```
+
+**从** [**GitHub**](https://github.com/ZhejianglabNCRC/SPAIC) **安装:**
+
+```bash
+git clone https://github.com/ZhejianglabNCRC/SPAIC.git
+cd SPAIC
+python setup.py install
+```
+
+如果在阅读教程文档之后仍旧抱有疑问，欢迎通过邮件与我们取得联系：  
+Chaofei Hong <a href="mailto:hongchf@zhejainglab.com"> hongchf@zhejianglab.com</a>  
+Mengwen Yuan <a href="mailto:yuanmw@zhejianglab.com"> yuanmw@zhejianglab.com</a>  
+Mengxiao Zhang <a href="mailto:mxzhang@zhejianglab.com"> mxzhang@zhejianglab.com</a>  
 
 
 
@@ -90,7 +113,7 @@ class ExampleNet(spaic.Network):
         
         
         # 建立输入节点并选择输入编码形式
-        self.input = spaic.Node(dataloader, encoding='latency')
+        self.input = spaic.Encoder(dataloader, encoding='latency')
               
         # 建立神经元集群，选择神经元类型，并可以设置 放电阈值、膜电压时间常数等神经元参数值
         self.layer1 = spaic.NeuronGroup(100, neuron_model='clif')
@@ -101,7 +124,7 @@ class ExampleNet(spaic.Network):
         self.connection2 = spaic.Connection(self.layer1, self.layer2, link_type='full')
         
         # 建立输出节点，并选择输出解码形式
-        self.output = spaic.Node(decoding='spike_counts',target=self.layer2)
+        self.output = spaic.Decoder(decoding='spike_counts',target=self.layer2)
 
         # 建立状态检测器，可以Monitor神经元、输入输出节点、连接等多种单元的状态量
         self.monitor1 = spaic.StateMonitor(self.layer1, 'V')
@@ -126,7 +149,7 @@ Net = spaic.Network()
 # 通过把网络单元在with内定义，建立网络结构
 with Net:
     # 建立输入节点并选择输入编码形式
-    input1 = spaic.Node(dataloader, encoding='latency')
+    input = spaic.Encoder(dataloader, encoding='latency')
 
 
     # 建立神经元集群，选择神经元类型，并可以设置 放电阈值、膜电压时间常数等神经元参数值
@@ -138,7 +161,7 @@ with Net:
     connection2 = spaic.Connection(layer1, layer2, link_type='full')
 
     # 建立输出节点，并选择输出解码形式
-    output1 = spaic.Node(decoding='spike_counts',target=layer2)
+    output = spaic.Decoder(decoding='spike_counts',target=layer2)
 
     # 建立状态检测器，可以Monitor神经元、输入输出节点、连接等多种单元的状态量
     monitor1 = spaic.StateMonitor(layer1, 'V')
