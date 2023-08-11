@@ -194,30 +194,36 @@ class ReloadedNetwork(Network):
 
                     break
             else:
-                self.add_assembly(name=list(g)[0], assembly=self.load_assembly(list(g)[0], para))
+                self.load_assembly(p_net=self, name=list(g)[0], assembly=para)
+                # self.add_assembly(name=list(g)[0], assembly=self.load_assembly(list(g)[0], para))
 
         del self._diff_para
 
-    def load_assembly(self, name, assembly: list):
+    def load_assembly(self, p_net, name, assembly: list):
         target = Assembly(name=name)
+        p_net.add_assembly(name=name, assembly=target)
         for g in assembly:
             para = g[list(g)[0]]
-            if para.get('_class_label') == '<neg>':
-                lay_name = para.get('name')
-                target.add_assembly(name=lay_name,
-                                    assembly=self.load_layer(para))
-            elif para.get('_class_label') == '<nod>':
-                nod_name = para.get('name')
-                target.add_assembly(name=nod_name,
-                                    assembly=self.load_node(para))
-            elif para.get('_class_label') == '<con>':
-                con_name = para.get('name')
-                target.add_connection(name=con_name,
-                                      connection=self.load_connection(pnet=target, con=para))
-            elif para.get('_class_label') == '<prj>':
-                prj_name = para.get('name')
-                target.add_projection(name=prj_name,
-                                      projection=self.load_projection(prj=para))
+            if type(para) is dict:
+                if para.get('_class_label') == '<neg>':
+                    lay_name = para.get('name')
+                    target.add_assembly(name=lay_name,
+                                        assembly=self.load_layer(para))
+                elif para.get('_class_label') == '<nod>':
+                    nod_name = para.get('name')
+                    target.add_assembly(name=nod_name,
+                                        assembly=self.load_node(para))
+                elif para.get('_class_label') == '<con>':
+                    con_name = para.get('name')
+                    target.add_connection(name=con_name,
+                                          connection=self.load_connection(pnet=target, con=para))
+                elif para.get('_class_label') == '<prj>':
+                    prj_name = para.get('name')
+                    target.add_projection(name=prj_name,
+                                          projection=self.load_projection(prj=para))
+            else:
+                self.load_assembly(p_net=target, name=list(g)[0], assembly=para)
+                # target.add_assembly(name=list(g)[0], assembly=self.load_assembly(list(g)[0], para))
         return target
 
     def load_layer(self, layer: dict):
@@ -280,8 +286,8 @@ class ReloadedNetwork(Network):
             if isinstance(con[con_tar], str):
                 con[con_tar] = self.get_elements()[con[con_tar]] if con[con_tar] in self.get_elements().keys() else None
 
-        assert not isinstance(con['pre'], str)
-        assert not isinstance(con['post'], str)
+        assert (not isinstance(con['pre'], str) and con['pre'])
+        assert (not isinstance(con['post'], str) and con['post'])
 
         if 'bias' in con['parameters'].keys():
             bias = con['parameters']['bias']
@@ -476,6 +482,13 @@ class ReloadedNetwork(Network):
                     trainable_list.append(self._connections[trains])
             learner.pop('trainable')
             if learner.get('parameters'):
+                if learner.get('parameters').get('pathway'):
+                    pathway_target_list = []
+                    for target_id in learner['parameters']['pathway']:
+                        if target_id in self._groups:
+                            pathway_target_list.append(self._groups[target_id])
+                        elif target_id in self._connections:
+                            pathway_target_list.append(self._connections[target_id])
                 builded_learner = Learner(
                     trainable=trainable_list,
                     algorithm=learner.get('algorithm'),

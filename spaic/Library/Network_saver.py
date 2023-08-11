@@ -148,7 +148,13 @@ def trans_net(Net: Assembly, path: str, combine: bool, save: bool, save_weight: 
         for key, g in Net._learners.items():  # translate learners
             result_dict[net_name].append({key: trans_learner(g, key)})
             # 对网络中的参数进行内部同步
-            g.optim_step()
+
+    with torch.no_grad():
+        for key, value in Net._backend._parameters_dict.items():
+            varialbe_value = Net._backend._variables[key]
+            if varialbe_value is not value:
+                value.data = varialbe_value.data
+
     # result_dict[net_name].append({'learners':trans_learner(Net._learners)})
 
     if (not combine) and save_weight:
@@ -440,7 +446,7 @@ def trans_learner(learner, learn_name):
     para_dict = dict()
     trainables = ['trainable_connections', 'trainable_groups', 'trainable_nodes']
     para_dict['trainable'] = []
-    needed = ['name', 'parameters', 'optim_name', 'optim_lr', 'optim_para', 'lr_schedule_name', 'lr_schedule_para']
+    needed = ['name', 'optim_name', 'optim_lr', 'optim_para', 'lr_schedule_name', 'lr_schedule_para']
     para_dict['_class_label'] = '<learner>'
     for key in needed:
         if key in learner.__dict__.keys():
@@ -448,6 +454,15 @@ def trans_learner(learner, learn_name):
             para_dict[key] = check_var_type(para)
                 # if type(para) != torch.Tensor \
                 #     else para.detach().cpu().numpy().tolist()
+    para_dict['parameters'] = dict()
+    for key, value in learner.__dict__['parameters'].items():
+        if key == 'pathway':
+            pathway_id_list = []
+            for pathway_target in value:
+                pathway_id_list.append(pathway_target.id)
+            para_dict['parameters']['pathway'] = pathway_id_list
+        else:
+            para_dict['parameters'][key] = check_var_type(value)
 
     for train_name in trainables:
         for key, train in learner.__dict__[train_name].items():
