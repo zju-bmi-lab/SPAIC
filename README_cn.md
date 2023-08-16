@@ -111,9 +111,8 @@ class ExampleNet(spaic.Network):
      def __init__(self):
         super(ExampleNet, self).__init__()
         
-        
         # 建立输入节点并选择输入编码形式
-        self.input = spaic.Encoder(dataloader, encoding='latency')
+        self.input = spaic.Encoder(num=784, encoding='latency')
               
         # 建立神经元集群，选择神经元类型，并可以设置 放电阈值、膜电压时间常数等神经元参数值
         self.layer1 = spaic.NeuronGroup(100, neuron_model='clif')
@@ -149,7 +148,7 @@ Net = spaic.Network()
 # 通过把网络单元在with内定义，建立网络结构
 with Net:
     # 建立输入节点并选择输入编码形式
-    input = spaic.Encoder(dataloader, encoding='latency')
+    input = spaic.Encoder(num=784, encoding='latency')
 
 
     # 建立神经元集群，选择神经元类型，并可以设置 放电阈值、膜电压时间常数等神经元参数值
