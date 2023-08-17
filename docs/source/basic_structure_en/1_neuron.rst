@@ -68,7 +68,7 @@ CLIF neuron model
     M & = tau\_p * M + I \\
     S & = tau\_q * S + I \\
     E & = tau\_p * E + Vth * O \\
-    O & = spike\_func(V^n)
+    O & = spike\_func(V)
 
 - **tau_p, tau_q** - time constants of synapse, default as 12.0 and 8.0
 - **tau_m** - time constant of neuron membrane potential, default as 20.0
@@ -87,9 +87,8 @@ GLIF neuron model
 - b_s
 - delta_Theta_s
 - k_1, k_2
-- delta_I1, delta_i2
+- delta_I1, delta_I2
 - a_v, b_v
-- tau_p, tau_q
 
 aEIF neuron model
 -------------------------
@@ -156,7 +155,7 @@ HH neuron model
     beta\_n & = 0.125 * exp(-V/80) \\
     alpha\_h & = 0.07 * exp(-V/20) \\
     beta\_h & = 1/(exp((-V+30)/10) + 1) \\
-    O & = spike\_func(V^n)
+    O & = spike\_func(V)
 
 
 - **dt**
@@ -170,7 +169,7 @@ HH neuron model
 - **beta_1, beta_h2, beta_h3**
 - **Vreset**
 - **m, n, h**
-- **V, vth**
+- **V, v_th**
 
 .. image:: ../_static/HH_Appearance.png
 

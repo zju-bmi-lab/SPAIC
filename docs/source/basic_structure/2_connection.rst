@@ -41,7 +41,7 @@
 
 在没有给定权重值，也就是用户没有传入 ``weight`` 的情况下，我们会进行权重的随机生成，这个时候就需要\
 借用到 ``w_mean`` 与 ``w_std`` ，根据标准差与均值生成随机数之后，若用户设定了 ``w_min`` 与 ``w_max`` 则截取在 ``w_min`` \
-与 ``w_max`` 之间的值作为权重，否则则直接将生成的随机数作为权重。
+与 ``w_max`` 之间的值作为权重，否则直接将生成的随机数作为权重。
 
 例如在连接 ``conn1_example`` 中，该连接在建立时将会根据均值为1，标准差为5生成随机权重，并且将小于0.0的权重归为0.0，\
 将大于2.0的权重归为2.0。
@@ -119,16 +119,20 @@
         self.connection1 = spaic.Connection(self.input, self.layer1, link_type='conv', syn_type=['conv'],
                                                 in_channels=1, out_channels=4,
                                                 kernel_size=(3, 3),
-                                                init='uniform',
-                                                init_param={'a':-math.sqrt(1/(9)), 'b':math.sqrt(1/(9))})
+                                                weight=kaiming_uniform(a=math.sqrt(5)),
+                                                bias=uniform(a=-math.sqrt(1 / 9), b=math.sqrt(1 / 9))
+                                                )
 
         self.connection2 = spaic.Connection(self.layer1, self.layer2, link_type='conv', syn_type=['conv'],
                                               in_channels=4, out_channels=8, kernel_size=(3, 3),
-                                              init='uniform', init_param={'a':-math.sqrt(1/(8*9)), 'b':math.sqrt(1/(8*9))})
+                                              weight=kaiming_uniform(a=math.sqrt(5)),
+                                              bias=uniform(a=-math.sqrt(1 / 36), b=math.sqrt(1 / 36))
+                                              )
 
         self.connection3 = spaic.Connection(self.layer2, self.layer3, link_type='full',
                                               syn_type=['flatten', 'basic'],
-                                              init='kaiming_normal', init_param={'a': math.sqrt(5)})
+                                              weight=kaiming_uniform(a=math.sqrt(5))
+                                              )
 
 
 卷积连接的示例2：
@@ -137,19 +141,24 @@
 
         self.conv2 = spaic.Connection(self.layer1, self.layer2, link_type='conv',
                                         syn_type=['conv', 'dropout'], in_channels=128, out_channels=256,
-                                        kernel_size=(3, 3), stride=args.stride, padding=args.padding, init='uniform',
-                                        init_param=(-math.sqrt(1/(128*3*3)), math.sqrt(1/(128*9))), bias=args.bias)
+                                        kernel_size=(3, 3), stride=args.stride, padding=args.padding,
+                                        weight=kaiming_uniform(a=math.sqrt(5)),
+                                        bias=uniform(a=-math.sqrt(1 / 1152), b=math.sqrt(1 / 1152))
+                                        )
         self.conv3 = spaic.Connection(self.layer2, self.layer3, link_type='conv',
                                         syn_type=['conv', 'maxpool', 'dropout'], in_channels=256, out_channels=512,
                                         kernel_size=(3, 3), stride=args.stride, padding=args.padding,
-                                        pool_stride=2, pool_padding=0, init='uniform',
-                                        init_param=(-math.sqrt(1/(256*9)), math.sqrt(1/(256*9))), bias=args.bias)
+                                        pool_stride=2, pool_padding=0,
+                                        weight=kaiming_uniform(a=math.sqrt(5)),
+                                        bias=uniform(a=-math.sqrt(1 / 2304), b=math.sqrt(1 / 2304))
+                                        )
         self.conv4 = spaic.Connection(self.layer3, self.layer4, link_type='conv',
                                         syn_type=['conv', 'maxpool', 'dropout'], in_channels=512, out_channels=1024,
                                         kernel_size=(3, 3), stride=args.stride, padding=args.padding,
-                                        pool_stride=2, pool_padding=0, init='uniform',
-                                        init_param=(-math.sqrt(1/(512*9)), math.sqrt(1/(512*9))),
-                                        syn_kwargs=[], bias=args.bias)
+                                        pool_stride=2, pool_padding=0,
+                                        weight=kaiming_uniform(a=math.sqrt(5)),
+                                        bias=uniform(a=-math.sqrt(1 / 4608), b=math.sqrt(1 / 4608))
+                                        syn_kwargs={'p': 0.6})
 
 
 稀疏连接
