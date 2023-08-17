@@ -489,6 +489,7 @@ class ReloadedNetwork(Network):
                             pathway_target_list.append(self._groups[target_id])
                         elif target_id in self._connections:
                             pathway_target_list.append(self._connections[target_id])
+                    learner['parameters']['pathway'] = pathway_target_list
                 builded_learner = Learner(
                     trainable=trainable_list,
                     algorithm=learner.get('algorithm'),
