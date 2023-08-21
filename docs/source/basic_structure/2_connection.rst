@@ -63,13 +63,13 @@
 
 .. code-block:: python
 
-    self.weight = kwargs.get('weight', None) # 权重，如果不给定权重，连接将采取生成随机权重
-    self.mask = kwargs.get('mask', None) #
+    weight = kwargs.get('weight', None) # 权重，如果不给定权重，连接将采取生成随机权重
     self.w_std = kwargs.get('w_std', 0.05) # 权重的标准差，用于生成随机权重
     self.w_mean = kwargs.get('w_mean', 0.005) # 权重的均值，用于生成随机权重
     self.w_max = kwargs.get('w_max', None) # 权重的最大值，
     self.w_min = kwargs.get('w_min', None) # 权重的最小值，
-
+    
+    bias = kwargs.get('bias', None) # 默认不使用bias，如果想要使用，可以传入Initializer对象或者与输出通道同维自定义向量对bias进行初始化
 一对一连接
 -----------------------
 一对一连接在 **SPAIC** 中分为两种，基本的 ``one_to_one`` 以及稀疏形式的 ``one_to_one_sparse`` ，
@@ -82,10 +82,12 @@
 一对一连接主要包含的重要关键字参数为：
 
 .. code-block:: python
+    weight = kwargs.get('weight', None) # 权重，如果不给定权重，连接将采取生成随机权重
+    self.w_mean = kwargs.get('w_mean', 0.005) # 权重的均值，用于生成随机权重
+    self.w_max = kwargs.get('w_max', None) # 权重的最大值，
+    self.w_min = kwargs.get('w_min', None) # 权重的最小值，
 
-    self.w_std = kwargs.get('w_std', 0.05) # 权重的标准差，用于生成随机权重
-
-
+    bias = kwargs.get('bias', None) # 默认不使用bias，如果想要使用，可以传入Initializer对象或者与输出通道同维自定义向量对bias进行初始化
 卷积连接
 -----------------------
 常见的卷积连接，池化方法可选择的有 :code:`avgpool` 以及 :code:`maxpool` ，这两个池化方法需要在突触类型中传入方可启用。
@@ -104,34 +106,46 @@
         self.w_mean = kwargs.get('w_mean', 0.05) # 权重的均值，用于生成随机权重
         weight = kwargs.get('weight', None) # 权重，如果不给定权重，连接将采取生成随机权重
 
-        self.is_parameter = kwargs.get('is_parameter', True)
-        self.is_sparse = kwargs.get('is_sparse', False)
-        self.mask = kwargs.get('mask', None)
         self.stride = kwargs.get('stride', 1)
         self.padding = kwargs.get('padding', 0)
         self.dilation = kwargs.get('dilation', 1)
         self.groups = kwargs.get('groups', 1)
+        self.upscale = kwargs.get('upscale', None)
+
+        bias = kwargs.get('bias', None) # 默认不使用bias，如果想要使用，可以传入Initializer对象或者与输出通道同维自定义向量对bias进行初始化
+
 
 卷积连接的示例1：
 
 .. code-block:: python
 
+        # 通过Initializer对象初始化 weight 和 bias
         self.connection1 = spaic.Connection(self.input, self.layer1, link_type='conv', syn_type=['conv'],
                                                 in_channels=1, out_channels=4,
                                                 kernel_size=(3, 3),
                                                 weight=kaiming_uniform(a=math.sqrt(5)),
                                                 bias=uniform(a=-math.sqrt(1 / 9), b=math.sqrt(1 / 9))
                                                 )
-
+        # 传入自定义值初始化 weight 和 bias
         self.connection2 = spaic.Connection(self.layer1, self.layer2, link_type='conv', syn_type=['conv'],
                                               in_channels=4, out_channels=8, kernel_size=(3, 3),
-                                              weight=kaiming_uniform(a=math.sqrt(5)),
-                                              bias=uniform(a=-math.sqrt(1 / 36), b=math.sqrt(1 / 36))
+                                              weight=w_std * np.random.randn(out_channels, in_channels, kernel_size[0], kernel_size[1]) + self.w_mean,
+                                              bias=np.empty(out_channels)
                                               )
-
-        self.connection3 = spaic.Connection(self.layer2, self.layer3, link_type='full',
+        # 根据默认的w_std和w_mean随机生成初始化权重
+        self.connection3 = spaic.Connection(self.layer2, self.layer3, link_type='conv', syn_type=['conv'],
+                                              in_channels=8, out_channels=8, kernel_size=(3, 3)
+                                              )
+        # 通过Initializer对象初始化 weight 和 bias
+        self.connection4 = spaic.Connection(self.layer3, self.layer4, link_type='full',
                                               syn_type=['flatten', 'basic'],
-                                              weight=kaiming_uniform(a=math.sqrt(5))
+                                              weight=kaiming_uniform(a=math.sqrt(5)),
+                                              bias=uniform(a=-math.sqrt(1 / layer3_num), b=math.sqrt(1 / layer3_num))
+                                              )
+        # 传入自定义值初始化 weight 和 bias
+        self.connection5 = spaic.Connection(self.layer4, self.layer5, link_type='full',
+                                              weight=w_std * np.random.randn(layer4_num, layer3_num) + self.w_mean,
+                                              bias=np.empty(layer5_num)
                                               )
 
 
