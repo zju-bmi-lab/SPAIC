@@ -68,7 +68,7 @@
     self.w_mean = kwargs.get('w_mean', 0.005) # 权重的均值，用于生成随机权重
     self.w_max = kwargs.get('w_max', None) # 权重的最大值，
     self.w_min = kwargs.get('w_min', None) # 权重的最小值，
-    
+
     bias = kwargs.get('bias', None) # 默认不使用bias，如果想要使用，可以传入Initializer对象或者与输出通道同维自定义向量对bias进行初始化
 一对一连接
 -----------------------
