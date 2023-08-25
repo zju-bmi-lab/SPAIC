@@ -623,7 +623,7 @@ class PLIF2kModel(NeuronModel):
         # self._operations.append(('I', 'var_mult', 'V0', 'Isyn[updated]'))
         self._operations.append(('Mtemp', 'add', 'M', 'Isyn[updated]'))
         self._operations.append(('M', 'var_mult', 'tauM', 'Mtemp'))
-        self._operations.append(('Stemp', 'add', 'S', 'I[updated]'))
+        self._operations.append(('Stemp', 'add', 'S', 'Isyn[updated]'))
         self._operations.append(('S', 'var_mult', 'tauS', 'Stemp'))
         self._operations.append(('PSP', 'minus', 'M[updated]', 'S[updated]'))
         self._operations.append(('Resetting', 'var_mult', 'Vth', 'O'))

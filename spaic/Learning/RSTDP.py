@@ -258,7 +258,7 @@ class RSTDPET(Learner):
             self.op_to_backend('eligibility_trace_temp', 'var_mult', ['tau_e', eligibility_name + '[updated]'])
             self.op_to_backend(eligibility_trace_name, 'var_linear', ['tau_e_trace', eligibility_trace_name, 'eligibility_trace_temp'])
 
-            self.op_to_backend(None, self.weight_update, [weight_name, eligibility_trace_name, reward_name])
+            self.op_to_backend(weight_name, self.weight_update, [weight_name, eligibility_trace_name, reward_name])
 
 Learner.register('rstdpet', RSTDPET)
 
