@@ -62,12 +62,13 @@ Important key parameters of full connection:
 
 .. code-block:: python
 
-    self.weight = kwargs.get('weight', None) # weight, if not given, it will generate randomly
-    self.mask = kwargs.get('mask', None) #
+    weight = kwargs.get('weight', None) # weight, if not given, it will generate randomly
     self.w_std = kwargs.get('w_std', 0.05) # standard deviation of weight, used to generate weight
     self.w_mean = kwargs.get('w_mean', 0.005) # mean value of weight, used to generate weight
     self.w_max = kwargs.get('w_max', None) # maximum value of weight
     self.w_min = kwargs.get('w_min', None) # minimum value of weight
+
+    bias = kwargs.get('bias', None) # If you want to use bias, you can pass in the Initializer object or custom value
 
 One-to-one Connection
 --------------------------------
@@ -81,8 +82,12 @@ There are two kinds of one to one connection in **SPAIC**, the basic ``one_to_on
 Important key parameters of one to one connection:
 
 .. code-block:: python
+    weight = kwargs.get('weight', None) # weight, if not given, it will generate randomly
+    self.w_mean = kwargs.get('w_mean', 0.05) # mean value of weight, used to generate weight
+    self.w_max = kwargs.get('w_max', None) # maximum value of weight
+    self.w_min = kwargs.get('w_min', None) # minimum value of weight
 
-    self.w_std = kwargs.get('w_std', 0.05) # standard deviation of weight, used to generate weight
+    bias = kwargs.get('bias', None) # If you want to use bias, you can pass in the Initializer object or custom value
 
 
 Convolution Connection
@@ -97,38 +102,52 @@ Main connection parameters in convolution connection:
 
 .. code-block:: python
 
-        self.out_channels = kwargs.get('out_channels', 4)  # input channel
-        self.in_channels = kwargs.get('in_channels', 1)    # output channel
+        self.out_channels = kwargs.get('out_channels', None)  # input channel
+        self.in_channels = kwargs.get('in_channels', None)    # output channel
         self.kernel_size = kwargs.get('kernel_size', [3, 3]) # convolution kernel
         self.w_std = kwargs.get('w_std', 0.05) # standard deviation of weight, used to generate weight
         self.w_mean = kwargs.get('w_mean', 0.05) # mean value of weight, used to generate weight
         weight = kwargs.get('weight', None) # weight, if not given, connection will generate randomly
 
-        self.is_parameter = kwargs.get('is_parameter', True)
-        self.is_sparse = kwargs.get('is_sparse', False)
-        self.mask = kwargs.get('mask', None)
         self.stride = kwargs.get('stride', 1)
         self.padding = kwargs.get('padding', 0)
         self.dilation = kwargs.get('dilation', 1)
         self.groups = kwargs.get('groups', 1)
+        self.upscale = kwargs.get('upscale', None)
+
+        bias = kwargs.get('bias', None) # If you want to use bias, you can pass in the Initializer object or custom value
 
 Convolution connection example 1:
 
 .. code-block:: python
-
+        # Initializer objects are used to initialize weight and bias
         self.connection1 = spaic.Connection(self.input, self.layer1, link_type='conv', syn_type=['conv'],
                                                 in_channels=1, out_channels=4,
                                                 kernel_size=(3, 3),
-                                                init='uniform',
-                                                init_param={'a':-math.sqrt(1/(9)), 'b':math.sqrt(1/(9))})
-
+                                                weight=kaiming_uniform(a=math.sqrt(5)),
+                                                bias=uniform(a=-math.sqrt(1 / 9), b=math.sqrt(1 / 9))
+                                                )
+        # custom value are used to initialize weight and bias
         self.connection2 = spaic.Connection(self.layer1, self.layer2, link_type='conv', syn_type=['conv'],
                                               in_channels=4, out_channels=8, kernel_size=(3, 3),
-                                              init='uniform', init_param={'a':-math.sqrt(1/(8*9)), 'b':math.sqrt(1/(8*9))})
-
-        self.connection3 = spaic.Connection(self.layer2, self.layer3, link_type='full',
+                                              weight=w_std * np.random.randn(out_channels, in_channels, kernel_size[0], kernel_size[1]) + self.w_mean,
+                                              bias=np.empty(out_channels)
+                                              )
+        # weight will be randomly generated according to the default w_std and w_mean
+        self.connection3 = spaic.Connection(self.layer2, self.layer3, link_type='conv', syn_type=['conv'],
+                                              in_channels=8, out_channels=8, kernel_size=(3, 3)
+                                              )
+        # Initializer objects are used to initialize weight and bias
+        self.connection4 = spaic.Connection(self.layer3, self.layer4, link_type='full',
                                               syn_type=['flatten', 'basic'],
-                                              init='kaiming_normal', init_param={'a': math.sqrt(5)})
+                                              weight=kaiming_uniform(a=math.sqrt(5)),
+                                              bias=uniform(a=-math.sqrt(1 / layer3_num), b=math.sqrt(1 / layer3_num))
+                                              )
+        # custom value are used to initialize weight and bias
+        self.connection5 = spaic.Connection(self.layer4, self.layer5, link_type='full',
+                                              weight=w_std * np.random.randn(layer4_num, layer3_num) + self.w_mean,
+                                              bias=np.empty(layer5_num)
+                                              )
 
 
 Convolution connection example 2:
@@ -137,19 +156,24 @@ Convolution connection example 2:
 
         self.conv2 = spaic.Connection(self.layer1, self.layer2, link_type='conv',
                                         syn_type=['conv', 'dropout'], in_channels=128, out_channels=256,
-                                        kernel_size=(3, 3), stride=args.stride, padding=args.padding, init='uniform',
-                                        init_param=(-math.sqrt(1/(128*3*3)), math.sqrt(1/(128*9))), bias=args.bias)
+                                        kernel_size=(3, 3), stride=args.stride, padding=args.padding,
+                                        weight=kaiming_uniform(a=math.sqrt(5)),
+                                        bias=uniform(a=-math.sqrt(1 / 1152), b=math.sqrt(1 / 1152))
+                                        )
         self.conv3 = spaic.Connection(self.layer2, self.layer3, link_type='conv',
                                         syn_type=['conv', 'maxpool', 'dropout'], in_channels=256, out_channels=512,
                                         kernel_size=(3, 3), stride=args.stride, padding=args.padding,
-                                        pool_stride=2, pool_padding=0, init='uniform',
-                                        init_param=(-math.sqrt(1/(256*9)), math.sqrt(1/(256*9))), bias=args.bias)
+                                        pool_stride=2, pool_padding=0,
+                                        weight=kaiming_uniform(a=math.sqrt(5)),
+                                        bias=uniform(a=-math.sqrt(1 / 2304), b=math.sqrt(1 / 2304))
+                                        )
         self.conv4 = spaic.Connection(self.layer3, self.layer4, link_type='conv',
                                         syn_type=['conv', 'maxpool', 'dropout'], in_channels=512, out_channels=1024,
                                         kernel_size=(3, 3), stride=args.stride, padding=args.padding,
-                                        pool_stride=2, pool_padding=0, init='uniform',
-                                        init_param=(-math.sqrt(1/(512*9)), math.sqrt(1/(512*9))),
-                                        syn_kwargs=[], bias=args.bias)
+                                        pool_stride=2, pool_padding=0,
+                                        weight=kaiming_uniform(a=math.sqrt(5)),
+                                        bias=uniform(a=-math.sqrt(1 / 4608), b=math.sqrt(1 / 4608))
+                                        syn_kwargs={'p': 0.6})
 
 
 Sparse Connection

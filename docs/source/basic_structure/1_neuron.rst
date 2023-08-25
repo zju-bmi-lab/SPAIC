@@ -18,7 +18,7 @@
 
 在 **SPAIC** 中， ``NeuronGroup`` 是作为网络节点的组成，如同 **PyTorch** 中的layer， **SPAIC** \
 中的每个layer都是一个 ``NeuronGroup`` ，用户需要根据自己的需要指定在这个 ``NeuronGroup`` 中\
-所包含的神经元数量、神经元类型、神经元的位置、神经元类型及与其类型相关的参数等。首先需\
+所包含的神经元数量、神经元类型及与其类型相关的参数等。首先需\
 要的就是导入 ``NeuronGroup`` 库：
 
 .. code-block:: python
@@ -72,7 +72,7 @@ CLIF神经元
     M & = tau\_p * M + I \\
     S & = tau\_q * S + I \\
     E & = tau\_p * E + Vth * O \\
-    O & = spike\_func(V^n)
+    O & = spike\_func(V)
 
 
 - **tau_p, tau_q** - 突触的时间常量，默认为12.0和8.0
@@ -92,21 +92,20 @@ GLIF神经元
 - **b_s**
 - **delta_Theta_s**
 - **k_1, k_2**
-- **delta_I1, delta_i2**
+- **delta_I1, delta_I2**
 - **a_v, b_v**
-- **tau_p, tau_q**
 
 aEIF神经元
 -------------------------
 **aEIF(Adaptive Exponential Integrated-and-Fire Model)** [#f2]_ 神经元公式以及参数:
 
 .. math::
-    V & = V + dt / C * (gL * (EL - V + EXP) - w + I^n[t]) \\
+    V & = V + dt / C * (gL * (EL - V + EXP) - w + I) \\
     w & = w + dt / tau\_w * (a * (V - EL) - w) \\
     EXP & = delta\_t * exp(dv\_th/delta\_t) \\
     dv & = V - EL \\
     dv\_th & = V - Vth \\
-    O & = spike\_func(V^n) \\
+    O & = spike\_func(V) \\
     if\quad V & > 20: \\
     then\quad V & = EL, w = w + b
 
@@ -160,7 +159,7 @@ HH神经元
     beta\_n & = 0.125 * exp(-V/80) \\
     alpha\_h & = 0.07 * exp(-V/20) \\
     beta\_h & = 1/(exp((-V+30)/10) + 1) \\
-    O & = spike\_func(V^n)
+    O & = spike\_func(V)
 
 
 - **dt**
@@ -174,7 +173,7 @@ HH神经元
 - **beta_1, beta_h2, beta_h3**
 - **Vreset**
 - **m, n, h**
-- **V, vth**
+- **V, v_th**
 
 .. image:: ../_static/HH_Appearance.png
 
