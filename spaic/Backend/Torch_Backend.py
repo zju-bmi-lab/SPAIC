@@ -286,12 +286,20 @@ class Torch_Backend(Backend):
                 self._parameters_dict[name].data = value
         else:
             assert name in self._InitVariables_dict
-            assert self._backend._InitVariables_dict[name].shape == value.shape
-            if not isinstance(value, torch.Tensor):
-                value = torch.tensor(value, dtype=self._InitVariables_dict[name].dtype,
-                                     device=self._InitVariables_dict[name].device)
-            with torch.no_grad():
-                self._InitVariables_dict[name].data = value
+            if isinstance(self._InitVariables_dict[name], torch.Tensor):
+                if not isinstance(value, torch.Tensor):
+                    value = torch.tensor(value, dtype=self._InitVariables_dict[name].dtype,
+                                         device=self._InitVariables_dict[name].device)
+                assert self._InitVariables_dict[name].shape == value.shape
+                with torch.no_grad():
+                    self._InitVariables_dict[name].data = value
+                    self._variables[name].data = value
+            elif (type(self._InitVariables_dict[name]) is float) and (type(value) is float):
+                self._InitVariables_dict[name] = value
+                self._variables[name] = value
+            elif (type(self._InitVariables_dict[name]) is int) and (type(value) is int):
+                self._InitVariables_dict[name] = value
+                self._variables[name] = value
 
     # def init_param(self, grad, *init):
     #     if init[0] in self.param_init_operate:
@@ -366,7 +374,8 @@ class Torch_Backend(Backend):
             xshape[0] = xshape[0] * xshape[1]
             extend_size = xshape[1]
             xshape.pop(1)
-            out = fn.conv2d(x.reshape(xshape), kernel, bias=bias, stride=stride, padding=padding, dilation=dilation, groups=groups,
+            out = fn.conv2d(x.reshape(xshape), kernel, bias=bias, stride=stride, padding=padding, dilation=dilation,
+                            groups=groups,
                             padding_mode=padding_mode)
             outshape = list(out.shape)
             outshape[0] = outshape[0] // extend_size
@@ -457,8 +466,8 @@ class Torch_Backend(Backend):
         return x.view(x.shape[0], -1)
 
     def add(self, x, y):
-        return x + y
 
+        return x + y
 
     def minus(self, x, y):
         return x - y

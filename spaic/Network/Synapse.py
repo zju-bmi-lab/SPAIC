@@ -90,6 +90,9 @@ class Basic_synapse(SynapseModel):
                 [conn.post_var_name + '[post]', 'add', post_var_name, 'bias[link]'])
 
 
+
+
+
 # SynapseModel.register('basic_synapse', Basic_synapse)
 SynapseModel.register('basic', Basic_synapse)
 
@@ -124,7 +127,8 @@ class conv_synapse(SynapseModel):
             else:
                 self._syn_operations.append(
                     [conn.post_var_name + '[post]', 'conv_2d', self.input_name, 'weight[link]',
-                     'stride[link]', 'padding[link]', 'dilation[link]', 'groups[link]', 'bias[link]'])  # every time a new parameter will be added to all conditions, that's silly
+                     'stride[link]', 'padding[link]', 'dilation[link]', 'groups[link]',
+                     'bias[link]'])  # every time a new parameter will be added to all conditions, that's silly
         else:
             if conn.post.model_name == 'complex':
                 self._syn_operations.append(
@@ -133,7 +137,8 @@ class conv_synapse(SynapseModel):
             else:
                 self._syn_operations.append(
                     [conn.post_var_name + '[post]', 'conv_2d', self.input_name, 'weight[link]',
-                     'stride[link]', 'padding[link]', 'dilation[link]', 'groups[link]'])  # every time a new parameter will be added to all conditions, that's silly
+                     'stride[link]', 'padding[link]', 'dilation[link]',
+                     'groups[link]'])  # every time a new parameter will be added to all conditions, that's silly
 
 
 # SynapseModel.register('conv_synapse', conv_synapse)

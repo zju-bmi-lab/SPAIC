@@ -407,13 +407,18 @@ class Backend(ABC):
                             agent_outputs.append(self._variable_agent_dict[var_name].new_labeled_agent('update_dict'))
                     else:
                         temp_dict[var_name] = outputs[ind]
-                        if var_name in self._temp_agent_dict:
-                            # raise ValueError("setting value to temp variable multiple times")
-                            pass
-                            # Whether allow duplication of name
-                        else:
-                            agent_outputs.append(VariableAgent(self, var_name, dict_label='temp_dict'))
-                            self._temp_agent_dict[var_name] = agent_outputs[-1]
+                        ### Whether allow duplication of name, choose allow recently.
+                        agent_outputs.append(VariableAgent(self, var_name, dict_label='temp_dict'))
+                        self._temp_agent_dict[var_name] = agent_outputs[-1]
+
+                        ### If not allow duplication of name, use code bellow:
+                        # if var_name in self._temp_agent_dict:
+                        #     # raise ValueError("setting value to temp variable multiple times")
+                        #     pass
+                        #
+                        # else:
+                        #     agent_outputs.append(VariableAgent(self, var_name, dict_label='temp_dict'))
+                        #     self._temp_agent_dict[var_name] = agent_outputs[-1]
 
             # add the operation to built graph
             op.input = agent_inputs

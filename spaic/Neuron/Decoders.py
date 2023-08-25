@@ -98,6 +98,22 @@ class Spike_Counts(Decoder):
 
 Decoder.register('spike_counts', Spike_Counts)
 
+
+class Spike_Rates(Decoder):
+
+    def __init__(self, num=None, dec_target=None, dt=None, coding_method=('poisson', 'spike_counts', '...'), coding_var_name='O', node_type=('excitatory', 'inhibitory', 'pyramidal', '...'), **kwargs):
+        super(Spike_Rates, self).__init__(num, dec_target, dt, coding_method, coding_var_name, node_type, **kwargs)
+
+    def numpy_coding(self, record, target, device):
+        pass
+
+    def torch_coding(self, record, target, device):
+        # the shape of record is (time_step, batch_size, n_neurons)
+        spike_rates = record.sum(0)/self.time_step
+        return spike_rates
+
+Decoder.register('spike_rates', Spike_Rates)
+
 class Final_Step_Voltage(Decoder):
 
     """
