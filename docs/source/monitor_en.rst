@@ -25,12 +25,20 @@ To initialize the monitor, we can specify the following parameters:
 - **get_grad** -- whether to record the gradient, True means the gradient is required, False means not required, the default is False
 - **nbatch** -- whether you need to record the data of multiple batches, True will save the data of multiple runs, False will overwrite the data each time run, the default is False
 
+Common functions to users in both :code:`StateMonitor` and :code:`SpikeMonitor` are:
+
+- **monitor_on** -- Set the monitor to start the recording for current run. The monitor is set to be monitor_on by defualt.
+- **monitor_on** -- Set the monitor to stop recording for current run.
+- **clear** -- Clear all the recorded data in the monitor.
+
+
 The difference between the two monitors is that :code:`StateMonitor` has five property：
 
 - **nbatch_times** -- logging the time step information of all batches, the shape structure of the data is (number of batches, number of time steps)
 - **nbatch_values** -- logging  the monitoring parameters of the target layer of all batches. The shape structure of the data is (batch, neuron, time step, sample in the batch)
 - **times** -- logging the time step information of the current batch, the shape structure of the data is (number of time steps)
-- **values** -- logging  the monitoring parameters of the target layer of the current batch. The shape structure of the data is (the number of samples in this batch, the number of neurons, the number of time steps)
+- **values** -- logging  the monitoring variable of the target layer of the current batch. The shape structure of the data is (the number of samples in this batch, the number of neurons, the number of time steps)
+- **tensor_values** -- logging the original tensor variable of the target layer of the current batch. The shape structure of the data is (the number of samples in this batch, the number of neurons, the number of time steps)
 - **grad** -- logging the gradient of the target variable of the current batch, the shape of the data is the same as the shape of the values
 
 And :code:`SpikeMonitor` has another four property：
@@ -38,7 +46,9 @@ And :code:`SpikeMonitor` has another four property：
 - **spk_index** -- logging  the number of the neuron firing the current batch
 - **spk_times** -- logging  the time information of the current batch of pulses
 - **time** -- logging  information about the time step of the current batch
-- **time_spk_rate** -- logging the spike rate of the target layer for the current batch
+- **time_spk_rate** -- logging the instantaneous spike rate of the target layer for the current batch
+- **spk_rate** -- logging the average spike rate of the target layer for the current batch
+- **spk_count** -- logging each neuron's spike count of the target layer for the current batch
 
 
 Example code:
