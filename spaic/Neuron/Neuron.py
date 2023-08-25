@@ -530,6 +530,111 @@ class CLIFModel(NeuronModel):
 NeuronModel.register("clif", CLIFModel)
 
 
+class CLIF2kModel(NeuronModel):
+    """
+    Current LIF 2-kernel model:
+    V(t) = M(t) − S(t) − E(t)
+    I^n[t] = V0 * Isyn^n[t-1] #sum(w * O^(n-1)[t])
+    M^n[t] = betaM * M^n[t-1] + I^n[t-1]
+    S^n[t] = betaS * S^n[t-1] + I^n[t-1]
+    E^n[t] = betaM * E^n[t-1] + Vth * O^n[t-1]
+    O^n[t] = spike_func(V^n[t-1])
+    """
+
+    def __init__(self, **kwargs):
+        super(CLIF2kModel, self).__init__()
+        # self.neuron_parameters['tau_p'] = kwargs.get('tau_p', 12.0)
+        # self.neuron_parameters['tau_q'] = kwargs.get('tau_q', 8.0)
+        # self.neuron_parameters['tau_m'] = kwargs.get('tau_m', 20.0)
+        # self.neuron_parameters['v_th'] = kwargs.get('v_th', 1.0)
+
+        self._variables['M'] = 0.0
+        self._variables['S'] = 0.0
+        self._variables['E'] = 0.0
+        # self._variables['I_che'] = 0.0
+        # self._variables['I_ele'] = 0.0
+        self._variables['I'] = 0.0
+        self._variables['O'] = 0.0
+        self._variables['V'] = 0.0
+        self._variables['Isyn'] = 0.0
+
+        self._tau_variables['tauM'] = np.asarray(kwargs.get('tau_m', 20.0))  # self.neuron_parameters['tau_m']
+        self._tau_variables['tauS'] = np.asarray(kwargs.get('tau_s', 12.0))  # self.neuron_parameters['tau_s']
+
+        beta = self._tau_variables['tauM'] / self._tau_variables['tauS']
+        V0 = (1 / (beta - 1)) * (beta ** (beta / (beta - 1)))
+        self._parameter_variables['V0'] = V0
+
+        self._constant_variables['Vth'] = kwargs.get('v_th', 1.0)
+
+        # self._operations.append(('I_che', 'var_mult', 'V0', 'WgtSum[updated]'))
+        # self._operations.append(('I', 'add', 'I_che[updated]', 'I_ele'))
+        self._operations.append(('I', 'var_mult', 'V0', 'Isyn[updated]'))
+        self._operations.append(('M', 'var_linear', 'tauM', 'M', 'I[updated]'))
+        self._operations.append(('S', 'var_linear', 'tauS', 'S', 'I[updated]'))
+        self._operations.append(('PSP', 'minus', 'M[updated]', 'S[updated]'))
+        self._operations.append(('V', 'minus', 'PSP', 'E'))
+        self._operations.append(('O', 'threshold', 'V[updated]', 'Vth'))
+        self._operations.append(('Resetting', 'var_mult', 'Vth', 'O[updated]'))
+        self._operations.append(('E', 'var_linear', 'tauM', 'E', 'Resetting'))
+
+NeuronModel.register("clif2k", CLIF2kModel)
+
+
+class PLIF2kModel(NeuronModel):
+    """
+    Current LIF 2-kernel model:
+    V(t) = M(t) − S(t) − E(t)
+    I^n[t] = V0 * Isyn^n[t-1] #sum(w * O^(n-1)[t])
+    M^n[t] = betaM * M^n[t-1] + I^n[t-1]
+    S^n[t] = betaS * S^n[t-1] + I^n[t-1]
+    E^n[t] = betaM * E^n[t-1] + Vth * O^n[t-1]
+    O^n[t] = spike_func(V^n[t-1])
+    """
+
+    def __init__(self, **kwargs):
+        super(PLIF2kModel, self).__init__()
+        # self.neuron_parameters['tau_p'] = kwargs.get('tau_p', 12.0)
+        # self.neuron_parameters['tau_q'] = kwargs.get('tau_q', 8.0)
+        # self.neuron_parameters['tau_m'] = kwargs.get('tau_m', 20.0)
+        # self.neuron_parameters['v_th'] = kwargs.get('v_th', 1.0)
+
+        self._variables['M'] = 0.0
+        self._variables['S'] = 0.0
+        self._variables['E'] = 0.0
+        # self._variables['I_che'] = 0.0
+        # self._variables['I_ele'] = 0.0
+        self._variables['I'] = 0.0
+        self._variables['O'] = 0.0
+        self._variables['V'] = 0.0
+        self._variables['Isyn'] = 0.0
+
+        self._parameter_variables['tauM'] = np.asarray(kwargs.get('tau_m', 0.9))  # self.neuron_parameters['tau_m']
+        self._parameter_variables['tauS'] = np.asarray(kwargs.get('tau_s', 0.6))  # self.neuron_parameters['tau_s']
+
+        # beta = self._tau_variables['tauM'] / self._tau_variables['tauS']
+        # V0 = (1 / (beta - 1)) * (beta ** (beta / (beta - 1)))
+        # self._parameter_variables['V0'] = V0
+
+        self._constant_variables['Vth'] = kwargs.get('v_th', 1.0)
+
+        # self._operations.append(('I_che', 'var_mult', 'V0', 'WgtSum[updated]'))
+        # self._operations.append(('I', 'add', 'I_che[updated]', 'I_ele'))
+        # self._operations.append(('I', 'var_mult', 'V0', 'Isyn[updated]'))
+        self._operations.append(('Mtemp', 'add', 'M', 'Isyn[updated]'))
+        self._operations.append(('M', 'var_mult', 'tauM', 'Mtemp'))
+        self._operations.append(('Stemp', 'add', 'S', 'I[updated]'))
+        self._operations.append(('S', 'var_mult', 'tauS', 'Stemp'))
+        self._operations.append(('PSP', 'minus', 'M[updated]', 'S[updated]'))
+        self._operations.append(('Resetting', 'var_mult', 'Vth', 'O'))
+        self._operations.append(('E', 'var_linear', 'tauM', 'E', 'Resetting'))
+        self._operations.append(('V', 'minus', 'PSP', 'E[updated]'))
+        self._operations.append(('O', 'threshold', 'V[updated]', 'Vth'))
+
+
+NeuronModel.register("pclif", PLIF2kModel)
+
+
 class AdaptiveCLIFModel(NeuronModel):
     """
     Current LIF 3-kernel model:

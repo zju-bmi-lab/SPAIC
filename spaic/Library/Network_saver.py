@@ -149,13 +149,14 @@ def trans_net(Net: Assembly, path: str, combine: bool, save: bool, save_weight: 
             result_dict[net_name].append({key: trans_learner(g, key)})
             # 对网络中的参数进行内部同步
 
-    with torch.no_grad():
-        for key, value in Net._backend._parameters_dict.items():
-            varialbe_value = Net._backend._variables[key]
-            if varialbe_value is not value:
-                value.data = varialbe_value.data
-
     # result_dict[net_name].append({'learners':trans_learner(Net._learners)})
+    with torch.no_grad():
+        if Net._backend:
+            for key, value in Net._backend._parameters_dict.items():
+                varialbe_value = Net._backend._variables[key]
+                if varialbe_value is not value:
+                    value.data = varialbe_value.data
+
 
     if (not combine) and save_weight:
         if Net._backend:
@@ -249,7 +250,10 @@ def trans_layer(layer: NeuronGroup, diff_para_dict=None):
 
     for key, para in layer.__dict__.items():
         if key in needed:
-            para_dict[key] = para
+            if isinstance(para, dict):
+                para_dict[key] = para.copy()
+            else:
+                para_dict[key] = para
             # para_dict[key] = check_var_type(para)
 
     if para_dict['position'] != 'x, y, z':
@@ -385,7 +389,7 @@ def trans_backend(backend: Backend, save: bool, diff_para_dict=None):
     # dt, time, time_step, _graph_var_dicts,
 
     # key_parameters_dict = ['_variables', '_parameters_dict', '_InitVariables_dict']
-    key_parameters_dict = ['_parameters_dict']
+    key_parameters_dict = ['_variables', '_parameters_dict']
     key_parameters_list = ['dt', 'runtime', 'time', 'n_time_step']
 
 

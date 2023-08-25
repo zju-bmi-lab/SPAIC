@@ -188,7 +188,8 @@ class ReloadedNetwork(Network):
                                         projection=self.load_projection(prj=para))
                 elif para.get('_class_label') == '<learner>':
                     learner = self.load_learner(para)
-                    self._learners[para.get('name')] = learner
+                    self.add_learner(para.get('name'), learner)
+                    # self._learners[para.get('name')] = learner
                 else:
                     print('Unknown class label %d' % para['_class_label'])
 
@@ -267,7 +268,6 @@ class ReloadedNetwork(Network):
                 Connection with needed parameters.
 
         '''
-
         if pnet._class_label == '<prj>':
             for pretarget in pnet.pre.get_groups():
                 if con['pre'] == pretarget.id:
@@ -416,6 +416,7 @@ class ReloadedNetwork(Network):
         '''
 
         key_parameters_list = ['dt', 'runtime', 'time', 'n_time_step']
+        key_parameters_dict = ['_variables', '_parameters_dict']
         typical = ['_graph_var_dicts']
 
         import torch
@@ -430,15 +431,20 @@ class ReloadedNetwork(Network):
         self.build()
 
         if load_weight:
-            path = self._backend_info['_parameters_dict']
-            data = torch.load(path, map_location=self._backend.device0)
-            for key, value in data.items():
-                # print(key, 'value:', value)
-                if key in self._backend._parameters_dict.keys():
-                    target_device = self._backend._parameters_dict[key].device
-                else:
-                    target_device = self._backend.device0
-                self._backend._parameters_dict[key] = value.to(target_device)
+            for para_key in key_parameters_dict:
+                path = self._backend_info[para_key]
+                data = torch.load(path, map_location=self._backend.device0)
+                for key, value in data.items():
+                    # print(key, 'value:', value)
+                    if key in self._backend.__dict__[para_key].keys():
+                        if isinstance(self._backend.__dict__[para_key][key], torch.Tensor):
+                            if 'device' in self._backend.__dict__[para_key][key].__dict__.keys():
+                                target_device = self._backend.__dict__[para_key][key].device
+                            else:
+                                target_device = self._backend.device0
+                            self._backend.__dict__[para_key][key] = value.to(target_device)
+                        else:
+                            self._backend.__dict__[para_key][key] = value
 
         return
 
@@ -485,10 +491,17 @@ class ReloadedNetwork(Network):
                 if learner.get('parameters').get('pathway'):
                     pathway_target_list = []
                     for target_id in learner['parameters']['pathway']:
-                        if target_id in self._groups:
-                            pathway_target_list.append(self._groups[target_id])
-                        elif target_id in self._connections:
-                            pathway_target_list.append(self._connections[target_id])
+                        if target_id in self.get_elements():
+                            pathway_target_list.append(self.get_elements()[target_id])
+                        else:
+                            for ctarget_key, ctarget in self._groups.items():
+                                if ctarget.id == target_id:
+                                    pathway_target_list.append(ctarget)
+                                    break
+                            for conn_key, conn in self._connections.items():
+                                if conn.id == target_id:
+                                    pathway_target_list.append(conn)
+                                    break
                     learner['parameters']['pathway'] = pathway_target_list
                 builded_learner = Learner(
                     trainable=trainable_list,

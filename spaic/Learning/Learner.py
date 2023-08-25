@@ -19,7 +19,7 @@ import numpy as np
 
 from ..Backend.Backend import Backend
 from ..Network.Assembly import Assembly
-from ..Network.Topology import Connection
+from ..Network.Topology import Connection, Projection
 from ..Neuron.Neuron import NeuronGroup
 from ..Neuron.Module import Module
 from ..Neuron.Node import Node
@@ -128,6 +128,9 @@ class Learner(BaseModule, ABC):
                     trainable.append(sub_t)
                 for sub_t in target.get_connections():
                     trainable.append(sub_t)
+            elif isinstance(target, Projection):
+                for sub_t in target.get_connections():
+                    trainable.append(sub_t)
             elif isinstance(target, BaseModule):
                 self.trainable_others[target.id] = target
 
@@ -153,6 +156,9 @@ class Learner(BaseModule, ABC):
             elif isinstance(target, Assembly):
                 for sub_t in target.get_groups():
                     pathway.append(sub_t)
+                for sub_t in target.get_connections():
+                    pathway.append(sub_t)
+            elif isinstance(target, Projection):
                 for sub_t in target.get_connections():
                     pathway.append(sub_t)
             elif isinstance(target, BaseModule):
