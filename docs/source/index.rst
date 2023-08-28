@@ -491,6 +491,7 @@ II. 如何从零开始构建一个脉冲神经网络
 .. code-block:: python
 
    self.connection1 = spaic.Connection(self.input, self.layer1, link_type='full')
+   # self.connection1 = spaic.Connection(pre=self.input, post=self.layer1, link_type='full')
 
 2.3 添加学习算法与优化算法
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -510,6 +511,7 @@ II. 如何从零开始构建一个脉冲神经网络
 
    self.mon_V = spaic.StateMonitor(self.layer1, 'V')
    self.spk_O = spaic.SpikeMonitor(self.layer1, 'O')
+   # self.mon_V = spaic.StateMonitor(target=self.layer1, var_name='V')
 
 
 2.5 添加backend
@@ -532,6 +534,8 @@ II. 如何从零开始构建一个脉冲神经网络
    # 方式二：
       self.set_backend('PyTorch', 'cuda')
       self.set_backend_dt(0.1)
+      # self.set_backend(backend='PyTorch', device='cuda')
+      # self.set_backend_dt(dt=0.1)
 
 2.6 整体网络结构
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -555,7 +559,7 @@ II. 如何从零开始构建一个脉冲神经网络
            self.output = spaic.Decoder(num=10, dec_target=self.layer1, coding_method='spike_counts')
 
            # Connection
-           self.connection1 = spaic.Connection(self.input, self.layer1, link_type='full')
+           self.connection1 = spaic.Connection(pre=self.input, post=self.layer1, link_type='full')
 
            # Monitor
            self.mon_V = spaic.StateMonitor(self.layer1, 'V')
@@ -712,13 +716,14 @@ II. 如何从零开始构建一个脉冲神经网络
 
 .. code-block:: python
 
-   save_file = Net.save_state("TestNetwork")
+   save_file = Net.save_state(filename="TestNetwork")
 
 方式二：（同时存储网络结构以及权重）
 
 .. code-block:: python
 
    save_file = network_save(Net, "TestNetwork", trans_format='json')
+   # save_file = network_save(Net=Net, filename="TestNetwork", trans_format='json')
 
 .. note::
 
