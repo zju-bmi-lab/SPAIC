@@ -35,7 +35,7 @@ formats:
 # See https://docs.readthedocs.io/en/stable/guides/reproducible-builds.html
 python:
    install:
-      - requirements: docs/requirements.txt
+      - requirements: requirements.txt
 #   system_packages: true
 
 
