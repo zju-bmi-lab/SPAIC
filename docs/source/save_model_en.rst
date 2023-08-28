@@ -52,6 +52,8 @@ In :code:`network_save` :
 - **save** -- this parameters decides whether save the structure locally, if choose ``True`` , this function will save locally and return the file name. If choose ``False`` , it will only return the structure as a dict.
 - **save_weight** -- this parameters decides whether save the backend information and weights of the model
 
+During the process of storing the parameters of parts of the network, if the parameters of the neurons are passed in as Tensor, the names of these parameters are stored in the storage file and the actual parameters are stored in the diff_para_dict.pt file in the same directory as the weights.
+
 Then, I will give some example to explain the meaning of saved file:
 
 .. code-block:: python

@@ -82,3 +82,4 @@ More details
    3_synaptic
    4_algorithm
    5_encode_decode
+   6_network_en
