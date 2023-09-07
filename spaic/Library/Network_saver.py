@@ -13,6 +13,7 @@ Created on 2020/8/17
 import os
 
 import torch
+import numpy as np
 
 from ..Network.Assembly import Assembly
 from ..Neuron.Neuron import NeuronGroup
@@ -261,7 +262,7 @@ def trans_layer(layer: NeuronGroup, diff_para_dict=None):
     para_dict['_class_label'] = '<neg>'
 
     for para_key in para_dict['parameters']:
-        if isinstance(para_dict['parameters'][para_key], torch.Tensor):
+        if isinstance(para_dict['parameters'][para_key], torch.Tensor) or isinstance(para_dict['parameters'][para_key], np.ndarray):
             para_name = layer.get_labeled_name(para_key)
             diff_para_dict[para_name] = para_dict['parameters'][para_key]
             para_dict['parameters'][para_key] = para_name
