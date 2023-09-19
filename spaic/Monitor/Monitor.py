@@ -437,9 +437,7 @@ class StateMonitor(Monitor):
                         indexed_value = np.moveaxis(indexed_value, -1, 0)
                     self._records.append(indexed_value)
                     self._times.append(self.backend.time)
-
-        else:
-            print(self.backend.time)
+                    
         self._last_step_time = self.backend.time
 
 
