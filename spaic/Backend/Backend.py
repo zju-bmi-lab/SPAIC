@@ -106,6 +106,11 @@ class Backend(ABC):
         self.forward_build = False  # 标识连接间有没有一步delay
 
         self.basic_operate['threshold'] = self.threshold
+        self.basic_operate['bit_and'] = self.bit_and
+        self.basic_operate['quant_clamp'] = self.quant_clamp
+        self.basic_operate['rescale'] = self.rescale
+        self.basic_operate['lshift_with_clamp'] = self.lshift_with_clamp
+        self.basic_operate['lshift_with_rescale'] = self.lshift_with_rescale
         self.basic_operate['reset'] = self.reset
         self.basic_operate['var_linear'] = self.var_linear
         self.basic_operate['mat_linear'] = self.mat_linear
@@ -119,6 +124,7 @@ class Backend(ABC):
         self.basic_operate['sparse_mat_mult_weight'] = self.sparse_mat_mult_weight
         self.basic_operate['var_mult'] = self.var_mult
         self.basic_operate['add'] = self.add
+        self.basic_operate['add_with_clamp'] = self.add_with_clamp
         self.basic_operate['minus'] = self.minus
         self.basic_operate['div'] = self.div
         self.basic_operate['cat'] = self.cat
@@ -126,6 +132,7 @@ class Backend(ABC):
         self.basic_operate['permute'] = self.permute
         self.basic_operate['view'] = self.view
         self.basic_operate['assign'] = self.assign
+        self.basic_operate['if_assign'] = self.if_assign
         self.basic_operate['unsqueeze'] = self.unsqueeze
 
         self.basic_operate['reduce_sum'] = self.reduce_sum
@@ -1162,6 +1169,62 @@ class Backend(ABC):
         '''
 
     @abstractmethod
+    def bit_and(self, x, mask):
+        '''
+        Args:
+            x: input
+            mask: bit mask
+        Returns:
+            x & mask
+        '''
+
+    @abstractmethod
+    def quant_clamp(self, x, num_bits=8):
+        '''
+        Args:
+            x: input data
+            num_bits: quant bits number
+        Returns:
+            clamp(x, -2**(num_bits-1)+1, 2**(num_bits-1)-1)
+        '''
+
+    @abstractmethod
+    def rescale(self, x, n, m=None, num_bits=16):
+        '''
+        Args:
+            x: input data
+            n: quant shift
+            m: quant amount, default ones
+            num_bits: quant bits number
+        Returns:
+            clamp((x * m) >> n, -2**(num_bits-1)+1, 2**(num_bits-1)-1)
+        '''
+
+    @abstractmethod
+    def lshift_with_clamp(self, x, y, num_bits=16):
+        '''
+        Args:
+            x: input data
+            y: shift mount
+            num_bits: quant bits number
+        Returns:
+            clamp(x << y, -2**(num_bits-1)+1, 2**(num_bits-1)-1)
+        '''
+
+    @abstractmethod
+    def lshift_with_rescale(self, x, y, n, m=None, num_bits=16):
+        '''
+        Args:
+            x: input data
+            y: shift mount
+            n: quant shift
+            m: quant amount, default ones
+            num_bits: quant bits number
+        Returns:
+            clamp((x * m) << (y - n), -2**(num_bits-1)+1, 2**(num_bits-1)-1)
+        '''
+
+    @abstractmethod
     def reset(self, v, o):
         '''
 
@@ -1230,6 +1293,10 @@ class Backend(ABC):
         -------
         '''
         return x
+
+    def if_assign(self, condition, x, y):
+        ncondition = self.minus(1,condition)
+        return self.add(self.var_mult(condition, x), self.var_mult(ncondition, y))
 
     @abstractmethod
     def unsqueeze(self, x, dim):
@@ -1373,6 +1440,18 @@ class Backend(ABC):
             y (Tensor or Number): the second input
         Returns:
             x + y
+        '''
+        NotImplementedError()
+
+    @abstractmethod
+    def add_with_clamp(self, x, y, num_bits=16):
+        '''
+        Add the tensor y to the input x and returns a new result with clamp.
+        Args:
+            x (Tensor): input
+            y (Tensor or Number): the second input
+        Returns:
+            clamp(x + y, -2**(num_bits-1)+1, 2**(num_bits-1)-1)
         '''
         NotImplementedError()
 

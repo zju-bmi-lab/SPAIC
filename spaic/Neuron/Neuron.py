@@ -225,8 +225,6 @@ class NeuronGroup(Assembly):
         for (key, var) in self.model._parameter_variables.items():
             t_kwargs = self.add_variable_kwargs(key)
             t_kwargs['is_parameter'] = True
-            t_kwargs['min'] = 0.0
-            t_kwargs['max'] = 1.0
             var = self.sequence_to_tensor(var)
             self.model._parameter_variables[key] = var
             key = self.add_neuron_label(key)

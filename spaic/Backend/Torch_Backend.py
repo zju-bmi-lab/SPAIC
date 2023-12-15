@@ -325,6 +325,29 @@ class Torch_Backend(Backend):
     def threshold(self, x, v_th):
         return torch.gt(x, v_th).type(self.data_type)
 
+    def bit_and(self, x, mask):
+        return torch.bitwise_and(x.type(torch.int), mask.type(torch.int)).type(torch.float32)
+
+    def quant_clamp(self, x, num_bits=8):
+        return torch.clamp(x.round_(), -2**(num_bits-1)+1, 2**(num_bits-1)-1)
+
+    def rescale(self, x, n, m = None, num_bits=16):
+        if m is None:
+            m = torch.ones(n.shape)
+        t = x.type(torch.float64) * m * (2 ** -n)
+        t = t+0.00002*(t>0)-0.00001
+        return torch.clamp(t.round_(), -2**(num_bits-1)+1, 2**(num_bits-1)-1)
+
+    def lshift_with_clamp(self, x, shift, num_bits=16):
+        return torch.clamp(x * (2 ** shift), -2**(num_bits-1)+1, 2**(num_bits-1)-1)
+
+    def lshift_with_rescale(self, x, shift, n, m=None, num_bits=16):
+        if m is None:
+            m = torch.ones(n.shape)
+        t = x.type(torch.float64) * m * (2 ** -(n-shift))
+        t = t+0.00002*(t>0)-0.00001
+        return torch.clamp(t.round_(), -2**(num_bits-1)+1, 2**(num_bits-1)-1)
+
     def reset(self, v, o):
         return o.eq(0) * v
 
@@ -468,6 +491,9 @@ class Torch_Backend(Backend):
     def add(self, x, y):
 
         return x + y
+
+    def add_with_clamp(self, x, y, num_bits=16):
+        return torch.clamp(x + y, -2**(num_bits-1)+1, 2**(num_bits-1)-1)
 
     def minus(self, x, y):
         return x - y
