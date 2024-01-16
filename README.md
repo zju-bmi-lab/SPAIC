@@ -31,7 +31,7 @@ python setup.py install
 If you still have some questions, please feel free to contact us:  
 Chaofei Hong <a href="mailto:hongchf@zhejainglab.com"> hongchf@zhejianglab.com</a>  
 Mengwen Yuan <a href="mailto:yuanmw@zhejianglab.com"> yuanmw@zhejianglab.com</a>  
-Mengxiao Zhang <a href="mailto:mxzhang@zhejianglab.com"> mxzhang@zhejianglab.com</a>  
+Mengxiao Zhang <a href="mailto:mxzhangice@zju.edu.com"> mxzhangice@zju.edu.com</a>  
 
 
 <img src="./docs/source/_static/SPAIC-POSTER.png" style="zoom: 80%;" />
