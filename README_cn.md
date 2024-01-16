@@ -29,7 +29,7 @@ python setup.py install
 如果在阅读教程文档之后仍旧抱有疑问，欢迎通过邮件与我们取得联系：  
 Chaofei Hong <a href="mailto:hongchf@zhejainglab.com"> hongchf@zhejianglab.com</a>  
 Mengwen Yuan <a href="mailto:yuanmw@zhejianglab.com"> yuanmw@zhejianglab.com</a>  
-Mengxiao Zhang <a href="mailto:mxzhang@zhejianglab.com"> mxzhang@zhejianglab.com</a>  
+Mengxiao Zhang <a href="mailto:mxzhangice@zju.edu.com"> mxzhangice@zju.edu.com</a>  
 
 
 
