@@ -135,8 +135,8 @@ class Network(Assembly):
             # 采取单纯的从头递归地build，一旦出现环路会陷入死循环，可以避开固有延迟的问题,
             # Use directly build strategy to avoid inherent delay. But cannot be used on models with loop, will fall in an endless loop.
             # Unfortunately,
-            self.forward_build(all_groups, all_connections)
             self._backend.forward_build = True
+            self.forward_build(all_groups, all_connections)
         # elif strategy == 2:
         #     # 采取策略性构建，但是目前存在两个问题：
         #     #   1. 网络中存在Assembly块时会出现bug，尚未修复
