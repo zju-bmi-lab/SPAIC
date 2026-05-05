@@ -8,7 +8,7 @@
 Welcome to SPAIC's documentation!
 #################################################
 
-`SPAIC <https://github.com/ZhejianglabNCRC/SPAIC>`_ (spike based artificial intelligence computing) \
+`SPAIC <https://github.com/zju-bmi-lab/SPAIC>`_ (spike based artificial intelligence computing) \
 is a brain-inspired computing framework for combining neuroscience with machine learning.
 
 * :ref:`中文首页(Chinese homepage) <index_cn>`
@@ -21,7 +21,7 @@ From GitHub:
 
 .. code-block:: python
 
-   git clone https://github.com/ZhejianglabNCRC/SPAIC.git
+   git clone https://github.com/zju-bmi-lab/SPAIC.git
    cd SPAIC
    python setup.py install
 
@@ -414,7 +414,7 @@ Chaofei Hong: hongchf@zhejianglab.com
 
 Mengwen Yuan: yuanmw@zhejianglab.com
 
-Mengxiao Zhang: mxzhang@zhejianglab.com
+Mengxiao Zhang: mxzhangice@zju.edu.cn
 
 
 .. _index_cn:
@@ -422,7 +422,7 @@ Mengxiao Zhang: mxzhang@zhejianglab.com
 欢迎来到SPAIC的文档网站!
 #################################################
 
-`SPAIC <https://github.com/ZhejianglabNCRC/SPAIC>`_ (spike based artificial intelligence computing) \
+`SPAIC <https://github.com/zju-bmi-lab/SPAIC>`_ (spike based artificial intelligence computing) \
 是一个用于结合神经科学与机器学习的类脑计算框架。
 
 * :ref:`Homepage in English <index_en>`
@@ -435,7 +435,7 @@ I. 如何安装
 
 .. code-block:: python
 
-   git clone https://github.com/ZhejianglabNCRC/SPAIC.git
+   git clone https://github.com/zju-bmi-lab/SPAIC.git
    cd SPAIC
    python setup.py install
 
@@ -816,7 +816,7 @@ II. 如何从零开始构建一个脉冲神经网络
 
 袁孟雯：yuanmw@zhejianglab.com
 
-张梦骁：mxzhang@zhejianglab.com
+张梦骁：mxzhangice@zju.edu.cn
 
 
 文档索引
