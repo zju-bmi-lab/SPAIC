@@ -20,10 +20,10 @@ Recently, SPAIC use PyTorch as backend for computation. If you also want to use 
 pip install SPAIC
 ```
 
-**From** [**GitHub**](https://github.com/ZhejianglabNCRC/SPAIC):
+**From** [**GitHub**](https://github.com/zju-bmi-lab/SPAIC):
 
 ```bash
-git clone https://github.com/ZhejianglabNCRC/SPAIC.git
+git clone https://github.com/zju-bmi-lab/SPAIC.git
 cd SPAIC
 python setup.py install
 ```
