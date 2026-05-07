@@ -18,10 +18,10 @@ spaic平台仿真训练平台是针对脉冲神经网络开发的网络构建、
 pip install SPAIC
 ```
 
-**从** [**GitHub**](https://github.com/ZhejianglabNCRC/SPAIC) **安装:**
+**从** [**GitHub**](https://github.com/zju-bmi-lab/SPAIC) **安装:**
 
 ```bash
-git clone https://github.com/ZhejianglabNCRC/SPAIC.git
+git clone https://github.com/zju-bmi-lab/SPAIC.git
 cd SPAIC
 python setup.py install
 ```
